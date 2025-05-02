@@ -25,7 +25,7 @@ const employeeSchema = z.object({
   name: z.string().min(2, { message: 'Name must be at least 2 characters.' }),
   email: z.string().email({ message: 'Invalid email address.' }).optional().or(z.literal('')), // Optional email
   mobileNumber: z.string().regex(/^\d{10,15}$/, { message: 'Enter a valid mobile number (10-15 digits).' }).optional().or(z.literal('')), // Optional mobile number
-  payMethod: z.enum(['Hourly', 'Other'], { required_error: 'Pay method is required.' }),
+  payMethod: z.literal('Hourly').default('Hourly'),
   payRate: z.coerce.number().positive({ message: 'Pay rate must be a positive number.' }),
   payRateOthers: z.coerce.number().min(0).optional(), // Optional, for 'Other' pay method cash rate
   standardHoursPerPayPeriod: z.coerce.number().min(0, { message: 'Standard hours cannot be negative.' }).optional(), // Optional, required for Hourly
@@ -218,9 +218,8 @@ export function AddEmployeeForm() {
             )}
             />
         </div>
-        {/* Conditional Pay Rate Others */}
-         {payMethod === 'Other' && (
-             <FormField
+      
+            <FormField
                 control={form.control}
                 name="payRateOthers"
                 render={({ field }) => (
@@ -244,7 +243,7 @@ export function AddEmployeeForm() {
                     </FormItem>
                 )}
                 />
-         )}
+         
 
 
          <FormField
