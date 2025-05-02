@@ -1,6 +1,5 @@
 
 "use client";
-
 import * as React from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
@@ -20,44 +19,32 @@ import { useToast } from '@/hooks/use-toast';
 import { Save, UserPlus, Phone } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
+const Hourly = "Hourly" as const;
+
 
 const employeeSchema = z.object({
   name: z.string().min(2, { message: 'Name must be at least 2 characters.' }),
-  email: z.string().email({ message: 'Invalid email address.' }).optional().or(z.literal('')), // Optional email
-  mobileNumber: z.string().regex(/^\d{10,15}$/, { message: 'Enter a valid mobile number (10-15 digits).' }).optional().or(z.literal('')), // Optional mobile number
-  payMethod: z.literal('Hourly').default('Hourly'),
+  email: z.string().email({ message: 'Invalid email address.' }).optional().or(z.literal('')),
+  mobileNumber: z.string().regex(/^\d{10,15}$/, { message: 'Enter a valid mobile number (10-15 digits).' }).optional().or(z.literal('')),
+  payMethod: z.literal(Hourly).default(Hourly),
   payRate: z.coerce.number().positive({ message: 'Pay rate must be a positive number.' }),
-  payRateOthers: z.coerce.number().min(0).optional(), // Optional, for 'Other' pay method cash rate
-  standardHoursPerPayPeriod: z.coerce.number().min(0, { message: 'Standard hours cannot be negative.' }).optional(), // Optional, required for Hourly
+  standardHoursPerPayPeriod: z.coerce.number().min(0, { message: 'Standard hours cannot be negative.' }).optional(),
   ptoBalance: z.coerce.number().min(0, { message: 'PTO balance cannot be negative.' }).default(0), // Initial PTO balance
+  payRateOthers: z.coerce.number().min(0).optional(), // Added for 'Other' pay method cash rate
 });
 
 // Add refinement to make standardHoursPerPayPeriod required if payMethod is Hourly
 // Also add refinement for payRateOthers if payMethod is Other (making it required for 'Other')
 const refinedEmployeeSchema = employeeSchema.refine(
-  (data) => {
-    if (data.payMethod === 'Hourly') {
-      return data.standardHoursPerPayPeriod !== undefined && data.standardHoursPerPayPeriod > 0;
-    }
-    return true;
-  },
+  (data) =>
+     data.payMethod === Hourly
+        ? data.standardHoursPerPayPeriod !== undefined && data.standardHoursPerPayPeriod > 0
+        : true,
   {
     message: 'Standard hours per pay period are required for Hourly pay method.',
     path: ['standardHoursPerPayPeriod'], // Specify the path of the error
   }
-).refine(
-    (data) => {
-        if (data.payMethod === 'Other') {
-            // Make payRateOthers required and positive if payMethod is 'Other'
-            return data.payRateOthers !== undefined && data.payRateOthers >= 0;
-        }
-        return true;
-    },
-    {
-        message: 'Pay Rate (Others) is required and must be non-negative for the Other pay method.',
-        path: ['payRateOthers'],
-    }
-);
+)
 
 
 type EmployeeFormValues = z.infer<typeof refinedEmployeeSchema>;
@@ -70,41 +57,21 @@ export function AddEmployeeForm() {
       name: '',
       email: '',
       mobileNumber: '',
-      payMethod: undefined, // Force selection
+      payMethod: Hourly,
       payRate: 0,
-      payRateOthers: 0,
-      standardHoursPerPayPeriod: 80, // Default, but might be cleared or required based on payMethod
+      standardHoursPerPayPeriod: 80,
       ptoBalance: 0,
+      payRateOthers: 0,
     },
-    mode: 'onChange', // Validate on change for better UX with refinement
+    mode: 'onChange',
   });
 
+  // Watch the payMethod field to conditionally render/update UI
   const payMethod = form.watch('payMethod');
-
-  // Effect to manage conditional fields based on payMethod
-  React.useEffect(() => {
-    if (payMethod === 'Other') {
-      form.setValue('standardHoursPerPayPeriod', undefined, { shouldValidate: true });
-      form.clearErrors('standardHoursPerPayPeriod');
-      // Ensure payRateOthers validation triggers if switching to 'Other'
-      form.trigger('payRateOthers');
-    } else if (payMethod === 'Hourly') {
-       form.setValue('payRateOthers', undefined, { shouldValidate: true }); // Clear 'Other' rate
-       form.clearErrors('payRateOthers');
-       if (form.getValues('standardHoursPerPayPeriod') === undefined) {
-          // Set default if switching back to hourly and it's undefined
-          form.setValue('standardHoursPerPayPeriod', 80, { shouldValidate: true });
-       }
-    }
-  }, [payMethod, form]);
 
   function onSubmit(values: EmployeeFormValues) {
     // Refinement in schema handles the validation
-
-    // Clear conditional fields before submitting based on final payMethod
-    if (values.payMethod === 'Other') {
-        values.standardHoursPerPayPeriod = undefined;
-    } else if (values.payMethod === 'Hourly') {
+    if (values.payMethod === 'Hourly') {
         values.payRateOthers = undefined;
     }
 
@@ -145,7 +112,7 @@ export function AddEmployeeForm() {
                     <FormControl>
                         <div className="relative">
                             <Phone className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                            <Input type="tel" placeholder="e.g., 1234567890" {...field} className="pl-10" />
+                            <Input type="tel" placeholder="e.g., 1234567890" {...field} value={field.value ?? ''} className="pl-10" />
                         </div>
                     </FormControl>
                      <FormDescription>
@@ -163,7 +130,7 @@ export function AddEmployeeForm() {
             <FormItem>
               <FormLabel>Email (Optional)</FormLabel>
               <FormControl>
-                <Input type="email" placeholder="e.g., jane.doe@example.com" {...field} />
+                <Input type="email" placeholder="e.g., jane.doe@example.com" {...field} value={field.value ?? ''} />
               </FormControl>
               <FormDescription>
                 Used for sending payslips (if feature enabled).
@@ -187,90 +154,58 @@ export function AddEmployeeForm() {
                     </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                    <SelectItem value="Hourly">Hourly</SelectItem>
-                    <SelectItem value="Other">Other (e.g., Cash)</SelectItem>
+                    <SelectItem value={Hourly} >Hourly</SelectItem>
+                    {/* Add 'Other' option if needed */}
+                    {/* <SelectItem value="Other">Other</SelectItem> */}
                     </SelectContent>
                 </Select>
-                 <FormDescription>
+                <FormDescription>
                     Select how the employee is paid.
                 </FormDescription>
                 <FormMessage />
                 </FormItem>
             )}
             />
-             {/* Separated Pay Rate fields */}
             <FormField
             control={form.control}
             name="payRate"
             render={({ field }) => (
                 <FormItem>
-                <FormLabel>
-                    {payMethod === 'Hourly' ? 'Hourly Rate ($) *' : 'Pay Rate / Check ($) *'}
-                </FormLabel>
+                <FormLabel >
+                    {payMethod === Hourly ? 'Hourly Rate ($) *' : 'Pay Rate / Check ($) *'}
+                 </FormLabel>
                 <FormControl>
-                    <Input type="number" step="0.01" min="0" placeholder={payMethod === 'Hourly' ? "e.g., 25.50" : "e.g., 2200"} {...field} />
+                    <Input type="number" step="0.01" min="0" placeholder="e.g., 25.50" {...field} />
                 </FormControl>
-                 <FormDescription>
-                    {payMethod === 'Hourly' ? 'Rate per hour.' : 'Fixed amount per pay period (check).'}
+                <FormDescription>
+                     {payMethod === Hourly ? 'Rate per hour.' : 'Amount per paycheck.'}
                 </FormDescription>
                 <FormMessage />
                 </FormItem>
             )}
             />
-        </div>
-      
-            <FormField
-                control={form.control}
-                name="payRateOthers"
-                render={({ field }) => (
-                    <FormItem>
-                    <FormLabel>Pay Rate / Others (e.g., Cash) ($) *</FormLabel>
-                    <FormControl>
-                        {/* Ensure the field receives a valid value or empty string */}
-                        <Input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        placeholder="e.g., 500"
-                        {...field}
-                         value={field.value ?? ''} // Handle undefined value for input
-                         />
-                    </FormControl>
-                    <FormDescription>
-                        Amount paid through other means (e.g., cash) per pay period. Required if Pay Method is 'Other'.
-                    </FormDescription>
-                    <FormMessage />
-                    </FormItem>
-                )}
-                />
-         
+         </div>
 
 
          <FormField
           control={form.control}
           name="standardHoursPerPayPeriod"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Standard Hours per Pay Period {payMethod === 'Hourly' ? '*' : ''}</FormLabel>
-              <FormControl>
-                 {/* Ensure the field receives a valid value or empty string */}
-                 <Input
-                    type="number"
-                    step="0.1"
-                    min="0"
-                    placeholder="e.g., 80"
-                    {...field}
-                    value={field.value ?? ''} // Handle undefined value for input
-                    disabled={payMethod !== 'Hourly'} // Disabled if not Hourly
-                 />
-              </FormControl>
-               <FormDescription>
-                Expected hours for a standard pay period (e.g., 80 for bi-weekly). {payMethod === 'Hourly' ? 'Required for Hourly method.' : 'Not applicable for Other method.'}
-              </FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
+          render={({ field }) => {
+                const isHourly = payMethod === Hourly;
+                return (
+                  <FormItem>
+                    <FormLabel>Standard Hours per Pay Period {isHourly ? '*' : ''}</FormLabel>
+                    <FormControl>
+                        <Input type="number" step="0.1" min="0" placeholder="e.g., 80" {...field} value={field.value ?? ''} disabled={!isHourly} />
+                    </FormControl>
+                    <FormDescription>
+                        Expected hours for a standard pay period (e.g., 80 for bi-weekly). {isHourly ? 'Required for Hourly method.' : 'Not applicable for Other method.'}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+          )}}
         />
+
 
          <FormField
             control={form.control}
