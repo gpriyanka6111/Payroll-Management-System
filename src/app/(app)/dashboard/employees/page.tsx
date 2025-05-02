@@ -1,15 +1,16 @@
+
 import { EmployeeTable } from '@/components/employees/employee-table';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { UserPlus } from 'lucide-react';
 import Link from 'next/link';
 
-// Placeholder data - Replace with actual data fetching
+// Placeholder data - Updated to match the new Employee structure
 const employees = [
-  { id: 'emp001', name: 'Alice Smith', hourlyRate: 25.50, status: 'Active' },
-  { id: 'emp002', name: 'Bob Johnson', hourlyRate: 22.00, status: 'Active' },
-  { id: 'emp003', name: 'Charlie Brown', hourlyRate: 30.00, status: 'Inactive' },
-  { id: 'emp004', name: 'Diana Prince', hourlyRate: 28.75, status: 'Active' },
+  { id: 'emp001', name: 'Alice Smith', payType: 'Hourly' as const, payRate: 25.50, ptoAccrualRate: 3.07, ptoBalance: 40.0, standardHoursPerPayPeriod: 80 },
+  { id: 'emp002', name: 'Bob Johnson', payType: 'Salary' as const, payRate: 2200.00, ptoAccrualRate: 4.61, ptoBalance: 80.0 },
+  { id: 'emp003', name: 'Charlie Brown', payType: 'Hourly' as const, payRate: 30.00, ptoAccrualRate: 0, ptoBalance: 0, standardHoursPerPayPeriod: 80 }, // Example inactive/no PTO
+  { id: 'emp004', name: 'Diana Prince', payType: 'Hourly' as const, payRate: 28.75, ptoAccrualRate: 3.07, ptoBalance: 25.5, standardHoursPerPayPeriod: 80 },
 ];
 
 export default function EmployeesPage() {
@@ -39,3 +40,4 @@ export default function EmployeesPage() {
     </div>
   );
 }
+
