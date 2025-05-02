@@ -7,10 +7,10 @@ import Link from 'next/link';
 
 // Placeholder data - Updated to match the new Employee structure
 const employees = [
-  { id: 'emp001', name: 'Alice Smith', payType: 'Hourly' as const, payRate: 25.50, ptoAccrualRate: 3.07, ptoBalance: 40.0, standardHoursPerPayPeriod: 80 },
-  { id: 'emp002', name: 'Bob Johnson', payType: 'Salary' as const, payRate: 2200.00, ptoAccrualRate: 4.61, ptoBalance: 80.0 },
-  { id: 'emp003', name: 'Charlie Brown', payType: 'Hourly' as const, payRate: 30.00, ptoAccrualRate: 0, ptoBalance: 0, standardHoursPerPayPeriod: 80 }, // Example inactive/no PTO
-  { id: 'emp004', name: 'Diana Prince', payType: 'Hourly' as const, payRate: 28.75, ptoAccrualRate: 3.07, ptoBalance: 25.5, standardHoursPerPayPeriod: 80 },
+  { id: 'emp001', name: 'Alice Smith', payMethod: 'Hourly' as const, payRate: 25.50, ptoBalance: 40.0, standardHoursPerPayPeriod: 80 },
+  { id: 'emp002', name: 'Bob Johnson', payMethod: 'Other' as const, payRate: 2200.00, ptoBalance: 80.0 }, // Changed to 'Other', removed standard hours maybe? Or keep if relevant
+  { id: 'emp003', name: 'Charlie Brown', payMethod: 'Hourly' as const, payRate: 30.00, ptoBalance: 0, standardHoursPerPayPeriod: 80 }, // Example no PTO
+  { id: 'emp004', name: 'Diana Prince', payMethod: 'Hourly' as const, payRate: 28.75, ptoBalance: 25.5, standardHoursPerPayPeriod: 80 },
 ];
 
 export default function EmployeesPage() {

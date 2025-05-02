@@ -29,12 +29,13 @@ const TAX_RATE = 0.15; // 15%
 const employeePayrollInputSchema = z.object({
   employeeId: z.string(),
   name: z.string(),
-  payType: z.enum(['Hourly', 'Salary']),
-  payRate: z.number(), // Hourly rate or Salary per period
+  payMethod: z.enum(['Hourly', 'Other']), // Changed from payType
+  payRate: z.number(), // Rate per hour or other basis
   hoursWorked: z.coerce.number().min(0, { message: 'Hours must be non-negative.' }).default(0),
   ptoUsed: z.coerce.number().min(0, { message: 'PTO hours must be non-negative.' }).default(0),
   // Include fields needed for display but not direct input in this specific form part
   ptoBalance: z.number().optional(), // For display and validation
+  standardHoursPerPayPeriod: z.number().optional(), // Relevant for Hourly
 });
 
 // Define Zod schema for the overall form
@@ -44,8 +45,6 @@ const payrollFormSchema = z.object({
   (data) => data.employees.every((emp) => emp.ptoUsed <= (emp.ptoBalance ?? 0)),
   {
     message: "PTO used cannot exceed available balance.",
-    // You might need a more specific path or a way to target individual fields
-    // For now, applying a general error or handling validation display differently.
     path: ["employees"], // General path, consider refining
   }
 );
@@ -67,9 +66,9 @@ type PayrollResult = {
 // Placeholder employee data (replace with actual data fetching)
 // Assuming this data comes from your employee management source
 const initialEmployeesData = [
-  { employeeId: 'emp001', name: 'Alice Smith', payType: 'Hourly' as const, payRate: 25.50, ptoBalance: 40.0, standardHoursPerPayPeriod: 80 },
-  { employeeId: 'emp002', name: 'Bob Johnson', payType: 'Salary' as const, payRate: 2200.00, ptoBalance: 80.0 },
-  { employeeId: 'emp004', name: 'Diana Prince', payType: 'Hourly' as const, payRate: 28.75, ptoBalance: 25.5, standardHoursPerPayPeriod: 80 },
+  { employeeId: 'emp001', name: 'Alice Smith', payMethod: 'Hourly' as const, payRate: 25.50, ptoBalance: 40.0, standardHoursPerPayPeriod: 80 },
+  { employeeId: 'emp002', name: 'Bob Johnson', payMethod: 'Other' as const, payRate: 2200.00, ptoBalance: 80.0 }, // Changed to Other
+  { employeeId: 'emp004', name: 'Diana Prince', payMethod: 'Hourly' as const, payRate: 28.75, ptoBalance: 25.5, standardHoursPerPayPeriod: 80 },
 ];
 
 
@@ -83,7 +82,8 @@ export function PayrollCalculation() {
     defaultValues: {
       employees: initialEmployeesData.map(emp => ({
           ...emp,
-          hoursWorked: emp.payType === 'Hourly' ? 0 : (emp.standardHoursPerPayPeriod ?? 80), // Default hours for salary based on standard
+          // Hours worked: Default to 0 for Hourly, maybe standard for Other if applicable? Let's default to 0 for Other too for now.
+          hoursWorked: emp.payMethod === 'Hourly' ? 0 : 0,
           ptoUsed: 0,
         })),
     },
@@ -99,25 +99,34 @@ export function PayrollCalculation() {
     return values.employees.map((emp) => {
       let regularPay = 0;
       let ptoPay = 0;
+      let effectiveHourlyRate = emp.payRate; // Start with the assumption it might be hourly
 
-      if (emp.payType === 'Hourly') {
+      if (emp.payMethod === 'Hourly') {
         regularPay = emp.payRate * emp.hoursWorked;
-        ptoPay = emp.payRate * emp.ptoUsed;
-      } else { // Salary
-        // Assuming salary payRate is per pay period
-        regularPay = emp.payRate; // Salary is fixed for the period
-        // PTO for salaried employees might be handled differently (e.g., just track time off)
-        // For calculation simplicity here, we'll assume PTO payout uses an equivalent hourly rate if needed,
-        // or simply doesn't add extra pay but reduces work expectation (logic depends on company policy).
-        // Let's assume for now salary covers the period regardless of PTO, but track PTO used.
-        // No direct 'ptoPay' addition for salary in this basic model.
-        // OR calculate an effective hourly rate for PTO payout if policy dictates:
-        // const effectiveHourlyRate = emp.payRate / (emp.standardHoursPerPayPeriod || 80); // Needs standard hours
-        // ptoPay = effectiveHourlyRate * emp.ptoUsed;
+        // PTO pay uses the hourly rate
+      } else { // 'Other' pay method
+        // For 'Other', regular pay might just be the payRate provided (assuming it's per period)
+        regularPay = emp.payRate;
+        // For PTO pay with 'Other', we need an effective hourly rate if PTO is paid hourly.
+        // If standardHoursPerPayPeriod exists, use it. Otherwise, this needs clarification.
+        // Defaulting to 0 PTO pay for 'Other' if standard hours unknown.
+        if (emp.standardHoursPerPayPeriod && emp.standardHoursPerPayPeriod > 0) {
+             effectiveHourlyRate = emp.payRate / emp.standardHoursPerPayPeriod;
+        } else {
+            // Policy decision needed: How is PTO paid for 'Other'? Maybe based on avg hours?
+            // For now, assume no effective rate can be calculated for PTO if standard hours missing.
+            effectiveHourlyRate = 0; // Cannot calculate PTO pay accurately
+        }
       }
 
+      // Calculate PTO pay based on the effective hourly rate (which is the actual rate for Hourly)
+       if (effectiveHourlyRate > 0) {
+         ptoPay = effectiveHourlyRate * emp.ptoUsed;
+       }
+
+
       const grossPay = regularPay + ptoPay;
-      const taxes = grossPay * TAX_RATE;
+      const taxes = grossPay * TAX_RATE; // Using fixed rate for now
       const netPay = grossPay - taxes;
 
       return {
@@ -143,6 +152,11 @@ export function PayrollCalculation() {
         });
         ptoError = true;
       }
+       // Validate hours worked for 'Hourly' method
+        if (emp.payMethod === 'Hourly' && emp.hoursWorked === 0 && emp.ptoUsed === 0) {
+             // Maybe warn or just allow 0 pay calculation
+            console.warn(`Employee ${emp.name} has 0 hours worked and 0 PTO used.`);
+        }
     });
 
     if (ptoError) {
@@ -191,7 +205,7 @@ export function PayrollCalculation() {
                  <TableHeader>
                    <TableRow>
                     <TableHead>Employee</TableHead>
-                    <TableHead>Pay Type</TableHead>
+                    <TableHead>Pay Method</TableHead>
                     <TableHead className="w-[150px]">Hours Worked</TableHead>
                     <TableHead className="w-[150px]">PTO Used (hrs)</TableHead>
                     <TableHead>Available PTO</TableHead>
@@ -201,7 +215,7 @@ export function PayrollCalculation() {
                   {fields.map((field, index) => (
                      <TableRow key={field.id}>
                          <TableCell className="font-medium">{field.name}</TableCell>
-                         <TableCell>{field.payType}</TableCell>
+                         <TableCell>{field.payMethod}</TableCell>
                          <TableCell>
                            <FormField
                               control={form.control}
@@ -217,7 +231,9 @@ export function PayrollCalculation() {
                                           placeholder="e.g., 40"
                                           {...inputField}
                                           className="h-8"
-                                          disabled={field.payType === 'Salary'} // Disable for salary
+                                          // Disabled only if payMethod is Other AND maybe standard hours are used instead?
+                                          // Let's keep it editable for now, but clear calculation logic depends on 'Other' definition
+                                          // disabled={field.payMethod === 'Other'}
                                        />
                                   </FormControl>
                                    <FormMessage className="text-xs mt-1" />
@@ -288,7 +304,7 @@ export function PayrollCalculation() {
                     <CheckCircle className="h-4 w-4 text-primary" />
                     <AlertTitle className="text-primary">Calculation Complete</AlertTitle>
                     <AlertDescription>
-                      Below are the calculated pays and taxes (at a fixed {TAX_RATE * 100}% rate). Review carefully before approving.
+                      Below are the calculated pays and taxes (at a fixed {TAX_RATE * 100}% rate). Review carefully before approving. PTO pay for 'Other' method might be 0 if standard hours weren't available.
                     </AlertDescription>
                  </Alert>
                 <div className="overflow-x-auto">
