@@ -10,18 +10,17 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Edit, Trash2, Clock, DollarSign, CalendarDays, MethodChart } from "lucide-react"; // Assuming MethodChart or similar for Other
+import { Edit, Trash2, Clock, DollarSign, CalendarDays } from "lucide-react";
 
 // Updated Employee type
 type Employee = {
   id: string;
   name: string;
   email?: string; // Optional
-  payMethod: 'Hourly' | 'Other'; // Changed from payType
+  payMethod: 'Hourly' | 'Other';
   payRate: number;
   standardHoursPerPayPeriod?: number; // Still optional, relevant for Hourly
   ptoBalance: number; // Initial balance
-  // ptoAccrualRate removed
 };
 
 interface EmployeeTableProps {
@@ -34,7 +33,6 @@ export function EmployeeTable({ employees }: EmployeeTableProps) {
   };
 
    const formatHours = (hours: number | undefined) => {
-    // Also show Standard Hours if available, especially for Hourly
     if (hours === undefined) return 'N/A';
     return `${hours.toFixed(1)} hrs`;
    };
@@ -48,7 +46,7 @@ export function EmployeeTable({ employees }: EmployeeTableProps) {
           <TableHead>Name</TableHead>
           <TableHead><Clock className="inline-block h-4 w-4 mr-1"/>Pay Method</TableHead>
           <TableHead><DollarSign className="inline-block h-4 w-4 mr-1"/>Pay Rate</TableHead>
-           <TableHead><Clock className="inline-block h-4 w-4 mr-1"/>Std. Hours</TableHead> {/* Added Standard Hours */}
+           <TableHead><Clock className="inline-block h-4 w-4 mr-1"/>Std. Hours</TableHead>
           <TableHead><CalendarDays className="inline-block h-4 w-4 mr-1"/>PTO Balance</TableHead>
           <TableHead className="text-right">Actions</TableHead>
         </TableRow>
@@ -62,8 +60,8 @@ export function EmployeeTable({ employees }: EmployeeTableProps) {
                     {employee.payMethod}
                  </Badge>
             </TableCell>
-            <TableCell>{formatCurrency(employee.payRate)}{employee.payMethod === 'Hourly' ? '/hr' : ''}</TableCell> {/* Clarify rate unit */}
-            <TableCell>{formatHours(employee.standardHoursPerPayPeriod)}</TableCell> {/* Display Standard Hours */}
+            <TableCell>{formatCurrency(employee.payRate)}{employee.payMethod === 'Hourly' ? '/hr' : ''}</TableCell>
+            <TableCell>{formatHours(employee.standardHoursPerPayPeriod)}</TableCell>
             <TableCell>{formatHours(employee.ptoBalance)}</TableCell>
             <TableCell className="text-right space-x-2">
               {/* TODO: Implement Edit/Delete functionality */}
@@ -78,7 +76,7 @@ export function EmployeeTable({ employees }: EmployeeTableProps) {
         ))}
          {employees.length === 0 && (
            <TableRow>
-            <TableCell colSpan={6} className="h-24 text-center text-muted-foreground"> {/* Adjusted colSpan */}
+            <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
               No employees found. Add your first employee!
             </TableCell>
           </TableRow>
@@ -87,4 +85,3 @@ export function EmployeeTable({ employees }: EmployeeTableProps) {
     </Table>
   );
 }
-
