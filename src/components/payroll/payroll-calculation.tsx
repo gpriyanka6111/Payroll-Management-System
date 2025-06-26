@@ -106,27 +106,31 @@ export function PayrollCalculation() {
     name: "employees",
    });
 
+   // Watch the employees array to dynamically calculate Other Hours
+   const watchedEmployees = form.watch("employees");
+   React.useEffect(() => {
+       if (!watchedEmployees) return;
+       watchedEmployees.forEach((employee, index) => {
+         // Ensure values are numbers before calculation
+         const totalHours = Number(employee.totalHoursWorked) || 0;
+         const checkHours = Number(employee.checkHours) || 0;
+         const otherHours = Math.max(0, totalHours - checkHours);
+         
+         const currentOtherHoursInForm = Number(form.getValues(`employees.${index}.otherHours`)) || 0;
+ 
+         // Only update the form value if the calculated value has changed
+         if (currentOtherHoursInForm !== otherHours) {
+           form.setValue(`employees.${index}.otherHours`, otherHours, { shouldValidate: true });
+         }
+       });
+   }, [watchedEmployees, form.getValues, form.setValue]);
+ 
    // Helper function to safely convert value to number for calculations
    const safeGetNumber = (value: unknown): number => {
      const num = Number(value);
      return isNaN(num) ? 0 : num;
    };
    
-    const watchedEmployees = form.watch("employees");
-    React.useEffect(() => {
-        watchedEmployees.forEach((employee, index) => {
-            const totalHours = safeGetNumber(employee.totalHoursWorked);
-            const checkHours = safeGetNumber(employee.checkHours);
-            const otherHours = totalHours - checkHours > 0 ? totalHours - checkHours : 0;
-            
-            const currentOtherHours = safeGetNumber(form.getValues(`employees.${index}.otherHours`));
-            if (currentOtherHours !== otherHours) {
-                form.setValue(`employees.${index}.otherHours`, otherHours, { shouldValidate: true });
-            }
-        });
-    }, [watchedEmployees, form]);
-
-
   function calculatePayroll(values: PayrollFormValues): PayrollResult[] {
     return values.employees.map((emp) => {
       const totalHoursWorked = safeGetNumber(emp.totalHoursWorked);
