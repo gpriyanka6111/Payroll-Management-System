@@ -59,9 +59,9 @@ export function AddEmployeeForm() {
       mobileNumber: '',
       payMethod: Hourly,
       payRate: 0,
+      payRateOthers: 0,
       standardHoursPerPayPeriod: 80,
       ptoBalance: 0,
-      payRateOthers: 0,
     },
     mode: 'onChange',
   });
