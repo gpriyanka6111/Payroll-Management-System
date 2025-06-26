@@ -22,6 +22,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { format, startOfWeek, addDays } from 'date-fns';
+import { cn } from '@/lib/utils';
 
 // Placeholder fixed tax rate for MVP
 const TAX_RATE = 0.15; // 15%
@@ -71,7 +72,7 @@ type PayrollResult = {
 const initialEmployeesData = [
   { employeeId: 'emp001', name: 'Alice Smith', payMethod: 'Hourly' as const, payRate: 25.50, ptoBalance: 40.0, standardHoursPerPayPeriod: 80 },
   // Bob uses 'Other', payRate is check amount, payRateOthers is cash amount
-  { employeeId: 'emp002', name: 'Bob Johnson', payMethod: 'Other' as const, payRate: 2200.00, payRateOthers: 500.00, ptoBalance: 80.0 },
+  { employeeId: 'emp002', name: 'Bob Johnson', payMethod: 'Other' as const, payRate: 2200.00, payRateOthers: 500.00, ptoBalance: 80.0, standardHoursPerPayPeriod: 80 },
   { employeeId: 'emp004', name: 'Diana Prince', payMethod: 'Hourly' as const, payRate: 28.75, ptoBalance: 25.5, standardHoursPerPayPeriod: 80 },
 ];
 
@@ -216,62 +217,13 @@ export function PayrollCalculation() {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
   };
 
-   const formatHours = (hours: number | string | undefined | null): string => {
-       // Coerce to number first
-       const numHours = Number(hours);
-
-       // Check if it's undefined, null, or NaN after coercion
-       if (hours === undefined || hours === null || isNaN(numHours)) {
-           return 'N/A';
-       }
-       // Now we are sure numHours is a valid number
-       return `${numHours.toFixed(1)} hrs`;
-   };
-
-
-  // Generate dummy data for dates and days of the week
-    const startDate = startOfWeek(new Date()); // Start of current week
-    const daysOfWeek = Array.from({ length: 7 }, (_, i) => {
-        return {
-            date: addDays(startDate, i),
-            day: format(addDays(startDate, i), 'EEE'),
-        };
-    });
-
-    // Function to group payroll data by employee and date
-    const groupPayrollData = () => {
-    const groupedData: { [employeeId: string]: { [date: string]: number } } = {};
-    const currentEmployeeData = form.getValues().employees; // Get current form state
-
-    currentEmployeeData.forEach((emp) => {
-        groupedData[emp.employeeId] = {};
-        daysOfWeek.forEach(({ date }) => {
-            groupedData[emp.employeeId][format(date, 'yyyy-MM-dd')] = 0; // Initialize each date with 0 hours
-        });
-
-         // Distribute total hoursWorked somewhat evenly for demo purposes if positive
-        const totalHours = safeGetNumber(emp.hoursWorked);
-         if (totalHours > 0) {
-           const hoursPerDay = totalHours / 5; // Assume 5 working days for simplicity
-           daysOfWeek.slice(0, 5).forEach(({ date }, index) => { // Assign to first 5 days
-                const dateKey = format(date, 'yyyy-MM-dd');
-                // Handle remainder on the last day
-                groupedData[emp.employeeId][dateKey] = index === 4 ? totalHours - (hoursPerDay * 4) : hoursPerDay;
-            });
-         }
-    });
-
-    return groupedData;
+  const formatHours = (hours: unknown): string => {
+      const numHours = Number(hours);
+      if (hours === undefined || hours === null || isNaN(numHours)) {
+          return 'N/A';
+      }
+      return `${numHours.toFixed(1)} hrs`;
   };
-
-
-    const groupedPayrollData = groupPayrollData();
-
-
-    const totalHoursByEmployee = Object.values(groupedPayrollData).map((employeeHours) =>
-        Object.values(employeeHours).reduce((a, b) => a + b, 0)
-    );
-
 
   return (
      <Card>
@@ -315,8 +267,6 @@ export function PayrollCalculation() {
                                           {...inputField}
                                            value={inputField.value ?? ''} // Handle undefined/null for input display
                                           className="h-8"
-                                          // Hours worked are always relevant for calculation/display, even if pay is fixed
-                                          // disabled={field.payMethod === 'Other'} // Removed disabled state
                                        />
                                   </FormControl>
                                    <FormMessage className="text-xs mt-1" />
@@ -348,8 +298,7 @@ export function PayrollCalculation() {
                             />
                          </TableCell>
                           <TableCell className="text-sm text-muted-foreground">
-                              {/* Format PTO Balance */}
-                               {formatHours(field.ptoBalance)}
+                              {formatHours(field.ptoBalance)}
                           </TableCell>
                     </TableRow>
                   ))}
@@ -381,148 +330,164 @@ export function PayrollCalculation() {
         </Form>
 
          {/* Payroll Results Section */}
-         {showResults && (
-             <div className="mt-8">
-                 <Separator className="my-4" />
-                <h3 className="text-xl font-semibold mb-4">Payroll Results</h3>
-                 <Alert variant="default" className="mb-4 bg-blue-50 border-blue-200">
-                    <CheckCircle className="h-4 w-4 text-primary" />
-                    <AlertTitle className="text-primary">Calculation Complete</AlertTitle>
-                    <AlertDescription>
-                      Below are the calculated pays and taxes (fixed {TAX_RATE * 100}% rate on Check/PTO). Review carefully. 'Other Pay' is listed separately and assumed untaxed here. PTO pay for 'Other' method depends on configured rates/hours.
-                    </AlertDescription>
-                 </Alert>
-                <div className="overflow-x-auto">
-                 <Table>
-                    <TableHeader>
-                        <TableRow>
-                           <TableHead>Employee</TableHead>
-                           <TableHead className="text-right">Check/Hourly Pay</TableHead>
-                           <TableHead className="text-right">PTO Pay</TableHead>
-                           <TableHead className="text-right">Other Pay (Cash)</TableHead>
-                           <TableHead className="text-right">Gross Pay (Total)</TableHead>
-                           <TableHead className="text-right">Taxes ({TAX_RATE * 100}%)</TableHead>
-                           <TableHead className="text-right">Net Check Pay</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {payrollResults.map((result) => (
-                           <TableRow key={result.employeeId}>
-                               <TableCell className="font-medium">{result.name}</TableCell>
-                               <TableCell className="text-right">{formatCurrency(result.regularPay)}</TableCell>
-                               <TableCell className="text-right">{formatCurrency(result.ptoPay)}</TableCell>
-                               <TableCell className="text-right">{formatCurrency(result.otherPay)}</TableCell>
-                               <TableCell className="text-right">{formatCurrency(result.grossPay)}</TableCell>
-                               <TableCell className="text-right text-destructive">-{formatCurrency(result.taxes)}</TableCell>
-                               <TableCell className="text-right font-semibold">{formatCurrency(result.netPay)}</TableCell>
-                           </TableRow>
-                        ))}
-                         {/* Totals Row */}
-                         <TableRow className="font-bold bg-muted hover:bg-muted">
-                              <TableCell>Totals</TableCell>
-                              <TableCell className="text-right">
-                                  {formatCurrency(payrollResults.reduce((sum, r) => sum + r.regularPay, 0))}
-                              </TableCell>
-                              <TableCell className="text-right">
-                                  {formatCurrency(payrollResults.reduce((sum, r) => sum + r.ptoPay, 0))}
-                              </TableCell>
-                              <TableCell className="text-right">
-                                  {formatCurrency(payrollResults.reduce((sum, r) => sum + r.otherPay, 0))}
-                              </TableCell>
-                              <TableCell className="text-right">
-                                  {formatCurrency(payrollResults.reduce((sum, r) => sum + r.grossPay, 0))}
-                              </TableCell>
-                              <TableCell className="text-right text-destructive">
-                                  -{formatCurrency(payrollResults.reduce((sum, r) => sum + r.taxes, 0))}
-                              </TableCell>
-                              <TableCell className="text-right font-semibold">
-                                  {formatCurrency(payrollResults.reduce((sum, r) => sum + r.netPay, 0))}
-                              </TableCell>
-                         </TableRow>
-                         {/* Detailed Rows */}
-                         <TableRow className="font-bold bg-muted hover:bg-muted">
-                              <TableCell>Weekly hours</TableCell>
-                                 {form.getValues().employees.map((emp) => (
-                                     <TableCell key={emp.employeeId} className="text-right">
-                                          {/* Calculate weekly total hours */}
-                                           {formatHours(Object.values(groupedPayrollData[emp.employeeId] || {}).reduce((a, b) => a + b, 0))}
-                                     </TableCell>
-                                 ))}
-                                  {/* Placeholder for total weekly hours if needed */}
-                                 {/* <TableCell className="text-right font-bold">...</TableCell>  */}
-                         </TableRow>
+         {showResults && (() => {
+            const currentEmployees = form.getValues().employees;
+            const employeeDataMap = new Map(currentEmployees.map(e => [e.employeeId, e]));
 
-                          <TableRow className="font-bold bg-muted hover:bg-muted">
-                             <TableCell>Check Hours</TableCell>
-                             {form.getValues().employees.map((emp) => (
-                                 <TableCell key={emp.employeeId} className="text-right">
-                                     {formatHours(emp.hoursWorked)}
-                                 </TableCell>
-                             ))}
-                          </TableRow>
-                          <TableRow className="font-bold bg-muted hover:bg-muted">
-                              <TableCell>PTO Time</TableCell>
-                              {form.getValues().employees.map((emp) => (
-                                  <TableCell key={emp.employeeId} className="text-right">{formatHours(emp.ptoUsed)}</TableCell>
-                              ))}
-                          </TableRow>
-                          <TableRow className="font-bold bg-muted hover:bg-muted">
-                              <TableCell>PTO Paid</TableCell>
-                              {payrollResults.map((result) => (
-                                  <TableCell key={result.employeeId} className="text-right">{formatCurrency(result.ptoPay)}</TableCell>
-                              ))}
-                          </TableRow>
-                          <TableRow className="font-bold bg-muted hover:bg-muted">
-                              <TableCell>PTO Balance</TableCell>
-                               {form.getValues().employees.map((emp) => (
-                                   <TableCell key={emp.employeeId} className="text-right">{formatHours(emp.ptoBalance)}</TableCell>
+            const totals = {
+                regularPay: payrollResults.reduce((sum, r) => sum + r.regularPay, 0),
+                ptoPay: payrollResults.reduce((sum, r) => sum + r.ptoPay, 0),
+                otherPay: payrollResults.reduce((sum, r) => sum + r.otherPay, 0),
+                grossPay: payrollResults.reduce((sum, r) => sum + r.grossPay, 0),
+                taxes: payrollResults.reduce((sum, r) => sum + r.taxes, 0),
+                netPay: payrollResults.reduce((sum, r) => sum + r.netPay, 0),
+            };
+
+            const metrics: Array<{
+                label: string;
+                getValue: (result: PayrollResult) => string | number;
+                getTotal?: () => string | number;
+                isBold?: boolean;
+                isDestructive?: boolean;
+                type?: 'separator';
+            }> = [
+                {
+                    label: "Check Hours",
+                    getValue: (result) => formatHours(employeeDataMap.get(result.employeeId)?.hoursWorked)
+                },
+                {
+                    label: "PTO Time",
+                    getValue: (result) => formatHours(employeeDataMap.get(result.employeeId)?.ptoUsed)
+                },
+                {
+                    label: "Rate/Check",
+                    getValue: (result) => {
+                        const emp = employeeDataMap.get(result.employeeId);
+                        if (!emp) return 'N/A';
+                        return emp.payMethod === 'Hourly'
+                            ? `${formatCurrency(emp.payRate)}/hr`
+                            : formatCurrency(emp.payRate)
+                    }
+                },
+                {
+                    label: "Rate/Others",
+                     getValue: (result) => {
+                        const emp = employeeDataMap.get(result.employeeId);
+                        if (!emp || emp.payMethod !== 'Other') return 'N/A';
+                        return formatCurrency(emp.payRateOthers ?? 0)
+                    }
+                },
+                 { type: 'separator', label: '', getValue: () => '' },
+                {
+                    label: "Check/Hourly Pay",
+                    getValue: (result) => formatCurrency(result.regularPay),
+                    getTotal: () => formatCurrency(totals.regularPay)
+                },
+                {
+                    label: "PTO Paid",
+                    getValue: (result) => formatCurrency(result.ptoPay),
+                    getTotal: () => formatCurrency(totals.ptoPay)
+                },
+                {
+                    label: "Gross Check Amount",
+                    getValue: (result) => formatCurrency(result.regularPay + result.ptoPay),
+                    getTotal: () => formatCurrency(totals.regularPay + totals.ptoPay),
+                    isBold: true,
+                },
+                { type: 'separator', label: '', getValue: () => '' },
+                {
+                    label: "Other Amount",
+                    getValue: (result) => formatCurrency(result.otherPay),
+                    getTotal: () => formatCurrency(totals.otherPay)
+                },
+                {
+                    label: "Gross Pay (Total)",
+                    getValue: (result) => formatCurrency(result.grossPay),
+                    getTotal: () => formatCurrency(totals.grossPay),
+                    isBold: true
+                },
+                {
+                    label: `Taxes (${TAX_RATE * 100}%)`,
+                    getValue: (result) => `-${formatCurrency(result.taxes)}`,
+                    getTotal: () => `-${formatCurrency(totals.taxes)}`,
+                    isDestructive: true
+                },
+                {
+                    label: "Net Check Pay",
+                    getValue: (result) => formatCurrency(result.netPay),
+                    getTotal: () => formatCurrency(totals.netPay),
+                    isBold: true,
+                },
+                { type: 'separator', label: '', getValue: () => '' },
+                {
+                    label: "PTO Balance",
+                     getValue: (result) => formatHours(employeeDataMap.get(result.employeeId)?.ptoBalance)
+                },
+            ];
+
+             return (
+                 <div className="mt-8">
+                     <Separator className="my-4" />
+                    <h3 className="text-xl font-semibold mb-4">Payroll Results</h3>
+                     <Alert variant="default" className="mb-4 bg-blue-50 border-blue-200">
+                        <CheckCircle className="h-4 w-4 text-primary" />
+                        <AlertTitle className="text-primary">Calculation Complete</AlertTitle>
+                        <AlertDescription>
+                         Review the payroll details below. Employees are shown as columns for easy comparison.
+                        </AlertDescription>
+                     </Alert>
+                    <div className="overflow-x-auto">
+                     <Table>
+                        <TableHeader>
+                            <TableRow>
+                               <TableHead className="font-bold min-w-[200px]">Metric</TableHead>
+                               {payrollResults.map((result) => (
+                                   <TableHead key={result.employeeId} className="text-right">{result.name}</TableHead>
                                ))}
-                          </TableRow>
-                           <TableRow className="font-bold bg-muted hover:bg-muted">
-                              <TableCell>Rate/Check</TableCell>
-                              {form.getValues().employees.map((emp) => (
-                                  <TableCell key={emp.employeeId} className="text-right">
-                                     {emp.payMethod === 'Hourly'
-                                         ? `${formatCurrency(emp.payRate)}/hr`
-                                         : formatCurrency(emp.payRate)}
-                                  </TableCell>
-                              ))}
-                          </TableRow>
-                           <TableRow className="font-bold bg-muted hover:bg-muted">
-                              <TableCell>Rate/Others</TableCell>
-                               {form.getValues().employees.map((emp) => (
-                                   <TableCell key={emp.employeeId} className="text-right">
-                                      {emp.payMethod === 'Other' ? formatCurrency(emp.payRateOthers ?? 0) : 'N/A'}
-                                   </TableCell>
-                               ))}
-                          </TableRow>
-                            <TableRow className="font-bold bg-muted hover:bg-muted">
-                                <TableCell>Gross Check Amount</TableCell>
-                                {payrollResults.map((result) => (
-                                    // Gross Check = Regular Pay (from check/hourly) + PTO Pay
-                                    <TableCell key={result.employeeId} className="text-right">{formatCurrency(result.regularPay + result.ptoPay)}</TableCell>
-                                ))}
+                               <TableHead className="text-right font-bold">Totals</TableHead>
                             </TableRow>
-                            <TableRow className="font-bold bg-muted hover:bg-muted">
-                                <TableCell>Other Amount</TableCell>
-                                {payrollResults.map((result) => (
-                                    <TableCell key={result.employeeId} className="text-right">{formatCurrency(result.otherPay)}</TableCell>
-                                ))}
-                            </TableRow>
-                            {/* Add other rows as needed, ensuring data aligns correctly */}
-
-
-                    </TableBody>
-                 </Table>
-                 </div>
-                 {/* Add buttons for next steps like "Approve Payroll" or "Export" */}
-                 <div className="mt-6 flex justify-end space-x-2">
-                      <Button variant="outline" onClick={() => setShowResults(false)}>Discard Results</Button>
-                      <Button disabled>Approve Payroll (Not Implemented)</Button>
-                 </div>
-            </div>
-         )}
+                        </TableHeader>
+                        <TableBody>
+                            {metrics.map((metric, index) => {
+                                if (metric.type === 'separator') {
+                                    return (
+                                        <TableRow key={`sep-${index}`} className="bg-muted/20 hover:bg-muted/20">
+                                            <TableCell colSpan={payrollResults.length + 2} className="h-2 p-0"></TableCell>
+                                        </TableRow>
+                                    );
+                                }
+                                return (
+                                    <TableRow key={metric.label}>
+                                       <TableCell className={cn("font-medium", metric.isBold && "font-bold")}>{metric.label}</TableCell>
+                                       {payrollResults.map((result) => (
+                                           <TableCell key={result.employeeId} className={cn("text-right tabular-nums", {
+                                               "font-semibold": metric.isBold,
+                                               "text-destructive": metric.isDestructive,
+                                           })}>
+                                               {metric.getValue(result)}
+                                           </TableCell>
+                                       ))}
+                                       <TableCell className={cn("text-right font-bold tabular-nums", {
+                                            "text-destructive": metric.isDestructive,
+                                       })}>
+                                           {metric.getTotal ? metric.getTotal() : ''}
+                                       </TableCell>
+                                    </TableRow>
+                                );
+                            })}
+                        </TableBody>
+                     </Table>
+                     </div>
+                     <div className="mt-6 flex justify-end space-x-2">
+                          <Button variant="outline" onClick={() => setShowResults(false)}>Discard Results</Button>
+                          <Button disabled>Approve Payroll (Not Implemented)</Button>
+                     </div>
+                </div>
+             )
+         })()}
        </CardContent>
      </Card>
   );
 }
+
+    
