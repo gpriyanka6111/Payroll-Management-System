@@ -31,26 +31,31 @@ const TAX_RATE = 0.15; // 15%
 const employeePayrollInputSchema = z.object({
   employeeId: z.string(),
   name: z.string(),
-  payMethod: z.enum(['Hourly', 'Other']), // Changed from payType
-  payRate: z.number(), // Rate per hour or other basis
-  hoursWorked: z.coerce.number().min(0, { message: 'Hours must be non-negative.' }).default(0),
+  payMethod: z.enum(['Hourly', 'Other']),
+  payRate: z.number(),
+  totalHoursWorked: z.coerce.number().min(0, { message: 'Hours must be non-negative.' }).default(0),
+  checkHours: z.coerce.number().min(0, { message: 'Hours must be non-negative.' }).default(0),
+  otherHours: z.coerce.number().min(0).default(0), // This is for form state, will be calculated
   ptoUsed: z.coerce.number().min(0, { message: 'PTO hours must be non-negative.' }).default(0),
-  // Include fields needed for display but not direct input in this specific form part
-  ptoBalance: z.number().optional(), // For display and validation
-  standardHoursPerPayPeriod: z.number().optional(), // Relevant for Hourly
-  payRateOthers: z.coerce.number().min(0).optional(), // Optional, for 'Other' pay method cash rate. Added this from employee form schema
-});
+  ptoBalance: z.number().optional(),
+  standardHoursPerPayPeriod: z.number().optional(),
+  payRateOthers: z.coerce.number().min(0).optional(),
+}).refine(data => data.checkHours <= data.totalHoursWorked, {
+    message: "Check hours cannot be greater than total hours worked.",
+    path: ["checkHours"],
+}).refine(
+  (data) => data.ptoUsed <= (data.ptoBalance ?? 0),
+  {
+    message: "PTO used cannot exceed available balance.",
+    path: ["ptoUsed"], 
+  }
+);
+
 
 // Define Zod schema for the overall form
 const payrollFormSchema = z.object({
   employees: z.array(employeePayrollInputSchema),
-}).refine(
-  (data) => data.employees.every((emp) => emp.ptoUsed <= (emp.ptoBalance ?? 0)),
-  {
-    message: "PTO used cannot exceed available balance.",
-    path: ["employees"], // General path, consider refining
-  }
-);
+});
 
 
 type PayrollFormValues = z.infer<typeof payrollFormSchema>;
@@ -59,19 +64,18 @@ type PayrollFormValues = z.infer<typeof payrollFormSchema>;
 type PayrollResult = {
   employeeId: string;
   name: string;
-  regularPay: number;
+  regularPay: number; // Pay for check hours
   ptoPay: number;
-  grossPay: number;
+  grossPay: number; // Total gross pay (check + pto + other)
   taxes: number;
-  netPay: number;
-  otherPay: number; // Added to store 'Other' payment amount
+  netPay: number; // Net check pay
+  otherPay: number; // Pay for other hours
+  effectiveHourlyRate: number;
 };
 
 // Placeholder employee data (replace with actual data fetching)
-// Assuming this data comes from your employee management source
 const initialEmployeesData = [
   { employeeId: 'emp001', name: 'Alice Smith', payMethod: 'Hourly' as const, payRate: 25.50, ptoBalance: 40.0, standardHoursPerPayPeriod: 80 },
-  // Bob uses 'Other', payRate is check amount, payRateOthers is cash amount
   { employeeId: 'emp002', name: 'Bob Johnson', payMethod: 'Other' as const, payRate: 2200.00, payRateOthers: 500.00, ptoBalance: 80.0, standardHoursPerPayPeriod: 80 },
   { employeeId: 'emp004', name: 'Diana Prince', payMethod: 'Hourly' as const, payRate: 28.75, ptoBalance: 25.5, standardHoursPerPayPeriod: 80 },
 ];
@@ -87,12 +91,14 @@ export function PayrollCalculation() {
     defaultValues: {
       employees: initialEmployeesData.map(emp => ({
           ...emp,
-          hoursWorked: emp.payMethod === 'Hourly' ? 0 : 0, // Default to 0, user enters actuals
+          totalHoursWorked: 0,
+          checkHours: 0,
+          otherHours: 0,
           ptoUsed: 0,
-          payRateOthers: emp.payRateOthers ?? 0, // Initialize from data or 0
+          payRateOthers: emp.payRateOthers ?? 0,
         })),
     },
-     mode: "onChange", // Validate on change
+     mode: "onChange",
   });
 
    const { fields } = useFieldArray({
@@ -105,98 +111,65 @@ export function PayrollCalculation() {
      const num = Number(value);
      return isNaN(num) ? 0 : num;
    };
+   
+    const watchedEmployees = form.watch("employees");
+    React.useEffect(() => {
+        watchedEmployees.forEach((employee, index) => {
+            const totalHours = safeGetNumber(employee.totalHoursWorked);
+            const checkHours = safeGetNumber(employee.checkHours);
+            const otherHours = totalHours - checkHours > 0 ? totalHours - checkHours : 0;
+            
+            const currentOtherHours = safeGetNumber(form.getValues(`employees.${index}.otherHours`));
+            if (currentOtherHours !== otherHours) {
+                form.setValue(`employees.${index}.otherHours`, otherHours, { shouldValidate: true });
+            }
+        });
+    }, [watchedEmployees, form]);
 
 
   function calculatePayroll(values: PayrollFormValues): PayrollResult[] {
     return values.employees.map((emp) => {
-      let regularPay = 0; // Pay from check/hourly rate
-      let ptoPay = 0;
-      let otherPay = 0; // Pay from 'Other' sources like cash
-      let effectiveHourlyRate = emp.payRate; // Start with the assumption it might be hourly
+      const totalHoursWorked = safeGetNumber(emp.totalHoursWorked);
+      const checkHours = safeGetNumber(emp.checkHours);
+      const ptoUsed = safeGetNumber(emp.ptoUsed);
+      const payRate = safeGetNumber(emp.payRate);
+      const standardHours = safeGetNumber(emp.standardHoursPerPayPeriod);
 
-       // Use safeGetNumber for potentially string inputs from form state
-       const hoursWorked = safeGetNumber(emp.hoursWorked);
-       const ptoUsed = safeGetNumber(emp.ptoUsed);
-       const payRate = safeGetNumber(emp.payRate);
-       const payRateOthers = safeGetNumber(emp.payRateOthers);
-       const standardHours = safeGetNumber(emp.standardHoursPerPayPeriod);
+      const otherHours = totalHoursWorked - checkHours > 0 ? totalHoursWorked - checkHours : 0;
 
-
+      let effectiveHourlyRate = 0;
       if (emp.payMethod === 'Hourly') {
-        regularPay = payRate * hoursWorked;
-        // PTO pay uses the hourly rate
-      } else { // 'Other' pay method
-        // Regular pay is the fixed amount per check
-        regularPay = payRate;
-        // Other pay is the cash amount
-        otherPay = payRateOthers;
-
-        // Calculate effective hourly rate for PTO if possible
+        effectiveHourlyRate = payRate;
+      } else { // 'Other'
         if (standardHours > 0) {
-             effectiveHourlyRate = payRate / standardHours; // Effective rate based on check amount
-             // Note: Policy decision needed if PTO should also consider cash portion. Currently it doesn't.
-        } else {
-            // Policy decision needed: How is PTO paid for 'Other'? Maybe based on avg hours?
-            // For now, assume no effective rate can be calculated for PTO if standard hours missing.
-            effectiveHourlyRate = 0; // Cannot calculate PTO pay accurately
+          effectiveHourlyRate = payRate / standardHours;
         }
       }
 
-      // Calculate PTO pay based on the effective hourly rate (which is the actual rate for Hourly)
-       if (effectiveHourlyRate > 0) {
-         ptoPay = effectiveHourlyRate * ptoUsed;
-       }
+      const regularPay = effectiveHourlyRate * checkHours;
+      const ptoPay = effectiveHourlyRate * ptoUsed;
+      const otherPay = effectiveHourlyRate * otherHours;
 
-
-      // Gross pay includes regular pay (check/hourly), PTO pay, and other pay (cash)
-      const grossPay = regularPay + ptoPay + otherPay;
-      const taxes = (regularPay + ptoPay) * TAX_RATE; // Tax only the check/PTO portion for simplicity (policy needed)
-      const netPay = regularPay + ptoPay - taxes; // Net check amount
+      const grossPayOnCheck = regularPay + ptoPay;
+      const taxes = grossPayOnCheck * TAX_RATE;
+      const netPay = grossPayOnCheck - taxes;
+      const grossTotalPay = grossPayOnCheck + otherPay;
 
       return {
         employeeId: emp.employeeId,
         name: emp.name,
-        regularPay, // Check/Hourly pay before tax/pto
+        regularPay,
         ptoPay,
-        grossPay, // Total earnings (Check + PTO + Other)
-        taxes, // Taxes on Check/PTO portion
-        netPay, // Net amount for the Check
-        otherPay, // Cash/Other amount paid separately
+        grossPay: grossTotalPay,
+        taxes,
+        netPay,
+        otherPay,
+        effectiveHourlyRate,
       };
     });
   }
 
   function onSubmit(values: PayrollFormValues) {
-     // Manual check for PTO balance before proceeding
-    let ptoError = false;
-    values.employees.forEach((emp, index) => {
-       const ptoUsed = safeGetNumber(emp.ptoUsed);
-       const ptoBalance = safeGetNumber(emp.ptoBalance);
-      if (ptoUsed > ptoBalance) {
-        form.setError(`employees.${index}.ptoUsed`, {
-          type: 'manual',
-          message: 'Cannot use more PTO than available.',
-        });
-        ptoError = true;
-      }
-       // Validate hours worked for 'Hourly' method
-       const hoursWorked = safeGetNumber(emp.hoursWorked);
-        if (emp.payMethod === 'Hourly' && hoursWorked === 0 && ptoUsed === 0) {
-             // Maybe warn or just allow 0 pay calculation
-            console.warn(`Employee ${emp.name} has 0 hours worked and 0 PTO used.`);
-        }
-    });
-
-    if (ptoError) {
-       toast({
-        title: 'Validation Error',
-        description: 'Please correct the PTO hours used.',
-        variant: 'destructive',
-        action: <AlertTriangle className="h-4 w-4 text-white" />
-      });
-      return; // Stop submission
-    }
-
     console.log('Payroll data submitted:', values);
     const results = calculatePayroll(values);
     setPayrollResults(results);
@@ -210,9 +183,8 @@ export function PayrollCalculation() {
   }
 
    const formatCurrency = (amount: number) => {
-       // Check if amount is a valid number
        if (typeof amount !== 'number' || isNaN(amount)) {
-          return '$ ---.--'; // Or some placeholder for invalid numbers
+          return '$ ---.--';
        }
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
   };
@@ -229,19 +201,19 @@ export function PayrollCalculation() {
      <Card>
        <CardHeader>
         <CardTitle className="flex items-center"><Calculator className="mr-2 h-5 w-5 text-muted-foreground"/> Calculate Payroll</CardTitle>
-        <CardDescription>Enter hours worked and PTO used for each employee for the current pay period.</CardDescription>
+        <CardDescription>Enter hours for each employee for the current pay period.</CardDescription>
       </CardHeader>
        <CardContent>
          <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-             {/* Employee Hours Input Table */}
             <div className="overflow-x-auto">
              <Table>
                  <TableHeader>
                    <TableRow>
                     <TableHead>Employee</TableHead>
-                    <TableHead>Pay Method</TableHead>
-                    <TableHead className="w-[150px]">Hours Worked</TableHead>
+                    <TableHead className="w-[150px]">Total Hours Worked</TableHead>
+                    <TableHead className="w-[150px]">Check Hours</TableHead>
+                    <TableHead className="w-[150px]">Other Hours</TableHead>
                     <TableHead className="w-[150px]">PTO Used (hrs)</TableHead>
                     <TableHead>Available PTO</TableHead>
                    </TableRow>
@@ -250,24 +222,45 @@ export function PayrollCalculation() {
                   {fields.map((field, index) => (
                      <TableRow key={field.id}>
                          <TableCell className="font-medium">{field.name}</TableCell>
-                         <TableCell>{field.payMethod}</TableCell>
                          <TableCell>
                            <FormField
                               control={form.control}
-                              name={`employees.${index}.hoursWorked`}
+                              name={`employees.${index}.totalHoursWorked`}
                               render={({ field: inputField }) => (
                                 <FormItem className="w-full">
-                                  <FormLabel className="sr-only">Hours Worked for {field.name}</FormLabel>
+                                  <FormLabel className="sr-only">Total Hours Worked for {field.name}</FormLabel>
                                   <FormControl>
-                                      <Input
-                                          type="number"
-                                          step="0.1"
-                                          min="0"
-                                          placeholder="e.g., 40"
-                                          {...inputField}
-                                           value={inputField.value ?? ''} // Handle undefined/null for input display
-                                          className="h-8"
-                                       />
+                                      <Input type="number" step="0.1" min="0" placeholder="e.g., 40" {...inputField} className="h-8" />
+                                  </FormControl>
+                                   <FormMessage className="text-xs mt-1" />
+                                </FormItem>
+                              )}
+                            />
+                         </TableCell>
+                         <TableCell>
+                           <FormField
+                              control={form.control}
+                              name={`employees.${index}.checkHours`}
+                              render={({ field: inputField }) => (
+                                <FormItem className="w-full">
+                                  <FormLabel className="sr-only">Check Hours for {field.name}</FormLabel>
+                                  <FormControl>
+                                      <Input type="number" step="0.1" min="0" placeholder="e.g., 35" {...inputField} className="h-8" />
+                                  </FormControl>
+                                   <FormMessage className="text-xs mt-1" />
+                                </FormItem>
+                              )}
+                            />
+                         </TableCell>
+                         <TableCell>
+                           <FormField
+                              control={form.control}
+                              name={`employees.${index}.otherHours`}
+                              render={({ field: inputField }) => (
+                                <FormItem className="w-full">
+                                  <FormLabel className="sr-only">Other Hours for {field.name}</FormLabel>
+                                  <FormControl>
+                                      <Input type="number" {...inputField} className="h-8" disabled />
                                   </FormControl>
                                    <FormMessage className="text-xs mt-1" />
                                 </FormItem>
@@ -282,15 +275,7 @@ export function PayrollCalculation() {
                                 <FormItem className="w-full">
                                   <FormLabel className="sr-only">PTO Hours Used for {field.name}</FormLabel>
                                   <FormControl>
-                                      <Input
-                                          type="number"
-                                          step="0.1"
-                                          min="0"
-                                          placeholder="e.g., 8"
-                                          {...inputField}
-                                           value={inputField.value ?? ''} // Handle undefined/null
-                                          className="h-8"
-                                       />
+                                      <Input type="number" step="0.1" min="0" placeholder="e.g., 8" {...inputField} className="h-8" />
                                   </FormControl>
                                    <FormMessage className="text-xs mt-1" />
                                 </FormItem>
@@ -304,8 +289,8 @@ export function PayrollCalculation() {
                   ))}
                    {fields.length === 0 && (
                        <TableRow>
-                           <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
-                               No active employees found for this payroll run. Add employees first.
+                           <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
+                               No active employees found for this payroll run.
                            </TableCell>
                        </TableRow>
                    )}
@@ -317,11 +302,10 @@ export function PayrollCalculation() {
                       <AlertTriangle className="h-4 w-4" />
                       <AlertTitle>Error</AlertTitle>
                       <AlertDescription>
-                        {form.formState.errors.employees.message || "Please check the form for errors, especially PTO used."}
+                        Please check the form for errors. PTO used cannot exceed available balance.
                       </AlertDescription>
                   </Alert>
               )}
-
 
             <Button type="submit" disabled={fields.length === 0 || form.formState.isSubmitting} className="w-full bg-accent text-accent-foreground hover:bg-accent/90">
               <Calculator className="mr-2 h-4 w-4" /> Calculate Payroll
@@ -329,7 +313,6 @@ export function PayrollCalculation() {
           </form>
         </Form>
 
-         {/* Payroll Results Section */}
          {showResults && (() => {
             const currentEmployees = form.getValues().employees;
             const employeeDataMap = new Map(currentEmployees.map(e => [e.employeeId, e]));
@@ -351,40 +334,34 @@ export function PayrollCalculation() {
                 isDestructive?: boolean;
                 type?: 'separator';
             }> = [
-                {
+                 {
+                    label: "Total Hours",
+                    getValue: (result) => formatHours(employeeDataMap.get(result.employeeId)?.totalHoursWorked)
+                },
+                 {
                     label: "Check Hours",
-                    getValue: (result) => formatHours(employeeDataMap.get(result.employeeId)?.hoursWorked)
+                    getValue: (result) => formatHours(employeeDataMap.get(result.employeeId)?.checkHours)
+                },
+                {
+                    label: "Other Hours",
+                    getValue: (result) => formatHours(employeeDataMap.get(result.employeeId)?.otherHours)
                 },
                 {
                     label: "PTO Time",
                     getValue: (result) => formatHours(employeeDataMap.get(result.employeeId)?.ptoUsed)
                 },
                 {
-                    label: "Rate/Check",
-                    getValue: (result) => {
-                        const emp = employeeDataMap.get(result.employeeId);
-                        if (!emp) return 'N/A';
-                        return emp.payMethod === 'Hourly'
-                            ? `${formatCurrency(emp.payRate)}/hr`
-                            : formatCurrency(emp.payRate)
-                    }
-                },
-                {
-                    label: "Rate/Others",
-                     getValue: (result) => {
-                        const emp = employeeDataMap.get(result.employeeId);
-                        if (!emp || emp.payMethod !== 'Other') return 'N/A';
-                        return formatCurrency(emp.payRateOthers ?? 0)
-                    }
+                    label: "Hourly Rate",
+                    getValue: (result) => formatCurrency(result.effectiveHourlyRate) + "/hr"
                 },
                  { type: 'separator', label: '', getValue: () => '' },
                 {
-                    label: "Check/Hourly Pay",
+                    label: "Check Hours Pay",
                     getValue: (result) => formatCurrency(result.regularPay),
                     getTotal: () => formatCurrency(totals.regularPay)
                 },
                 {
-                    label: "PTO Paid",
+                    label: "PTO Pay",
                     getValue: (result) => formatCurrency(result.ptoPay),
                     getTotal: () => formatCurrency(totals.ptoPay)
                 },
@@ -393,18 +370,6 @@ export function PayrollCalculation() {
                     getValue: (result) => formatCurrency(result.regularPay + result.ptoPay),
                     getTotal: () => formatCurrency(totals.regularPay + totals.ptoPay),
                     isBold: true,
-                },
-                { type: 'separator', label: '', getValue: () => '' },
-                {
-                    label: "Other Amount",
-                    getValue: (result) => formatCurrency(result.otherPay),
-                    getTotal: () => formatCurrency(totals.otherPay)
-                },
-                {
-                    label: "Gross Pay (Total)",
-                    getValue: (result) => formatCurrency(result.grossPay),
-                    getTotal: () => formatCurrency(totals.grossPay),
-                    isBold: true
                 },
                 {
                     label: `Taxes (${TAX_RATE * 100}%)`,
@@ -417,6 +382,18 @@ export function PayrollCalculation() {
                     getValue: (result) => formatCurrency(result.netPay),
                     getTotal: () => formatCurrency(totals.netPay),
                     isBold: true,
+                },
+                { type: 'separator', label: '', getValue: () => '' },
+                {
+                    label: "Other Hours Pay",
+                    getValue: (result) => formatCurrency(result.otherPay),
+                    getTotal: () => formatCurrency(totals.otherPay)
+                },
+                {
+                    label: "Total Gross Pay",
+                    getValue: (result) => formatCurrency(result.grossPay),
+                    getTotal: () => formatCurrency(totals.grossPay),
+                    isBold: true
                 },
                 { type: 'separator', label: '', getValue: () => '' },
                 {
@@ -452,7 +429,7 @@ export function PayrollCalculation() {
                                 if (metric.type === 'separator') {
                                     return (
                                         <TableRow key={`sep-${index}`} className="bg-muted/20 hover:bg-muted/20">
-                                            <TableCell colSpan={payrollResults.length + 2} className="h-2 p-0"></TableCell>
+                                            <TableCell colSpan={payrollResults.length + 3} className="h-2 p-0"></TableCell>
                                         </TableRow>
                                     );
                                 }
@@ -489,5 +466,3 @@ export function PayrollCalculation() {
      </Card>
   );
 }
-
-    
