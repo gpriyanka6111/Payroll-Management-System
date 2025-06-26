@@ -123,7 +123,7 @@ export function PayrollCalculation() {
            form.setValue(`employees.${index}.otherHours`, otherHours, { shouldValidate: true });
          }
        });
-   }, [watchedEmployees, form.getValues, form.setValue]);
+   }, [watchedEmployees, form]);
  
    // Helper function to safely convert value to number for calculations
    const safeGetNumber = (value: unknown): number => {
