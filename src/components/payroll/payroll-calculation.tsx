@@ -115,19 +115,29 @@ export function PayrollCalculation() {
    const { setValue } = form;
 
    React.useEffect(() => {
+    // This effect listens for changes in any employee's hours and automatically
+    // calculates the 'Other Hours' field.
     if (!watchedEmployees) return;
+    
     watchedEmployees.forEach((employee, index) => {
       const totalHours = Number(employee.totalHoursWorked) || 0;
       const checkHours = Number(employee.checkHours) || 0;
-      const otherHours = Math.max(0, totalHours - checkHours);
       
-      const currentOtherHoursInForm = Number(form.getValues(`employees.${index}.otherHours`)) || 0;
+      // Calculate the difference, ensuring it's not negative.
+      const calculatedOtherHours = Math.max(0, totalHours - checkHours);
+      
+      const currentOtherHours = Number(employee.otherHours) || 0;
 
-      if (currentOtherHoursInForm !== otherHours) {
-        setValue(`employees.${index}.otherHours`, otherHours, { shouldValidate: true });
+      // Only update the form if the calculated value is different from the current one.
+      // This prevents an infinite re-render loop.
+      if (calculatedOtherHours !== currentOtherHours) {
+        // We explicitly set the value in the form state.
+        // `shouldValidate: true` ensures any validation rules are re-run.
+        setValue(`employees.${index}.otherHours`, calculatedOtherHours, { shouldValidate: true });
       }
     });
-   }, [watchedEmployees, setValue, form]);
+    // We depend on the watched employees array and the setValue function.
+   }, [watchedEmployees, setValue]);
  
    // Helper function to safely convert value to number for calculations
    const safeGetNumber = (value: unknown): number => {
@@ -142,9 +152,10 @@ export function PayrollCalculation() {
       const ptoUsed = safeGetNumber(emp.ptoUsed);
       const payRateCheck = safeGetNumber(emp.payRateCheck);
       const payRateOthers = safeGetNumber(emp.payRateOthers);
-      const otherHours = totalHoursWorked - checkHours > 0 ? totalHoursWorked - checkHours : 0;
       
-      // Assume PTO is paid at the regular check rate
+      // Defensively recalculate otherHours here to ensure accuracy
+      const otherHours = Math.max(0, totalHoursWorked - checkHours);
+      
       const effectiveCheckRate = payRateCheck;
       
       const regularPay = effectiveCheckRate * checkHours;
@@ -157,7 +168,7 @@ export function PayrollCalculation() {
       const grossTotalPay = grossPayOnCheck + otherPay;
 
       const totalPay = regularPay + otherPay + ptoPay;
-      const totalHoursBilled = checkHours + otherHours + ptoUsed;
+      const totalHoursBilled = totalHoursWorked + ptoUsed;
       const effectiveHourlyRate = totalHoursBilled > 0 ? totalPay / totalHoursBilled : 0;
 
       return {
