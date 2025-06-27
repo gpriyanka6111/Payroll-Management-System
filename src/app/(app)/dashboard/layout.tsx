@@ -11,7 +11,7 @@ export default function DashboardLayout({
 }) {
   return (
     <SidebarProvider defaultOpen={true}>
-      <Sidebar className="print:hidden">
+      <Sidebar>
         <SidebarHeader className="items-center">
            <Link href="/dashboard" className="flex items-center gap-2">
              {/* Placeholder for Logo */}

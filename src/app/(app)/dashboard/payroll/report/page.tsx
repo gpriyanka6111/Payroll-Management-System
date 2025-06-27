@@ -121,7 +121,7 @@ export default function PayrollReportPage() {
 
     return (
         <div className="payroll-report-page space-y-6">
-            <div className="flex justify-between items-center print:hidden">
+            <div className="report-actions flex justify-between items-center">
                 <Button variant="outline" onClick={() => router.back()}>
                     <ArrowLeft className="mr-2 h-4 w-4" /> Back to Calculation
                 </Button>
@@ -136,7 +136,7 @@ export default function PayrollReportPage() {
                        <h2 className="text-xl font-bold">My Small Business</h2>
                        <p className="text-sm text-muted-foreground">Pay Period: {format(period.from, 'LLL dd, y')} - {format(period.to, 'LLL dd,y')}</p>
                     </div>
-                     <div className="print:hidden">
+                     <div className="print-hidden">
                        <CardTitle>Payroll Report</CardTitle>
                        <CardDescription>
                            Pay Period: {format(period.from, 'LLL dd, y')} - {format(period.to, 'LLL dd, y')}
@@ -187,8 +187,8 @@ export default function PayrollReportPage() {
                    </Table>
                    </div>
 
-                  <Separator className="my-6" />
-                  <h3 className="text-xl font-semibold mb-4 print:hidden">Payroll Summary</h3>
+                  <Separator className="my-6 print-hidden" />
+                  <h3 className="text-xl font-semibold mb-4 print-hidden">Payroll Summary</h3>
                    <div className="overflow-x-auto border rounded-lg">
                       <Table>
                           <TableHeader>

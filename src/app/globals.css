@@ -2,16 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-@media print {
-  body {
-    -webkit-print-color-adjust: exact;
-  }
-}
-
-body {
-  font-family: var(--font-geist-sans), sans-serif; /* Use Geist Sans as primary font */
-}
-
 @layer base {
   :root {
     /* Light Theme */
@@ -102,29 +92,35 @@ body {
     -webkit-print-color-adjust: exact;
   }
 
-  /* Reset the main content layout for printing. The 'main' tag is our content area. */
-  main {
-    display: block !important;
-    min-height: auto !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    box-shadow: none !important;
-  }
-  
-  /* Reset the immediate child div within main, which has padding */
-  main > div {
-     padding: 0 !important;
+  /* Hide everything by default */
+  body * {
+    visibility: hidden;
   }
 
-  /* Style the report card itself for printing */
+  /* Make the report section and its children visible */
+  .payroll-report-page, .payroll-report-page * {
+    visibility: visible;
+  }
+  
+  /* Position the report to take over the page */
+  .payroll-report-page {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    padding: 0;
+    margin: 0;
+  }
+
+  /* Explicitly hide the action buttons within the report page */
+  .report-actions, .print-hidden {
+    display: none !important;
+    visibility: hidden !important;
+  }
+  
   .payroll-report-card {
      border: none !important;
      box-shadow: none !important;
-     padding: 0 !important;
-  }
-
-  .payroll-report-card > div { /* CardContent */
-    padding-top: 0 !important;
   }
 
   @page {
