@@ -17,13 +17,14 @@ import {
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Calculator, AlertTriangle, CheckCircle, Printer } from 'lucide-react';
+import { Calculator, AlertTriangle, CheckCircle } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { cn } from '@/lib/utils';
 import { employees as placeholderEmployees } from '@/lib/placeholder-data';
 import { format } from 'date-fns';
+import { useRouter } from 'next/navigation';
 
 // Define Zod schema for a single employee's payroll input
 const employeePayrollInputSchema = z.object({
@@ -94,10 +95,10 @@ interface PayrollCalculationProps {
 }
 
 export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
+  const router = useRouter();
   const { toast } = useToast();
   const [payrollResults, setPayrollResults] = React.useState<PayrollResult[]>([]);
   const [showResults, setShowResults] = React.useState(false);
-  const [payrollApproved, setPayrollApproved] = React.useState(false);
 
   const form = useForm<PayrollFormValues>({
     resolver: zodResolver(payrollFormSchema),
@@ -196,7 +197,6 @@ export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
     const results = calculatePayroll(values);
     setPayrollResults(results);
     setShowResults(true);
-    setPayrollApproved(false); // Ensure we are in calculation mode
     toast({
       title: 'Payroll Calculated',
       description: 'Review the results below before approving.',
@@ -206,15 +206,17 @@ export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
   }
 
   function handleApprovePayroll() {
-    setPayrollApproved(true);
+    sessionStorage.setItem('payrollResultsData', JSON.stringify(payrollResults));
+    sessionStorage.setItem('payrollPeriodData', JSON.stringify({ from, to }));
+    
     toast({
       title: "Payroll Approved",
-      description: "The report is now ready to be printed.",
+      description: "Redirecting to the printable report page.",
     });
-  }
 
-  function handlePrint() {
-    window.print();
+    setTimeout(() => {
+        router.push('/dashboard/payroll/report');
+    }, 500);
   }
 
   const formatCurrency = (amount: number) => {
@@ -234,7 +236,7 @@ export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
 
   return (
      <>
-       <Card className={cn('print:hidden', showResults && 'hidden')}>
+       <Card className={cn(showResults && 'hidden')}>
          <CardHeader>
           <CardTitle className="flex items-center"><Calculator className="mr-2 h-5 w-5 text-muted-foreground"/> 2. Calculate Payroll</CardTitle>
           <CardDescription>Enter hours for each employee for the current pay period.</CardDescription>
@@ -412,27 +414,19 @@ export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
           ];
 
            return (
-               <Card className="payroll-report-card">
-                   <CardHeader className="print:text-center print:p-4">
-                        {/* Screen View */}
-                        <div className="print:hidden">
-                           <CardTitle>Payroll Results</CardTitle>
-                           <CardDescription>
-                               Pay Period: {format(from, 'LLL dd, y')} - {format(to, 'LLL dd, y')}
-                           </CardDescription>
-                        </div>
-                        {/* Print View */}
-                        <div className="hidden print:block">
-                           <h2 className="text-xl font-bold">My Small Business</h2>
-                           <p className="text-sm text-muted-foreground">Pay Period: {format(from, 'LLL dd, y')} - {format(to, 'LLL dd,y')}</p>
-                        </div>
+               <Card>
+                   <CardHeader>
+                        <CardTitle>Review Payroll Results</CardTitle>
+                        <CardDescription>
+                            Pay Period: {format(from, 'LLL dd, y')} - {format(to, 'LLL dd, y')}
+                        </CardDescription>
                    </CardHeader>
-                   <CardContent className="print:pt-0">
-                       <Alert variant="default" className="mb-4 bg-blue-50 border-blue-200 print:hidden">
+                   <CardContent>
+                       <Alert variant="default" className="mb-4 bg-blue-50 border-blue-200">
                           <CheckCircle className="h-4 w-4 text-primary" />
-                          <AlertTitle className="text-primary">{payrollApproved ? "Payroll Approved" : "Calculation Complete"}</AlertTitle>
+                          <AlertTitle className="text-primary">Calculation Complete</AlertTitle>
                           <AlertDescription>
-                           {payrollApproved ? "This payroll run is approved. You can now print the report." : "Review the payroll details below. Employees are shown as columns for easy comparison."}
+                            Review the payroll details below. Click "Approve and View Report" to finalize.
                           </AlertDescription>
                        </Alert>
                       <div className="overflow-x-auto">
@@ -479,7 +473,7 @@ export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
                        </div>
 
                       <Separator className="my-6" />
-                      <h3 className="text-xl font-semibold mb-4 print:hidden">Payroll Summary</h3>
+                      <h3 className="text-xl font-semibold mb-4">Payroll Summary</h3>
                        <div className="overflow-x-auto border rounded-lg">
                           <Table>
                               <TableHeader>
@@ -503,27 +497,9 @@ export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
                           </Table>
                       </div>
 
-                       <div className="mt-6 flex justify-end space-x-2 print:hidden">
-                           {!payrollApproved ? (
-                               <>
-                                   <Button variant="outline" onClick={() => {
-                                     setShowResults(false);
-                                     form.reset();
-                                   }}>Recalculate</Button>
-                                   <Button onClick={handleApprovePayroll} disabled={!showResults}>Approve Payroll</Button>
-                               </>
-                           ) : (
-                               <>
-                                   <Button variant="outline" onClick={() => {
-                                       setShowResults(false);
-                                       setPayrollApproved(false);
-                                       form.reset();
-                                   }}>
-                                       Start New Run
-                                   </Button>
-                                   <Button onClick={handlePrint}><Printer className="mr-2 h-4 w-4"/>Print Report</Button>
-                               </>
-                           )}
+                       <div className="mt-6 flex justify-end space-x-2">
+                           <Button variant="outline" onClick={() => setShowResults(false)}>Edit Details</Button>
+                           <Button onClick={handleApprovePayroll} disabled={!showResults}>Approve and View Report</Button>
                        </div>
                   </CardContent>
                </Card>
