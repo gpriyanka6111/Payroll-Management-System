@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react";
@@ -27,7 +26,12 @@ export default function PayrollPage() {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
   };
    const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+    // Parsing YYYY-MM-DD can be inconsistent across environments (server vs client timezone).
+    // By splitting and creating the date this way, we avoid timezone interpretation issues
+    // that cause hydration errors.
+    const [year, month, day] = dateString.split('-').map(Number);
+    const date = new Date(year, month - 1, day);
+    return format(date, "MMMM d, yyyy");
   };
 
 
