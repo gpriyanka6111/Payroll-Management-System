@@ -140,10 +140,11 @@ export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
         watchedEmployees.forEach((employee, index) => {
             const totalHours = Number(employee.totalHoursWorked) || 0;
             const checkHours = Number(employee.checkHours) || 0;
+            const currentOtherHours = Number(employee.otherHours) || 0;
             
             const calculatedOtherHours = Math.max(0, totalHours - checkHours);
             
-            if (watchedEmployees[index].otherHours !== calculatedOtherHours) {
+            if (currentOtherHours !== calculatedOtherHours) {
                 setValue(`employees.${index}.otherHours`, calculatedOtherHours, {
                     shouldValidate: true,
                     shouldDirty: true,
@@ -316,9 +317,9 @@ export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
                     ))}
                      <TableRow className="bg-muted/20 hover:bg-muted/20">
                         <TableCell className="font-medium">Available PTO</TableCell>
-                        {fields.map((field) => (
+                        {fields.map((field, index) => (
                             <TableCell key={field.id} className="text-center text-sm text-muted-foreground tabular-nums">
-                                {`(${formatHours(field.ptoBalance)})`}
+                                {`(${formatHours(watchedEmployees[index]?.ptoBalance)})`}
                             </TableCell>
                         ))}
                      </TableRow>
