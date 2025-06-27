@@ -12,15 +12,15 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Edit, Trash2, Clock, DollarSign, CalendarDays } from "lucide-react";
 
-// Updated Employee type
+// Updated Employee type to match add-employee-form
 type Employee = {
   id: string;
   name: string;
-  email?: string; // Optional
-  payMethod: 'Hourly' | 'Other';
-  payRate: number;
-  standardHoursPerPayPeriod?: number; // Still optional, relevant for Hourly
-  ptoBalance: number; // Initial balance
+  payMethod: 'Hourly'; // Form only supports Hourly for now
+  payRateCheck: number;
+  payRateOthers?: number;
+  standardHoursPerPayPeriod?: number;
+  ptoBalance: number;
 };
 
 interface EmployeeTableProps {
@@ -28,7 +28,8 @@ interface EmployeeTableProps {
 }
 
 export function EmployeeTable({ employees }: EmployeeTableProps) {
-  const formatCurrency = (amount: number) => {
+  const formatCurrency = (amount: number | undefined) => {
+    if (amount === undefined) return 'N/A';
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
   };
 
@@ -45,8 +46,9 @@ export function EmployeeTable({ employees }: EmployeeTableProps) {
         <TableRow>
           <TableHead>Name</TableHead>
           <TableHead><Clock className="inline-block h-4 w-4 mr-1"/>Pay Method</TableHead>
-          <TableHead><DollarSign className="inline-block h-4 w-4 mr-1"/>Pay Rate</TableHead>
-           <TableHead><Clock className="inline-block h-4 w-4 mr-1"/>Std. Hours</TableHead>
+          <TableHead><DollarSign className="inline-block h-4 w-4 mr-1"/>Rate/Check</TableHead>
+          <TableHead><DollarSign className="inline-block h-4 w-4 mr-1"/>Rate/Others</TableHead>
+          <TableHead><Clock className="inline-block h-4 w-4 mr-1"/>Std. Hours</TableHead>
           <TableHead><CalendarDays className="inline-block h-4 w-4 mr-1"/>PTO Balance</TableHead>
           <TableHead className="text-right">Actions</TableHead>
         </TableRow>
@@ -56,11 +58,12 @@ export function EmployeeTable({ employees }: EmployeeTableProps) {
           <TableRow key={employee.id}>
             <TableCell className="font-medium">{employee.name}</TableCell>
             <TableCell>
-                 <Badge variant={employee.payMethod === 'Hourly' ? 'secondary' : 'outline'}>
+                 <Badge variant='secondary'>
                     {employee.payMethod}
                  </Badge>
             </TableCell>
-            <TableCell>{formatCurrency(employee.payRate)}{employee.payMethod === 'Hourly' ? '/hr' : ''}</TableCell>
+            <TableCell>{formatCurrency(employee.payRateCheck)}/hr</TableCell>
+            <TableCell>{formatCurrency(employee.payRateOthers)}/hr</TableCell>
             <TableCell>{formatHours(employee.standardHoursPerPayPeriod)}</TableCell>
             <TableCell>{formatHours(employee.ptoBalance)}</TableCell>
             <TableCell className="text-right space-x-2">
@@ -76,7 +79,7 @@ export function EmployeeTable({ employees }: EmployeeTableProps) {
         ))}
          {employees.length === 0 && (
            <TableRow>
-            <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
+            <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
               No employees found. Add your first employee!
             </TableCell>
           </TableRow>
