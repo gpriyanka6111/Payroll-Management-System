@@ -413,13 +413,21 @@ export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
 
            return (
                <Card className="payroll-report-card">
-                   <CardHeader>
-                       <CardTitle>Payroll Results</CardTitle>
-                       <CardDescription>
-                           Pay Period: {format(from, 'LLL dd, y')} - {format(to, 'LLL dd, y')}
-                       </CardDescription>
+                   <CardHeader className="print:text-center print:p-4">
+                        {/* Screen View */}
+                        <div className="print:hidden">
+                           <CardTitle>Payroll Results</CardTitle>
+                           <CardDescription>
+                               Pay Period: {format(from, 'LLL dd, y')} - {format(to, 'LLL dd, y')}
+                           </CardDescription>
+                        </div>
+                        {/* Print View */}
+                        <div className="hidden print:block">
+                           <h2 className="text-xl font-bold">My Small Business</h2>
+                           <p className="text-sm text-muted-foreground">Pay Period: {format(from, 'LLL dd, y')} - {format(to, 'LLL dd,y')}</p>
+                        </div>
                    </CardHeader>
-                   <CardContent>
+                   <CardContent className="print:pt-0">
                        <Alert variant="default" className="mb-4 bg-blue-50 border-blue-200 print:hidden">
                           <CheckCircle className="h-4 w-4 text-primary" />
                           <AlertTitle className="text-primary">{payrollApproved ? "Payroll Approved" : "Calculation Complete"}</AlertTitle>
@@ -471,7 +479,7 @@ export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
                        </div>
 
                       <Separator className="my-6" />
-                      <h3 className="text-xl font-semibold mb-4">Payroll Summary</h3>
+                      <h3 className="text-xl font-semibold mb-4 print:hidden">Payroll Summary</h3>
                        <div className="overflow-x-auto border rounded-lg">
                           <Table>
                               <TableHeader>
@@ -524,5 +532,3 @@ export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
      </>
   );
 }
-
-    
