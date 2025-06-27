@@ -43,7 +43,7 @@ const employeePayrollInputSchema = z.object({
   (data) => data.ptoUsed <= (data.ptoBalance ?? 0),
   {
     message: "PTO used cannot exceed available balance.",
-    path: ["ptoUsed"], 
+    path: ["ptoUsed"],
   }
 );
 
@@ -72,7 +72,6 @@ type PayrollResult = {
   grossCheckAmount: number;
   grossOtherAmount: number;
   netPay: number;
-  totalGrossPay: number;
   newPtoBalance: number;
 };
 
@@ -85,6 +84,7 @@ const initialEmployeesData = placeholderEmployees.map(emp => ({
   payRateOthers: emp.payRateOthers,
   ptoBalance: emp.ptoBalance,
   checkHours: emp.standardCheckHours,
+  standardCheckHours: emp.standardCheckHours,
 }));
 
 
@@ -102,8 +102,8 @@ export function PayrollCalculation() {
           payRateCheck: emp.payRateCheck,
           payRateOthers: emp.payRateOthers ?? 0,
           ptoBalance: emp.ptoBalance,
-          totalHoursWorked: emp.checkHours ?? 0,
-          checkHours: emp.checkHours ?? 0,
+          totalHoursWorked: emp.standardCheckHours ?? 0,
+          checkHours: emp.standardCheckHours ?? 0,
           otherHours: 0,
           ptoUsed: 0,
           otherAdjustment: 0,
@@ -117,51 +117,58 @@ export function PayrollCalculation() {
     name: "employees",
    });
 
-   const { setValue, getValues, trigger } = form;
+   const { setValue, watch } = form;
 
-   const handleHoursChange = React.useCallback((index: number) => {
-      const employee = getValues(`employees.${index}`);
-      const totalHours = Number(employee.totalHoursWorked) || 0;
-      const checkHours = Number(employee.checkHours) || 0;
-      const calculatedOtherHours = Math.max(0, totalHours - checkHours);
-      
-      setValue(`employees.${index}.otherHours`, calculatedOtherHours, {
-        shouldValidate: true,
-        shouldDirty: true,
-      });
-   }, [getValues, setValue]);
+   // Watch for changes in the entire employees array
+    const watchedEmployees = watch("employees");
+
+   // A callback to handle the other hours calculation
+    React.useEffect(() => {
+        watchedEmployees.forEach((employee, index) => {
+            const totalHours = Number(employee.totalHoursWorked) || 0;
+            const checkHours = Number(employee.checkHours) || 0;
+            const currentOtherHours = Number(employee.otherHours) || 0;
+
+            const calculatedOtherHours = Math.max(0, totalHours - checkHours);
+
+            if (calculatedOtherHours !== currentOtherHours) {
+                setValue(`employees.${index}.otherHours`, calculatedOtherHours, {
+                    shouldValidate: true,
+                    shouldDirty: true,
+                });
+            }
+        });
+    }, [watchedEmployees, setValue]);
+
 
    // Helper function to safely convert value to number for calculations
    const safeGetNumber = (value: unknown): number => {
      const num = Number(value);
      return isNaN(num) ? 0 : num;
    };
-   
+
   function calculatePayroll(values: PayrollFormValues): PayrollResult[] {
     return values.employees.map((emp) => {
-      // Recalculate values to ensure accuracy
+      // Re-calculate all values here to ensure accuracy at the point of submission
       const totalHoursWorked = safeGetNumber(emp.totalHoursWorked);
       const checkHours = safeGetNumber(emp.checkHours);
-      // Re-calculate otherHours here to ensure it's correct for the final result
-      const otherHours = Math.max(0, totalHoursWorked - checkHours);
+      const otherHours = Math.max(0, totalHoursWorked - checkHours); // Crucial recalculation
       const ptoUsed = safeGetNumber(emp.ptoUsed);
       const payRateCheck = safeGetNumber(emp.payRateCheck);
       const payRateOthers = safeGetNumber(emp.payRateOthers) ?? 0;
       const otherAdjustment = safeGetNumber(emp.otherAdjustment);
       const initialPtoBalance = safeGetNumber(emp.ptoBalance);
-      
+
       const regularPay = payRateCheck * checkHours;
       const ptoPay = payRateCheck * ptoUsed;
-
       const grossCheckAmount = regularPay + ptoPay;
-      
+
       const otherPay = payRateOthers * otherHours;
       const grossOtherAmount = otherPay + otherAdjustment;
-      
-      const totalGrossPay = grossCheckAmount + grossOtherAmount;
-      // Net pay is simplified for now, no taxes/deductions applied here
-      const netPay = grossCheckAmount; 
+
+      const netPay = grossCheckAmount; // Simplified, no taxes
       const newPtoBalance = initialPtoBalance - ptoUsed;
+
 
       return {
         employeeId: emp.employeeId,
@@ -175,12 +182,12 @@ export function PayrollCalculation() {
         otherAdjustment,
         grossCheckAmount,
         grossOtherAmount,
-        netPay,
-        totalGrossPay,
+        netPay, // Stays as gross for now
         newPtoBalance,
       };
     });
   }
+
 
   function onSubmit(values: PayrollFormValues) {
     console.log('Payroll data submitted:', values);
@@ -244,7 +251,7 @@ export function PayrollCalculation() {
                                 <FormItem className="w-full">
                                   <FormLabel className="sr-only">Total Hours Worked for {field.name}</FormLabel>
                                   <FormControl>
-                                      <Input type="number" step="0.1" min="0" placeholder="e.g., 40" {...inputField} onChange={(e) => { inputField.onChange(e); handleHoursChange(index); }} className="h-8" />
+                                      <Input type="number" step="0.1" min="0" placeholder="e.g., 40" {...inputField} className="h-8" />
                                   </FormControl>
                                    <FormMessage className="text-xs mt-1" />
                                 </FormItem>
@@ -259,7 +266,7 @@ export function PayrollCalculation() {
                                 <FormItem className="w-full">
                                   <FormLabel className="sr-only">Check Hours for {field.name}</FormLabel>
                                   <FormControl>
-                                      <Input type="number" step="0.1" min="0" placeholder="e.g., 35" {...inputField} onChange={(e) => { inputField.onChange(e); handleHoursChange(index); }} className="h-8" />
+                                      <Input type="number" step="0.1" min="0" placeholder="e.g., 35" {...inputField} className="h-8" />
                                   </FormControl>
                                    <FormMessage className="text-xs mt-1" />
                                 </FormItem>
@@ -347,7 +354,6 @@ export function PayrollCalculation() {
                 grossCheckAmount: payrollResults.reduce((sum, r) => sum + r.grossCheckAmount, 0),
                 grossOtherAmount: payrollResults.reduce((sum, r) => sum + r.grossOtherAmount, 0),
                 netPay: payrollResults.reduce((sum, r) => sum + r.netPay, 0),
-                totalGrossPay: payrollResults.reduce((sum, r) => sum + r.totalGrossPay, 0),
                 otherAdjustment: payrollResults.reduce((sum, r) => sum + r.otherAdjustment, 0),
             };
 
@@ -461,13 +467,6 @@ export function PayrollCalculation() {
                                     <TableCell><Input placeholder="Enter value..." /></TableCell>
                                     <TableCell><Input placeholder="Enter value..." /></TableCell>
                                     <TableCell className="font-semibold tabular-nums">{formatCurrency(totals.grossOtherAmount)}</TableCell>
-                                </TableRow>
-                                <TableRow>
-                                    <TableCell><Input placeholder="Enter value..." /></TableCell>
-                                    <TableCell><Input placeholder="Enter value..." /></TableCell>
-                                    <TableCell><Input placeholder="Enter value..." /></TableCell>
-                                    <TableCell><Input placeholder="Enter value..." /></TableCell>
-                                    <TableCell><Input placeholder="Enter value..." /></TableCell>
                                 </TableRow>
                             </TableBody>
                         </Table>
