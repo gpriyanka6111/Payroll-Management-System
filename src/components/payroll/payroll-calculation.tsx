@@ -104,7 +104,7 @@ export function PayrollCalculation() {
           payRateOthers: emp.payRateOthers ?? 0,
         })),
     },
-     mode: "onBlur", // Validate on blur to avoid excessive error messages while typing
+     mode: "onBlur",
   });
 
    const { fields } = useFieldArray({
@@ -117,25 +117,22 @@ export function PayrollCalculation() {
 
    React.useEffect(() => {
     // This effect listens for changes in any employee's hours and automatically
-    // calculates the 'Other Hours' field. This is the robust way to handle
-    // real-time calculations in a field array.
+    // calculates the 'Other Hours' field for display in the form.
     if (!watchedEmployees) return;
     
     watchedEmployees.forEach((employee, index) => {
       const totalHours = Number(employee.totalHoursWorked) || 0;
       const checkHours = Number(employee.checkHours) || 0;
-      
       const calculatedOtherHours = Math.max(0, totalHours - checkHours);
       
-      const currentOtherHours = Number(employee.otherHours) || 0;
+      const currentOtherHoursInForm = Number(employee.otherHours) || 0;
 
-      // Only update the form if the calculated value is different.
-      // This check is crucial to prevent infinite re-render loops.
-      if (calculatedOtherHours !== currentOtherHours) {
-        // We explicitly set the value in the form state.
+      // Only update the form state if the calculated value is different from the one in the form.
+      // This is crucial to prevent infinite re-render loops.
+      if (calculatedOtherHours !== currentOtherHoursInForm) {
         setValue(`employees.${index}.otherHours`, calculatedOtherHours, {
-          shouldValidate: true, // Re-run validation for dependent fields
-          shouldDirty: true, // Mark the form as dirty
+          shouldValidate: true,
+          shouldDirty: true,
         });
       }
     });
@@ -151,13 +148,11 @@ export function PayrollCalculation() {
     return values.employees.map((emp) => {
       const totalHoursWorked = safeGetNumber(emp.totalHoursWorked);
       const checkHours = safeGetNumber(emp.checkHours);
+      const otherHours = safeGetNumber(emp.otherHours); // Use the value from the form
       const ptoUsed = safeGetNumber(emp.ptoUsed);
       const payRateCheck = safeGetNumber(emp.payRateCheck);
       const payRateOthers = safeGetNumber(emp.payRateOthers);
       const initialPtoBalance = safeGetNumber(emp.ptoBalance);
-      
-      // Defensively recalculate otherHours here to ensure accuracy for the results snapshot.
-      const otherHours = Math.max(0, totalHoursWorked - checkHours);
       
       const regularPay = payRateCheck * checkHours;
       const ptoPay = payRateCheck * ptoUsed;
@@ -186,7 +181,7 @@ export function PayrollCalculation() {
         effectiveHourlyRate,
         totalHoursWorked,
         checkHours,
-        otherHours,
+        otherHours, // Pass the calculated value to the results
         ptoUsed,
         newPtoBalance,
       };
