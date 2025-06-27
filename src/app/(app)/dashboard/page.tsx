@@ -2,8 +2,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Users, Calculator, ArrowRight } from "lucide-react";
 import Link from "next/link";
+import { employees } from "@/lib/placeholder-data";
 
 export default function DashboardPage() {
+  const totalEmployees = employees.length;
+
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-bold">Dashboard</h1>
@@ -18,7 +21,7 @@ export default function DashboardPage() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">15</div> {/* Placeholder Data */}
+            <div className="text-2xl font-bold">{totalEmployees}</div>
             <p className="text-xs text-muted-foreground">
               +2 since last month
             </p>

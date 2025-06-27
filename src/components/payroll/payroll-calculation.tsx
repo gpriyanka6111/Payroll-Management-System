@@ -23,6 +23,7 @@ import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { format, startOfWeek, addDays } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { employees as placeholderEmployees } from '@/lib/placeholder-data';
 
 // Placeholder fixed tax rate for MVP
 const TAX_RATE = 0.15; // 15%
@@ -73,12 +74,18 @@ type PayrollResult = {
   effectiveHourlyRate: number;
 };
 
-// Placeholder employee data (replace with actual data fetching)
-const initialEmployeesData = [
-  { employeeId: 'emp001', name: 'Alice Smith', payMethod: 'Hourly' as const, payRate: 25.50, ptoBalance: 40.0, standardHoursPerPayPeriod: 80 },
-  { employeeId: 'emp002', name: 'Bob Johnson', payMethod: 'Other' as const, payRate: 2200.00, payRateOthers: 500.00, ptoBalance: 80.0, standardHoursPerPayPeriod: 80 },
-  { employeeId: 'emp004', name: 'Diana Prince', payMethod: 'Hourly' as const, payRate: 28.75, ptoBalance: 25.5, standardHoursPerPayPeriod: 80 },
-];
+// The form expects a specific data shape, so we map our placeholder data to it.
+const initialEmployeesData = placeholderEmployees.map(emp => ({
+  employeeId: emp.id,
+  name: `${emp.firstName} ${emp.lastName}`,
+  // The payroll form supports 'Other', but we only have 'Hourly' in our current data.
+  // This can be expanded later.
+  payMethod: emp.payMethod,
+  payRate: emp.payRateCheck, // Use payRateCheck as the primary rate for calculation
+  payRateOthers: emp.payRateOthers,
+  ptoBalance: emp.ptoBalance,
+  standardHoursPerPayPeriod: emp.standardHoursPerPayPeriod,
+}));
 
 
 export function PayrollCalculation() {
@@ -264,7 +271,7 @@ export function PayrollCalculation() {
                                 <FormItem className="w-full">
                                   <FormLabel className="sr-only">Other Hours for {field.name}</FormLabel>
                                   <FormControl>
-                                      <Input type="number" value={field.value ?? ''} className="h-8" disabled/>
+                                      <Input type="number" value={inputField.value ?? ''} className="h-8" disabled/>
                                   </FormControl>
                                    <FormMessage className="text-xs mt-1" />
                                 </FormItem>
