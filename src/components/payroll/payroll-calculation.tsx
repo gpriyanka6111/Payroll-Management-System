@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from 'react';
@@ -274,7 +273,6 @@ export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
                       <TableHead className="w-[150px]">Check Hours</TableHead>
                       <TableHead className="w-[150px]">Other Hours</TableHead>
                       <TableHead className="w-[150px]">PTO Used (hrs)</TableHead>
-                      <TableHead className="w-[150px]">Other Adj ($)</TableHead>
                       <TableHead>Available PTO</TableHead>
                      </TableRow>
                    </TableHeader>
@@ -342,21 +340,6 @@ export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
                                 )}
                               />
                            </TableCell>
-                           <TableCell>
-                             <FormField
-                                control={form.control}
-                                name={`employees.${index}.otherAdjustment`}
-                                render={({ field: inputField }) => (
-                                  <FormItem className="w-full">
-                                    <FormLabel className="sr-only">Other Adjustment for {field.name}</FormLabel>
-                                    <FormControl>
-                                        <Input type="number" step="0.01" placeholder="e.g., 50" {...inputField} className="h-8" />
-                                    </FormControl>
-                                     <FormMessage className="text-xs mt-1" />
-                                  </FormItem>
-                                )}
-                              />
-                           </TableCell>
                             <TableCell className="text-sm text-muted-foreground">
                                 {formatHours(field.ptoBalance)}
                             </TableCell>
@@ -364,7 +347,7 @@ export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
                     ))}
                      {fields.length === 0 && (
                          <TableRow>
-                             <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
+                             <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
                                  No active employees found for this payroll run.
                              </TableCell>
                          </TableRow>
