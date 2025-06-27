@@ -31,18 +31,18 @@ const employeeSchema = z.object({
   payMethod: z.literal(Hourly).default(Hourly),
   payRateCheck: z.coerce.number().positive({ message: 'Pay rate must be a positive number.' }),
   payRateOthers: z.coerce.number().min(0, { message: 'Pay rate cannot be negative' }).optional(),
-  standardHoursPerPayPeriod: z.coerce.number().min(0, { message: 'Standard hours cannot be negative.' }).optional(),
+  standardCheckHours: z.coerce.number().min(0, { message: 'Standard hours cannot be negative.' }).optional(),
   ptoBalance: z.coerce.number().min(0, { message: 'PTO balance cannot be negative.' }).default(0),
 });
 
 const refinedEmployeeSchema = employeeSchema.refine(
   (data) =>
      data.payMethod === Hourly
-        ? data.standardHoursPerPayPeriod !== undefined && data.standardHoursPerPayPeriod > 0
+        ? data.standardCheckHours !== undefined && data.standardCheckHours > 0
         : true,
   {
-    message: 'Standard hours per pay period are required for Hourly pay method.',
-    path: ['standardHoursPerPayPeriod'],
+    message: 'Standard check hours per pay period are required for Hourly pay method.',
+    path: ['standardCheckHours'],
   }
 );
 
@@ -62,7 +62,7 @@ export function AddEmployeeForm() {
       payMethod: Hourly,
       payRateCheck: 0,
       payRateOthers: 0,
-      standardHoursPerPayPeriod: 80,
+      standardCheckHours: 40,
       ptoBalance: 0,
     },
     mode: 'onChange',
@@ -219,14 +219,14 @@ export function AddEmployeeForm() {
          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
             <FormField
             control={form.control}
-            name="standardHoursPerPayPeriod"
+            name="standardCheckHours"
             render={({ field }) => {
                     const isHourly = payMethod === Hourly;
                     return (
                     <FormItem>
-                        <FormLabel>Standard Hours / Pay Period {isHourly ? '*' : ''}</FormLabel>
+                        <FormLabel>Standard Check Hours / Pay Period {isHourly ? '*' : ''}</FormLabel>
                         <FormControl>
-                            <Input type="number" step="0.1" min="0" placeholder="e.g., 80" {...field} value={field.value ?? ''} disabled={!isHourly} />
+                            <Input type="number" step="0.1" min="0" placeholder="e.g., 40" {...field} value={field.value ?? ''} disabled={!isHourly} />
                         </FormControl>
                         <FormMessage />
                     </FormItem>

@@ -84,6 +84,7 @@ const initialEmployeesData = placeholderEmployees.map(emp => ({
   payRateCheck: emp.payRateCheck,
   payRateOthers: emp.payRateOthers,
   ptoBalance: emp.ptoBalance,
+  standardCheckHours: emp.standardCheckHours,
 }));
 
 
@@ -96,12 +97,15 @@ export function PayrollCalculation() {
     resolver: zodResolver(payrollFormSchema),
     defaultValues: {
       employees: initialEmployeesData.map(emp => ({
-          ...emp,
-          totalHoursWorked: 0,
-          checkHours: 0,
+          employeeId: emp.employeeId,
+          name: emp.name,
+          payRateCheck: emp.payRateCheck,
+          payRateOthers: emp.payRateOthers ?? 0,
+          ptoBalance: emp.ptoBalance,
+          totalHoursWorked: emp.standardCheckHours ?? 0,
+          checkHours: emp.standardCheckHours ?? 0,
           otherHours: 0,
           ptoUsed: 0,
-          payRateOthers: emp.payRateOthers ?? 0,
         })),
     },
      mode: "onChange",

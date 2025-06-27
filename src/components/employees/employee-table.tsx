@@ -22,7 +22,7 @@ type Employee = {
   payMethod: 'Hourly'; // Form only supports Hourly for now
   payRateCheck: number;
   payRateOthers?: number;
-  standardHoursPerPayPeriod?: number;
+  standardCheckHours?: number;
   ptoBalance: number;
 };
 
@@ -53,7 +53,7 @@ export function EmployeeTable({ employees }: EmployeeTableProps) {
           <TableHead><Clock className="inline-block h-4 w-4 mr-1"/>Pay Method</TableHead>
           <TableHead><DollarSign className="inline-block h-4 w-4 mr-1"/>Rate/Check</TableHead>
           <TableHead><DollarSign className="inline-block h-4 w-4 mr-1"/>Rate/Others</TableHead>
-          <TableHead><Clock className="inline-block h-4 w-4 mr-1"/>Std. Hours</TableHead>
+          <TableHead><Clock className="inline-block h-4 w-4 mr-1"/>Std. Check Hrs</TableHead>
           <TableHead><CalendarDays className="inline-block h-4 w-4 mr-1"/>PTO Balance</TableHead>
           <TableHead className="text-right">Actions</TableHead>
         </TableRow>
@@ -71,7 +71,7 @@ export function EmployeeTable({ employees }: EmployeeTableProps) {
             </TableCell>
             <TableCell>{formatCurrency(employee.payRateCheck)}/hr</TableCell>
             <TableCell>{formatCurrency(employee.payRateOthers)}/hr</TableCell>
-            <TableCell>{formatHours(employee.standardHoursPerPayPeriod)}</TableCell>
+            <TableCell>{formatHours(employee.standardCheckHours)}</TableCell>
             <TableCell>{formatHours(employee.ptoBalance)}</TableCell>
             <TableCell className="text-right space-x-2">
               {/* TODO: Implement Edit/Delete functionality */}
