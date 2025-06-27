@@ -205,10 +205,30 @@ export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
     });
   }
 
+  const handleResultAdjustmentChange = (employeeId: string, value: string) => {
+    const newAdjustment = parseFloat(value);
+
+    setPayrollResults(prevResults => 
+        prevResults.map(result => {
+            if (result.employeeId === employeeId) {
+                const adjustment = isNaN(newAdjustment) ? 0 : newAdjustment;
+                const otherPay = result.payRateOthers * result.otherHours;
+                const newGrossOtherAmount = otherPay + adjustment;
+                return {
+                    ...result,
+                    otherAdjustment: adjustment,
+                    grossOtherAmount: newGrossOtherAmount,
+                };
+            }
+            return result;
+        })
+    );
+  };
+
   function handleApprovePayroll() {
     sessionStorage.setItem('payrollResultsData', JSON.stringify(payrollResults));
     sessionStorage.setItem('payrollPeriodData', JSON.stringify({ from, to }));
-    sessionStorage.setItem('payrollInputData', JSON.stringify(watchedEmployees));
+    sessionStorage.setItem('payrollInputData', JSON.stringify(payrollResults));
     
     toast({
       title: "Payroll Approved",
@@ -393,7 +413,7 @@ export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
               { type: 'separator', label: '', getValue: () => '' },
               { label: "Rate/Check", getValue: (result) => formatCurrency(result.payRateCheck) + "/hr" },
               { label: "Rate/Others", getValue: (result) => formatCurrency(result.payRateOthers) + "/hr" },
-              { label: "Others-ADJ $", getValue: (result) => formatCurrency(result.otherAdjustment), getTotal: () => formatCurrency(totals.otherAdjustment) },
+              { label: "Others-ADJ $", getValue: (result) => result.otherAdjustment, getTotal: () => formatCurrency(totals.otherAdjustment) },
               { type: 'separator', label: '', getValue: () => '' },
               {
                   label: "Gross Check Amount",
@@ -454,12 +474,26 @@ export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
                                       <TableRow key={metric.label}>
                                          <TableCell className={cn("font-medium", metric.isBold && "font-bold")}>{metric.label}</TableCell>
                                          {payrollResults.map((result) => (
-                                             <TableCell key={result.employeeId} className={cn("text-right tabular-nums", {
-                                                 "font-semibold": metric.isBold,
-                                                 "text-destructive": metric.isDestructive,
-                                             })}>
-                                                 {metric.getValue(result)}
-                                             </TableCell>
+                                            <TableCell
+                                                key={result.employeeId}
+                                                className={cn(
+                                                "text-right tabular-nums",
+                                                { "font-semibold": metric.isBold, "text-destructive": metric.isDestructive },
+                                                metric.label === "Others-ADJ $" && "p-2"
+                                                )}
+                                            >
+                                                {metric.label === "Others-ADJ $" ? (
+                                                <Input
+                                                    type="number"
+                                                    step="0.01"
+                                                    value={result.otherAdjustment}
+                                                    onChange={(e) => handleResultAdjustmentChange(result.employeeId, e.target.value)}
+                                                    className="h-8 w-28 text-right"
+                                                />
+                                                ) : (
+                                                    metric.getValue(result)
+                                                )}
+                                            </TableCell>
                                          ))}
                                          <TableCell className={cn("text-right font-bold tabular-nums", {
                                               "text-destructive": metric.isDestructive,
