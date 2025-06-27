@@ -36,7 +36,6 @@ const employeePayrollInputSchema = z.object({
   otherHours: z.coerce.number().min(0).default(0),
   ptoUsed: z.coerce.number().min(0, { message: 'PTO hours must be non-negative.' }).default(0),
   ptoBalance: z.number().optional(),
-  otherAdjustment: z.coerce.number().default(0),
 }).refine(data => data.checkHours <= data.totalHoursWorked, {
     message: "Check hours cannot exceed total hours.",
     path: ["checkHours"],
@@ -112,7 +111,6 @@ export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
           checkHours: emp.standardCheckHours ?? 0,
           otherHours: 0,
           ptoUsed: 0,
-          otherAdjustment: 0,
         })),
     },
      mode: "onChange",
@@ -157,7 +155,7 @@ export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
       const ptoUsed = safeGetNumber(emp.ptoUsed);
       const payRateCheck = safeGetNumber(emp.payRateCheck);
       const payRateOthers = safeGetNumber(emp.payRateOthers) ?? 0;
-      const otherAdjustment = safeGetNumber(emp.otherAdjustment);
+      const otherAdjustment = 0; // No adjustment from input form
       const initialPtoBalance = safeGetNumber(emp.ptoBalance);
 
       const regularPay = payRateCheck * checkHours;
@@ -225,9 +223,11 @@ export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
   };
 
   function handleApprovePayroll() {
+    const currentInputs = form.getValues().employees;
+
     sessionStorage.setItem('payrollResultsData', JSON.stringify(payrollResults));
     sessionStorage.setItem('payrollPeriodData', JSON.stringify({ from, to }));
-    sessionStorage.setItem('payrollInputData', JSON.stringify(payrollResults));
+    sessionStorage.setItem('payrollInputData', JSON.stringify(currentInputs));
     
     toast({
       title: "Payroll Approved",

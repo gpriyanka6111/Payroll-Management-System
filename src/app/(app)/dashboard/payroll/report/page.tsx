@@ -22,7 +22,6 @@ type PayrollInput = {
     checkHours: number;
     otherHours: number;
     ptoUsed: number;
-    otherAdjustment: number;
 };
 
 
@@ -170,7 +169,6 @@ export default function PayrollReportPage() {
                                         <TableHead className="text-right">Check Hours</TableHead>
                                         <TableHead className="text-right">Other Hours</TableHead>
                                         <TableHead className="text-right">PTO Used (hrs)</TableHead>
-                                        <TableHead className="text-right">Other Adj ($)</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
@@ -181,7 +179,6 @@ export default function PayrollReportPage() {
                                             <TableCell className="text-right tabular-nums">{formatHours(input.checkHours)}</TableCell>
                                             <TableCell className="text-right tabular-nums">{formatHours(input.otherHours)}</TableCell>
                                             <TableCell className="text-right tabular-nums">{formatHours(input.ptoUsed)}</TableCell>
-                                            <TableCell className="text-right tabular-nums">{formatCurrency(input.otherAdjustment)}</TableCell>
                                         </TableRow>
                                     ))}
                                 </TableBody>
