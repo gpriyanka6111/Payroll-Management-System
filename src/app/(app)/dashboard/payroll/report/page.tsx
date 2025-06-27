@@ -11,8 +11,22 @@ import { format } from 'date-fns';
 import { Printer, ArrowLeft } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Payslip } from '@/components/payroll/payslip';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Input } from '@/components/ui/input';
 
+const formatCurrency = (amount: number) => {
+    if (typeof amount !== 'number' || isNaN(amount)) {
+        return '$ --.--';
+    }
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
+};
+
+const formatHours = (hours: number): string => {
+    if (typeof hours !== 'number' || isNaN(hours)) {
+        return '-- hrs';
+    }
+    return `${hours.toFixed(1)} hrs`;
+};
 
 export default function PayrollReportPage() {
     const router = useRouter();
@@ -50,9 +64,10 @@ export default function PayrollReportPage() {
         return (
              <div className="space-y-4 p-6">
                 <Skeleton className="h-10 w-1/4" />
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <Skeleton className="h-96 w-full" />
-                    <Skeleton className="h-96 w-full" />
+                <div className="space-y-6">
+                    <Skeleton className="h-48 w-full" />
+                    <Skeleton className="h-64 w-full" />
+                    <Skeleton className="h-32 w-full" />
                 </div>
              </div>
         )
@@ -67,7 +82,46 @@ export default function PayrollReportPage() {
         )
     }
 
-    const companyName = "My Small Business"; // Placeholder for company name from settings
+    const companyName = "My Small Business"; // Placeholder
+
+    const inputMetrics = [
+        { key: 'totalHoursWorked', label: 'Total Hours Worked' },
+        { key: 'checkHours', label: 'Check Hours' },
+        { key: 'otherHours', label: 'Other Hours' },
+        { key: 'ptoUsed', label: 'PTO Used (hrs)' },
+    ] as const;
+
+    const totals = {
+        grossCheckAmount: results.reduce((sum, r) => sum + r.grossCheckAmount, 0),
+        grossOtherAmount: results.reduce((sum, r) => sum + r.grossOtherAmount, 0),
+    };
+
+    const resultMetrics: Array<{
+        label: string;
+        getValue: (result: PayrollResult) => string | number;
+        getTotal?: () => string | number;
+        isBold?: boolean;
+    }> = [
+        { label: "Rate/Check", getValue: (result) => formatCurrency(result.payRateCheck) + "/hr" },
+        { label: "Rate/Others", getValue: (result) => formatCurrency(result.payRateOthers) + "/hr" },
+        { label: "Others-ADJ $", getValue: (result) => formatCurrency(result.otherAdjustment) },
+        {
+            label: "Gross Check Amount",
+            getValue: (result) => formatCurrency(result.grossCheckAmount),
+            getTotal: () => formatCurrency(totals.grossCheckAmount),
+            isBold: true,
+        },
+        {
+            label: "Gross Other Amount",
+            getValue: (result) => formatCurrency(result.grossOtherAmount),
+            getTotal: () => formatCurrency(totals.grossOtherAmount),
+            isBold: true,
+        },
+        {
+            label: "New PTO Balance",
+            getValue: (result) => formatHours(result.newPtoBalance)
+        },
+    ];
 
     return (
         <div className="payroll-report-page p-6 space-y-6">
@@ -80,37 +134,107 @@ export default function PayrollReportPage() {
                 </Button>
             </div>
             
-             <header className="report-header">
-                <div className="hidden print:block text-center mb-4">
-                   <h2 className="text-2xl font-bold">{companyName}</h2>
-                   <p className="text-lg text-muted-foreground">Payroll Report</p>
-                   <p className="text-sm text-muted-foreground">Pay Period: {format(period.from, 'LLL dd, y')} - {format(period.to, 'LLL dd,y')}</p>
-                </div>
-                 <div className="print:hidden">
-                   <h1 className="text-3xl font-bold">Payroll Report</h1>
-                   <p className="text-muted-foreground">
-                       Pay Period: {format(period.from, 'LLL dd, y')} - {format(period.to, 'LLL dd, y')}
-                   </p>
-                </div>
-             </header>
-            
-            <Separator />
+            <div className="report-content-wrapper border rounded-lg p-6 bg-card text-card-foreground">
+                <header className="report-header text-center mb-6">
+                    <h1 className="text-2xl font-bold">{companyName}</h1>
+                    <p className="text-lg text-muted-foreground">Payroll Report</p>
+                    <p className="text-sm text-muted-foreground">Pay Period: {format(period.from, 'LLL dd, y')} - {format(period.to, 'LLL dd,y')}</p>
+                </header>
+                
+                <Separator className="my-6" />
 
-            <div className="payslips-container grid grid-cols-1 lg:grid-cols-2 gap-6">
-                 {results.map((result) => {
-                    const employeeInput = inputs.find(i => i.employeeId === result.employeeId);
-                    if (!employeeInput) return null;
-                    
-                    return (
-                        <Payslip 
-                            key={result.employeeId}
-                            companyName={companyName}
-                            payPeriod={period}
-                            result={result}
-                            input={employeeInput}
-                        />
-                    );
-                })}
+                {/* Payroll Inputs */}
+                <section className="mb-8">
+                    <h2 className="text-xl font-semibold mb-4">Payroll Inputs</h2>
+                    <div className="overflow-x-auto border rounded-lg">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead className="font-bold min-w-[200px]">Metric</TableHead>
+                                    {inputs.map((input) => (
+                                        <TableHead key={input.employeeId} className="text-right">{input.name}</TableHead>
+                                    ))}
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {inputMetrics.map(metric => (
+                                    <TableRow key={metric.key}>
+                                        <TableCell className="font-medium">{metric.label}</TableCell>
+                                        {inputs.map(input => (
+                                            <TableCell key={input.employeeId} className="text-right tabular-nums">
+                                                {formatHours(input[metric.key])}
+                                            </TableCell>
+                                        ))}
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </div>
+                </section>
+
+                <Separator className="my-6" />
+
+                {/* Payroll Results */}
+                 <section className="mb-8">
+                    <h2 className="text-xl font-semibold mb-4">Payroll Results</h2>
+                     <div className="overflow-x-auto border rounded-lg">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead className="font-bold min-w-[200px]">Metric</TableHead>
+                                    {results.map((result) => (
+                                        <TableHead key={result.employeeId} className="text-right">{result.name}</TableHead>
+                                    ))}
+                                    <TableHead className="text-right font-bold">Totals</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {resultMetrics.map((metric) => (
+                                    <TableRow key={metric.label}>
+                                        <TableCell className={cn("font-medium", metric.isBold && "font-bold")}>{metric.label}</TableCell>
+                                        {results.map((result) => (
+                                            <TableCell key={result.employeeId} className={cn("text-right tabular-nums", { "font-semibold": metric.isBold })}>
+                                                {metric.getValue(result)}
+                                            </TableCell>
+                                        ))}
+                                        <TableCell className="text-right font-bold tabular-nums">
+                                            {metric.getTotal ? metric.getTotal() : ''}
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </div>
+                </section>
+
+                <Separator className="my-6" />
+
+                 {/* Payroll Summary */}
+                <section>
+                    <h2 className="text-xl font-semibold mb-4">Payroll Summary</h2>
+                    <div className="overflow-x-auto border rounded-lg">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>GP</TableHead>
+                                    <TableHead>EMPLOYEE</TableHead>
+                                    <TableHead>DED:</TableHead>
+                                    <TableHead>NET</TableHead>
+                                    <TableHead>Others</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                <TableRow>
+                                    <TableCell className="font-semibold tabular-nums">{formatCurrency(totals.grossCheckAmount)}</TableCell>
+                                    <TableCell><Input placeholder="Enter value..." className="print:border print:border-gray-400" /></TableCell>
+                                    <TableCell><Input placeholder="Enter value..." className="print:border print:border-gray-400" /></TableCell>
+                                    <TableCell><Input placeholder="Enter value..." className="print:border print:border-gray-400" /></TableCell>
+                                    <TableCell className="font-semibold tabular-nums">{formatCurrency(totals.grossOtherAmount)}</TableCell>
+                                </TableRow>
+                            </TableBody>
+                        </Table>
+                    </div>
+                </section>
             </div>
         </div>
     );
