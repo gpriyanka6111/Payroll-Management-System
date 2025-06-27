@@ -14,18 +14,20 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
 
-const formatCurrency = (amount: number) => {
-    if (typeof amount !== 'number' || isNaN(amount)) {
+const formatCurrency = (amount: unknown) => {
+    const num = Number(amount);
+    if (isNaN(num)) {
         return '$ --.--';
     }
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(num);
 };
 
-const formatHours = (hours: number): string => {
-    if (typeof hours !== 'number' || isNaN(hours)) {
+const formatHours = (hours: unknown): string => {
+    const num = Number(hours);
+    if (isNaN(num)) {
         return '--';
     }
-    return hours.toFixed(2);
+    return num.toFixed(2);
 };
 
 export default function PayrollReportPage() {
