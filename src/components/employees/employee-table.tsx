@@ -15,7 +15,8 @@ import { Edit, Trash2, Clock, DollarSign, CalendarDays } from "lucide-react";
 // Updated Employee type to match add-employee-form
 type Employee = {
   id: string;
-  name: string;
+  firstName: string;
+  lastName: string;
   payMethod: 'Hourly'; // Form only supports Hourly for now
   payRateCheck: number;
   payRateOthers?: number;
@@ -56,7 +57,7 @@ export function EmployeeTable({ employees }: EmployeeTableProps) {
       <TableBody>
         {employees.map((employee) => (
           <TableRow key={employee.id}>
-            <TableCell className="font-medium">{employee.name}</TableCell>
+            <TableCell className="font-medium">{`${employee.firstName} ${employee.lastName}`}</TableCell>
             <TableCell>
                  <Badge variant='secondary'>
                     {employee.payMethod}

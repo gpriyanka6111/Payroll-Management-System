@@ -5,12 +5,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { UserPlus } from 'lucide-react';
 import Link from 'next/link';
 
-// Placeholder data - Updated to match the new Employee structure from the form
+// Placeholder data - Updated to use firstName and lastName
 const employees = [
-  { id: 'emp001', name: 'Alice Smith', payMethod: 'Hourly' as const, payRateCheck: 25.50, payRateOthers: 15.00, ptoBalance: 40.0, standardHoursPerPayPeriod: 80 },
-  { id: 'emp002', name: 'Bob Johnson', payMethod: 'Hourly' as const, payRateCheck: 22.00, ptoBalance: 80.0, standardHoursPerPayPeriod: 80 },
-  { id: 'emp003', name: 'Charlie Brown', payMethod: 'Hourly' as const, payRateCheck: 30.00, ptoBalance: 0, standardHoursPerPayPeriod: 80 },
-  { id: 'emp004', name: 'Diana Prince', payMethod: 'Hourly' as const, payRateCheck: 28.75, payRateOthers: 18.00, ptoBalance: 25.5, standardHoursPerPayPeriod: 80 },
+  { id: 'emp001', firstName: 'Alice', lastName: 'Smith', payMethod: 'Hourly' as const, payRateCheck: 25.50, payRateOthers: 15.00, ptoBalance: 40.0, standardHoursPerPayPeriod: 80 },
+  { id: 'emp002', firstName: 'Bob', lastName: 'Johnson', payMethod: 'Hourly' as const, payRateCheck: 22.00, ptoBalance: 80.0, standardHoursPerPayPeriod: 80 },
+  { id: 'emp003', firstName: 'Charlie', lastName: 'Brown', payMethod: 'Hourly' as const, payRateCheck: 30.00, ptoBalance: 0, standardHoursPerPayPeriod: 80 },
+  { id: 'emp004', firstName: 'Diana', lastName: 'Prince', payMethod: 'Hourly' as const, payRateCheck: 28.75, payRateOthers: 18.00, ptoBalance: 25.5, standardHoursPerPayPeriod: 80 },
 ];
 
 
@@ -41,4 +41,3 @@ export default function EmployeesPage() {
     </div>
   );
 }
-
