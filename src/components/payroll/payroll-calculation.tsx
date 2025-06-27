@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from 'react';
@@ -207,6 +208,7 @@ export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
   function handleApprovePayroll() {
     sessionStorage.setItem('payrollResultsData', JSON.stringify(payrollResults));
     sessionStorage.setItem('payrollPeriodData', JSON.stringify({ from, to }));
+    sessionStorage.setItem('payrollInputData', JSON.stringify(watchedEmployees));
     
     toast({
       title: "Payroll Approved",
