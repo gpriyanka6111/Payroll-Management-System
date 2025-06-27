@@ -3,7 +3,7 @@
 
 import * as React from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useForm, useFieldArray, Controller } from 'react-hook-form';
+import { useForm, useFieldArray } from 'react-hook-form';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import {
@@ -17,11 +17,10 @@ import {
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Calculator, AlertTriangle, CheckCircle, Trash2, CalendarDays } from 'lucide-react';
+import { Calculator, AlertTriangle, CheckCircle } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { format, startOfWeek, addDays } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { employees as placeholderEmployees } from '@/lib/placeholder-data';
 
@@ -32,7 +31,6 @@ const TAX_RATE = 0.15; // 15%
 const employeePayrollInputSchema = z.object({
   employeeId: z.string(),
   name: z.string(),
-  payMethod: z.enum(['Hourly', 'Other']),
   payRateCheck: z.number(),
   payRateOthers: z.coerce.number().min(0).optional(),
   totalHoursWorked: z.coerce.number().min(0, { message: 'Hours must be non-negative.' }).default(0),
@@ -40,9 +38,8 @@ const employeePayrollInputSchema = z.object({
   otherHours: z.coerce.number().min(0).default(0),
   ptoUsed: z.coerce.number().min(0, { message: 'PTO hours must be non-negative.' }).default(0),
   ptoBalance: z.number().optional(),
-  standardHoursPerPayPeriod: z.number().optional(),
 }).refine(data => data.checkHours <= data.totalHoursWorked, {
-    message: "Check hours cannot be greater than total hours worked.",
+    message: "Check hours cannot exceed total hours.",
     path: ["checkHours"],
 }).refine(
   (data) => data.ptoUsed <= (data.ptoBalance ?? 0),
@@ -61,28 +58,32 @@ const payrollFormSchema = z.object({
 
 type PayrollFormValues = z.infer<typeof payrollFormSchema>;
 
-// Define structure for calculated payroll results
+// Define structure for calculated payroll results. This is a complete snapshot.
 type PayrollResult = {
   employeeId: string;
   name: string;
-  regularPay: number; // Pay for check hours
+  regularPay: number;
   ptoPay: number;
   grossPay: number; // Total gross pay (check + pto + other)
   taxes: number;
   netPay: number; // Net check pay
-  otherPay: number; // Pay for other hours
+  otherPay: number;
   effectiveHourlyRate: number;
+  // Snapshot of hours used in calculation
+  totalHoursWorked: number;
+  checkHours: number;
+  otherHours: number;
+  ptoUsed: number;
+  newPtoBalance: number;
 };
 
 // The form expects a specific data shape, so we map our placeholder data to it.
 const initialEmployeesData = placeholderEmployees.map(emp => ({
   employeeId: emp.id,
   name: `${emp.firstName} ${emp.lastName}`,
-  payMethod: emp.payMethod,
   payRateCheck: emp.payRateCheck,
   payRateOthers: emp.payRateOthers,
   ptoBalance: emp.ptoBalance,
-  standardHoursPerPayPeriod: emp.standardHoursPerPayPeriod,
 }));
 
 
@@ -103,7 +104,7 @@ export function PayrollCalculation() {
           payRateOthers: emp.payRateOthers ?? 0,
         })),
     },
-     mode: "onChange",
+     mode: "onBlur", // Validate on blur to avoid excessive error messages while typing
   });
 
    const { fields } = useFieldArray({
@@ -116,27 +117,28 @@ export function PayrollCalculation() {
 
    React.useEffect(() => {
     // This effect listens for changes in any employee's hours and automatically
-    // calculates the 'Other Hours' field.
+    // calculates the 'Other Hours' field. This is the robust way to handle
+    // real-time calculations in a field array.
     if (!watchedEmployees) return;
     
     watchedEmployees.forEach((employee, index) => {
       const totalHours = Number(employee.totalHoursWorked) || 0;
       const checkHours = Number(employee.checkHours) || 0;
       
-      // Calculate the difference, ensuring it's not negative.
       const calculatedOtherHours = Math.max(0, totalHours - checkHours);
       
       const currentOtherHours = Number(employee.otherHours) || 0;
 
-      // Only update the form if the calculated value is different from the current one.
-      // This prevents an infinite re-render loop.
+      // Only update the form if the calculated value is different.
+      // This check is crucial to prevent infinite re-render loops.
       if (calculatedOtherHours !== currentOtherHours) {
         // We explicitly set the value in the form state.
-        // `shouldValidate: true` ensures any validation rules are re-run.
-        setValue(`employees.${index}.otherHours`, calculatedOtherHours, { shouldValidate: true });
+        setValue(`employees.${index}.otherHours`, calculatedOtherHours, {
+          shouldValidate: true, // Re-run validation for dependent fields
+          shouldDirty: true, // Mark the form as dirty
+        });
       }
     });
-    // We depend on the watched employees array and the setValue function.
    }, [watchedEmployees, setValue]);
  
    // Helper function to safely convert value to number for calculations
@@ -152,14 +154,13 @@ export function PayrollCalculation() {
       const ptoUsed = safeGetNumber(emp.ptoUsed);
       const payRateCheck = safeGetNumber(emp.payRateCheck);
       const payRateOthers = safeGetNumber(emp.payRateOthers);
+      const initialPtoBalance = safeGetNumber(emp.ptoBalance);
       
-      // Defensively recalculate otherHours here to ensure accuracy
+      // Defensively recalculate otherHours here to ensure accuracy for the results snapshot.
       const otherHours = Math.max(0, totalHoursWorked - checkHours);
       
-      const effectiveCheckRate = payRateCheck;
-      
-      const regularPay = effectiveCheckRate * checkHours;
-      const ptoPay = effectiveCheckRate * ptoUsed;
+      const regularPay = payRateCheck * checkHours;
+      const ptoPay = payRateCheck * ptoUsed;
       const otherPay = payRateOthers * otherHours;
 
       const grossPayOnCheck = regularPay + ptoPay;
@@ -170,7 +171,9 @@ export function PayrollCalculation() {
       const totalPay = regularPay + otherPay + ptoPay;
       const totalHoursBilled = totalHoursWorked + ptoUsed;
       const effectiveHourlyRate = totalHoursBilled > 0 ? totalPay / totalHoursBilled : 0;
+      const newPtoBalance = initialPtoBalance - ptoUsed;
 
+      // Return a complete snapshot of the calculation.
       return {
         employeeId: emp.employeeId,
         name: emp.name,
@@ -181,6 +184,11 @@ export function PayrollCalculation() {
         netPay,
         otherPay,
         effectiveHourlyRate,
+        totalHoursWorked,
+        checkHours,
+        otherHours,
+        ptoUsed,
+        newPtoBalance,
       };
     });
   }
@@ -330,9 +338,6 @@ export function PayrollCalculation() {
         </Form>
 
          {showResults && (() => {
-            const currentEmployees = form.getValues().employees;
-            const employeeDataMap = new Map(currentEmployees.map(e => [e.employeeId, e]));
-
             const totals = {
                 regularPay: payrollResults.reduce((sum, r) => sum + r.regularPay, 0),
                 ptoPay: payrollResults.reduce((sum, r) => sum + r.ptoPay, 0),
@@ -352,19 +357,19 @@ export function PayrollCalculation() {
             }> = [
                  {
                     label: "Total Hours",
-                    getValue: (result) => formatHours(employeeDataMap.get(result.employeeId)?.totalHoursWorked)
+                    getValue: (result) => formatHours(result.totalHoursWorked)
                 },
                  {
                     label: "Check Hours",
-                    getValue: (result) => formatHours(employeeDataMap.get(result.employeeId)?.checkHours)
+                    getValue: (result) => formatHours(result.checkHours)
                 },
                 {
                     label: "Other Hours",
-                    getValue: (result) => formatHours(employeeDataMap.get(result.employeeId)?.otherHours)
+                    getValue: (result) => formatHours(result.otherHours)
                 },
                 {
                     label: "PTO Time",
-                    getValue: (result) => formatHours(employeeDataMap.get(result.employeeId)?.ptoUsed)
+                    getValue: (result) => formatHours(result.ptoUsed)
                 },
                 {
                     label: "Effective Rate",
@@ -414,11 +419,7 @@ export function PayrollCalculation() {
                 { type: 'separator', label: '', getValue: () => '' },
                 {
                     label: "PTO Balance",
-                     getValue: (result) => {
-                        const empData = employeeDataMap.get(result.employeeId);
-                        const newBalance = (empData?.ptoBalance ?? 0) - (empData?.ptoUsed ?? 0);
-                        return `${formatHours(newBalance)} (New)`;
-                     }
+                     getValue: (result) => `${formatHours(result.newPtoBalance)} (New)`
                 },
             ];
 
@@ -449,7 +450,7 @@ export function PayrollCalculation() {
                                 if (metric.type === 'separator') {
                                     return (
                                         <TableRow key={`sep-${index}`} className="bg-muted/20 hover:bg-muted/20">
-                                            <TableCell colSpan={payrollResults.length + 3} className="h-2 p-0"></TableCell>
+                                            <TableCell colSpan={payrollResults.length + 2} className="h-2 p-0"></TableCell>
                                         </TableRow>
                                     );
                                 }
