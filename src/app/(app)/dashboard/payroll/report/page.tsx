@@ -1,35 +1,23 @@
 
-
 'use client';
 
 import * as React from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
-import type { PayrollResult } from '@/components/payroll/payroll-calculation';
+import type { PayrollResult, EmployeePayrollInput } from '@/components/payroll/payroll-calculation';
 import { format } from 'date-fns';
 import { Printer, ArrowLeft } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Skeleton } from '@/components/ui/skeleton';
-
-// Simplified type for payroll input data
-type PayrollInput = {
-    employeeId: string;
-    name: string;
-    totalHoursWorked: number;
-    checkHours: number;
-    otherHours: number;
-    ptoUsed: number;
-};
+import { Payslip } from '@/components/payroll/payslip';
 
 
 export default function PayrollReportPage() {
     const router = useRouter();
     const [results, setResults] = React.useState<PayrollResult[]>([]);
-    const [inputs, setInputs] = React.useState<PayrollInput[]>([]);
+    const [inputs, setInputs] = React.useState<EmployeePayrollInput[]>([]);
     const [period, setPeriod] = React.useState<{ from: Date; to: Date } | null>(null);
     const [isLoading, setIsLoading] = React.useState(true);
 
@@ -57,28 +45,15 @@ export default function PayrollReportPage() {
     const handlePrint = () => {
         window.print();
     };
-
-    const formatCurrency = (amount: number) => {
-       if (typeof amount !== 'number' || isNaN(amount)) {
-          return '$ ---.--';
-       }
-        return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
-    };
-
-    const formatHours = (hours: unknown): string => {
-        const numHours = Number(hours);
-        if (hours === undefined || hours === null || isNaN(numHours)) {
-            return 'N/A';
-        }
-        return `${numHours.toFixed(1)} hrs`;
-    };
-
+    
     if (isLoading) {
         return (
-             <div className="space-y-4">
+             <div className="space-y-4 p-6">
                 <Skeleton className="h-10 w-1/4" />
-                <Skeleton className="h-64 w-full" />
-                <Skeleton className="h-32 w-full" />
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <Skeleton className="h-96 w-full" />
+                    <Skeleton className="h-96 w-full" />
+                </div>
              </div>
         )
     }
@@ -92,58 +67,10 @@ export default function PayrollReportPage() {
         )
     }
 
-    const totals = {
-        grossCheckAmount: results.reduce((sum, r) => sum + r.grossCheckAmount, 0),
-        grossOtherAmount: results.reduce((sum, r) => sum + r.grossOtherAmount, 0),
-        otherAdjustment: results.reduce((sum, r) => sum + r.otherAdjustment, 0),
-    };
-
-    const resultMetrics: Array<{
-        label: string;
-        getValue: (result: PayrollResult) => string | number;
-        getTotal?: () => string | number;
-        isBold?: boolean;
-        isDestructive?: boolean;
-        type?: 'separator';
-    }> = [
-        { label: "Total Hours", getValue: (result) => formatHours(result.totalHoursWorked) },
-        { label: "Check Hours", getValue: (result) => formatHours(result.checkHours) },
-        { label: "Other Hours", getValue: (result) => formatHours(result.otherHours) },
-        { label: "PTO Time", getValue: (result) => formatHours(result.ptoUsed) },
-        { type: 'separator', label: '', getValue: () => '' },
-        { label: "Rate/Check", getValue: (result) => formatCurrency(result.payRateCheck) + "/hr" },
-        { label: "Rate/Others", getValue: (result) => formatCurrency(result.payRateOthers) + "/hr" },
-        { label: "Others-ADJ $", getValue: (result) => formatCurrency(result.otherAdjustment), getTotal: () => formatCurrency(totals.otherAdjustment) },
-        { type: 'separator', label: '', getValue: () => '' },
-        {
-            label: "Gross Check Amount",
-            getValue: (result) => formatCurrency(result.grossCheckAmount),
-            getTotal: () => formatCurrency(totals.grossCheckAmount),
-            isBold: true,
-        },
-        {
-            label: "Gross Other Amount",
-            getValue: (result) => formatCurrency(result.grossOtherAmount),
-            getTotal: () => formatCurrency(totals.grossOtherAmount),
-            isBold: true,
-        },
-        { type: 'separator', label: '', getValue: () => '' },
-        {
-            label: "New PTO Balance",
-             getValue: (result) => `${formatHours(result.newPtoBalance)}`
-        },
-    ];
-    
-    const inputMetricsForReport = [
-        { key: 'totalHoursWorked', label: 'Total Hours Worked' },
-        { key: 'checkHours', label: 'Check Hours' },
-        { key: 'otherHours', label: 'Other Hours' },
-        { key: 'ptoUsed', label: 'PTO Used (hrs)' },
-    ] as const;
-
+    const companyName = "My Small Business"; // Placeholder for company name from settings
 
     return (
-        <div className="payroll-report-page space-y-6">
+        <div className="payroll-report-page p-6 space-y-6">
             <div className="report-actions flex justify-between items-center">
                 <Button variant="outline" onClick={() => router.back()}>
                     <ArrowLeft className="mr-2 h-4 w-4" /> Back to Calculation
@@ -153,120 +80,38 @@ export default function PayrollReportPage() {
                 </Button>
             </div>
             
-            <Card className="payroll-report-card">
-                 <CardHeader className="print:text-center print:p-4">
-                    <div className="hidden print:block mb-4">
-                       <h2 className="text-xl font-bold">My Small Business</h2>
-                       <p className="text-sm text-muted-foreground">Pay Period: {format(period.from, 'LLL dd, y')} - {format(period.to, 'LLL dd,y')}</p>
-                    </div>
-                     <div className="print-hidden">
-                       <CardTitle>Payroll Report</CardTitle>
-                       <CardDescription>
-                           Pay Period: {format(period.from, 'LLL dd, y')} - {format(period.to, 'LLL dd, y')}
-                       </CardDescription>
-                    </div>
-               </CardHeader>
-               <CardContent className="print:pt-0">
-                    <div className="break-after-page">
-                        <h3 className="text-xl font-semibold mb-4">Payroll Inputs</h3>
-                        <div className="overflow-x-auto border rounded-lg">
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead className="font-bold min-w-[200px]">Metric</TableHead>
-                                        {inputs.map((input) => (
-                                            <TableHead key={input.employeeId} className="text-right">{input.name}</TableHead>
-                                        ))}
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {inputMetricsForReport.map((metric) => (
-                                        <TableRow key={metric.key} className="break-inside-avoid-page">
-                                            <TableCell className="font-medium">{metric.label}</TableCell>
-                                            {inputs.map((input) => (
-                                                <TableCell key={input.employeeId} className="text-right tabular-nums">
-                                                    {formatHours(input[metric.key as keyof typeof input])}
-                                                </TableCell>
-                                            ))}
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        </div>
-                    </div>
-                    
-                    <Separator className="my-8" />
-                    
-                    <h3 className="text-xl font-semibold mb-4">Payroll Results</h3>
-                    <div className="overflow-x-auto">
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead className="font-bold min-w-[200px]">Metric</TableHead>
-                                    {results.map((result) => (
-                                        <TableHead key={result.employeeId} className="text-right">{result.name}</TableHead>
-                                    ))}
-                                    <TableHead className="text-right font-bold">Totals</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {resultMetrics.map((metric, index) => {
-                                    if (metric.type === 'separator') {
-                                        return (
-                                            <TableRow key={`sep-${index}`} className="bg-muted/20 hover:bg-muted/20">
-                                                <TableCell colSpan={results.length + 2} className="h-2 p-0"></TableCell>
-                                            </TableRow>
-                                        );
-                                    }
-                                    return (
-                                        <TableRow key={metric.label} className="break-inside-avoid-page">
-                                            <TableCell className={cn("font-medium", metric.isBold && "font-bold")}>{metric.label}</TableCell>
-                                            {results.map((result) => (
-                                                <TableCell key={result.employeeId} className={cn("text-right tabular-nums", {
-                                                    "font-semibold": metric.isBold,
-                                                    "text-destructive": metric.isDestructive,
-                                                })}>
-                                                    {metric.getValue(result)}
-                                                </TableCell>
-                                            ))}
-                                            <TableCell className={cn("text-right font-bold tabular-nums", {
-                                                "text-destructive": metric.isDestructive,
-                                            })}>
-                                                {metric.getTotal ? metric.getTotal() : ''}
-                                            </TableCell>
-                                        </TableRow>
-                                    );
-                                })}
-                            </TableBody>
-                        </Table>
-                    </div>
+             <header className="report-header">
+                <div className="hidden print:block text-center mb-4">
+                   <h2 className="text-2xl font-bold">{companyName}</h2>
+                   <p className="text-lg text-muted-foreground">Payroll Report</p>
+                   <p className="text-sm text-muted-foreground">Pay Period: {format(period.from, 'LLL dd, y')} - {format(period.to, 'LLL dd,y')}</p>
+                </div>
+                 <div className="print:hidden">
+                   <h1 className="text-3xl font-bold">Payroll Report</h1>
+                   <p className="text-muted-foreground">
+                       Pay Period: {format(period.from, 'LLL dd, y')} - {format(period.to, 'LLL dd, y')}
+                   </p>
+                </div>
+             </header>
+            
+            <Separator />
 
-                    <Separator className="my-6" />
-                    <h3 className="text-xl font-semibold mb-4">Payroll Summary</h3>
-                    <div className="overflow-x-auto border rounded-lg">
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>GP</TableHead>
-                                    <TableHead>EMPLOYEE</TableHead>
-                                    <TableHead>DED:</TableHead>
-                                    <TableHead>NET</TableHead>
-                                    <TableHead>Others</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                <TableRow>
-                                    <TableCell className="font-semibold tabular-nums">{formatCurrency(totals.grossCheckAmount)}</TableCell>
-                                    <TableCell><Input placeholder="Enter value..." /></TableCell>
-                                    <TableCell><Input placeholder="Enter value..." /></TableCell>
-                                    <TableCell><Input placeholder="Enter value..." /></TableCell>
-                                    <TableCell className="font-semibold tabular-nums">{formatCurrency(totals.grossOtherAmount)}</TableCell>
-                                </TableRow>
-                            </TableBody>
-                        </Table>
-                    </div>
-              </CardContent>
-           </Card>
+            <div className="payslips-container grid grid-cols-1 lg:grid-cols-2 gap-6">
+                 {results.map((result) => {
+                    const employeeInput = inputs.find(i => i.employeeId === result.employeeId);
+                    if (!employeeInput) return null;
+                    
+                    return (
+                        <Payslip 
+                            key={result.employeeId}
+                            companyName={companyName}
+                            payPeriod={period}
+                            result={result}
+                            input={employeeInput}
+                        />
+                    );
+                })}
+            </div>
         </div>
     );
 }

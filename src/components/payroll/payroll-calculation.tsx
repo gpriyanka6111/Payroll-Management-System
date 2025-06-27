@@ -48,6 +48,8 @@ const employeePayrollInputSchema = z.object({
   }
 );
 
+export type EmployeePayrollInput = z.infer<typeof employeePayrollInputSchema>;
+
 
 // Define Zod schema for the overall form
 const payrollFormSchema = z.object({
@@ -371,7 +373,7 @@ export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
               { type: 'separator', label: '', getValue: () => '' },
               { label: "Rate/Check", getValue: (result) => formatCurrency(result.payRateCheck) + "/hr" },
               { label: "Rate/Others", getValue: (result) => formatCurrency(result.payRateOthers) + "/hr" },
-              { label: "Others-ADJ $", getValue: (result) => result.otherAdjustment, getTotal: () => formatCurrency(totals.otherAdjustment) },
+              { label: "Others-ADJ $", getValue: (result) => result.otherAdjustment },
               { type: 'separator', label: '', getValue: () => '' },
               {
                   label: "Gross Check Amount",
