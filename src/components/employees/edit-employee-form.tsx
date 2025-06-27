@@ -24,7 +24,7 @@ const employeeSchema = z.object({
   id: z.string(),
   firstName: z.string().min(2, { message: 'First name must be at least 2 characters.' }),
   lastName: z.string().min(2, { message: 'Last name must be at least 2 characters.' }),
-  ssn: z.string().optional().or(z.literal('')),
+  ssn: z.string().regex(/^\d{3}-\d{2}-\d{4}$/, { message: "SSN must be in XXX-XX-XXXX format." }).optional().or(z.literal('')),
   email: z.string().email({ message: 'Invalid email address.' }).optional().or(z.literal('')),
   mobileNumber: z.string().regex(/^\d{10,15}$/, { message: 'Enter a valid mobile number (10-15 digits).' }).optional().or(z.literal('')),
   payMethod: z.literal(Hourly).default(Hourly),
@@ -73,6 +73,22 @@ export function EditEmployeeForm({ employee, onSave, onCancel }: EditEmployeeFor
     onSave(values);
   }
 
+  const handleSsnChange = (e: React.ChangeEvent<HTMLInputElement>, fieldOnChange: (value: string) => void) => {
+    const rawValue = e.target.value.replace(/-/g, '');
+    const numbers = rawValue.replace(/\D/g, '');
+    let formatted = '';
+    if (numbers.length > 0) {
+      formatted += numbers.substring(0, 3);
+    }
+    if (numbers.length >= 4) {
+      formatted += '-' + numbers.substring(3, 5);
+    }
+    if (numbers.length >= 6) {
+      formatted += '-' + numbers.substring(5, 9);
+    }
+    fieldOnChange(formatted);
+  };
+
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 pt-4">
@@ -115,7 +131,14 @@ export function EditEmployeeForm({ employee, onSave, onCancel }: EditEmployeeFor
                     <FormControl>
                         <div className="relative">
                             <Shield className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                            <Input type="text" placeholder="***-**-XXXX" {...field} value={field.value ?? ''} className="pl-10" />
+                            <Input 
+                                type="text" 
+                                placeholder="***-**-XXXX" 
+                                {...field} 
+                                onChange={(e) => handleSsnChange(e, field.onChange)}
+                                maxLength={11}
+                                value={field.value ?? ''} 
+                                className="pl-10" />
                         </div>
                     </FormControl>
                     <FormMessage />
