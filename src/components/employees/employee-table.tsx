@@ -10,13 +10,15 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Edit, Trash2, Clock, DollarSign, CalendarDays } from "lucide-react";
+import { Edit, Trash2, Clock, DollarSign, CalendarDays, Phone, Shield } from "lucide-react";
 
-// Updated Employee type to match add-employee-form
+// Updated Employee type to include mobile number and SSN
 type Employee = {
   id: string;
   firstName: string;
   lastName: string;
+  mobileNumber?: string;
+  ssn?: string;
   payMethod: 'Hourly'; // Form only supports Hourly for now
   payRateCheck: number;
   payRateOthers?: number;
@@ -46,6 +48,8 @@ export function EmployeeTable({ employees }: EmployeeTableProps) {
       <TableHeader>
         <TableRow>
           <TableHead>Name</TableHead>
+          <TableHead><Phone className="inline-block h-4 w-4 mr-1"/>Mobile</TableHead>
+          <TableHead><Shield className="inline-block h-4 w-4 mr-1"/>SSN</TableHead>
           <TableHead><Clock className="inline-block h-4 w-4 mr-1"/>Pay Method</TableHead>
           <TableHead><DollarSign className="inline-block h-4 w-4 mr-1"/>Rate/Check</TableHead>
           <TableHead><DollarSign className="inline-block h-4 w-4 mr-1"/>Rate/Others</TableHead>
@@ -58,6 +62,8 @@ export function EmployeeTable({ employees }: EmployeeTableProps) {
         {employees.map((employee) => (
           <TableRow key={employee.id}>
             <TableCell className="font-medium">{`${employee.firstName} ${employee.lastName}`}</TableCell>
+            <TableCell>{employee.mobileNumber || 'N/A'}</TableCell>
+            <TableCell>{employee.ssn || 'N/A'}</TableCell>
             <TableCell>
                  <Badge variant='secondary'>
                     {employee.payMethod}
@@ -80,7 +86,7 @@ export function EmployeeTable({ employees }: EmployeeTableProps) {
         ))}
          {employees.length === 0 && (
            <TableRow>
-            <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
+            <TableCell colSpan={9} className="h-24 text-center text-muted-foreground">
               No employees found. Add your first employee!
             </TableCell>
           </TableRow>

@@ -5,12 +5,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { UserPlus } from 'lucide-react';
 import Link from 'next/link';
 
-// Placeholder data - Updated to use firstName and lastName
+// Placeholder data - Updated to include mobile and SSN
 const employees = [
-  { id: 'emp001', firstName: 'Alice', lastName: 'Smith', payMethod: 'Hourly' as const, payRateCheck: 25.50, payRateOthers: 15.00, ptoBalance: 40.0, standardHoursPerPayPeriod: 80 },
-  { id: 'emp002', firstName: 'Bob', lastName: 'Johnson', payMethod: 'Hourly' as const, payRateCheck: 22.00, ptoBalance: 80.0, standardHoursPerPayPeriod: 80 },
-  { id: 'emp003', firstName: 'Charlie', lastName: 'Brown', payMethod: 'Hourly' as const, payRateCheck: 30.00, ptoBalance: 0, standardHoursPerPayPeriod: 80 },
-  { id: 'emp004', firstName: 'Diana', lastName: 'Prince', payMethod: 'Hourly' as const, payRateCheck: 28.75, payRateOthers: 18.00, ptoBalance: 25.5, standardHoursPerPayPeriod: 80 },
+  { id: 'emp001', firstName: 'Alice', lastName: 'Smith', mobileNumber: '123-456-7890', ssn: '***-**-1234', payMethod: 'Hourly' as const, payRateCheck: 25.50, payRateOthers: 15.00, ptoBalance: 40.0, standardHoursPerPayPeriod: 80 },
+  { id: 'emp002', firstName: 'Bob', lastName: 'Johnson', mobileNumber: '234-567-8901', ssn: '***-**-5678', payMethod: 'Hourly' as const, payRateCheck: 22.00, ptoBalance: 80.0, standardHoursPerPayPeriod: 80 },
+  { id: 'emp003', firstName: 'Charlie', lastName: 'Brown', mobileNumber: '345-678-9012', ssn: '***-**-9012', payMethod: 'Hourly' as const, payRateCheck: 30.00, ptoBalance: 0, standardHoursPerPayPeriod: 80 },
+  { id: 'emp004', firstName: 'Diana', lastName: 'Prince', mobileNumber: '456-789-0123', ssn: '***-**-3456', payMethod: 'Hourly' as const, payRateCheck: 28.75, payRateOthers: 18.00, ptoBalance: 25.5, standardHoursPerPayPeriod: 80 },
 ];
 
 
