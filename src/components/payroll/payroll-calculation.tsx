@@ -264,7 +264,7 @@ export function PayrollCalculation() {
                                 <FormItem className="w-full">
                                   <FormLabel className="sr-only">Other Hours for {field.name}</FormLabel>
                                   <FormControl>
-                                      <Input type="number" {...inputField} className="h-8" disabled />
+                                      <Input type="number" value={field.value ?? ''} className="h-8" disabled/>
                                   </FormControl>
                                    <FormMessage className="text-xs mt-1" />
                                 </FormItem>
