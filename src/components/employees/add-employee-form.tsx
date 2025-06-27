@@ -27,7 +27,7 @@ const employeeSchema = z.object({
   lastName: z.string().min(2, { message: 'Last name must be at least 2 characters.' }),
   ssn: z.string().regex(/^\d{3}-\d{2}-\d{4}$/, { message: "SSN must be in XXX-XX-XXXX format." }).optional().or(z.literal('')),
   email: z.string().email({ message: 'Invalid email address.' }).optional().or(z.literal('')),
-  mobileNumber: z.string().regex(/^\d{10,15}$/, { message: 'Enter a valid mobile number (10-15 digits).' }).optional().or(z.literal('')),
+  mobileNumber: z.string().regex(/^\(\d{3}\) \d{3}-\d{4}$/, { message: "Number must be in (XXX) XXX-XXXX format." }).optional().or(z.literal('')),
   payMethod: z.literal(Hourly).default(Hourly),
   payRateCheck: z.coerce.number().positive({ message: 'Pay rate must be a positive number.' }),
   payRateOthers: z.coerce.number().min(0, { message: 'Pay rate cannot be negative' }).optional(),
@@ -98,6 +98,22 @@ export function AddEmployeeForm() {
     fieldOnChange(formatted);
   };
 
+  const handleMobileNumberChange = (e: React.ChangeEvent<HTMLInputElement>, fieldOnChange: (value: string) => void) => {
+    const rawValue = e.target.value.replace(/\D/g, '');
+    const numbers = rawValue.substring(0, 10);
+    let formatted = '';
+    if (numbers.length > 0) {
+      formatted = `(${numbers.substring(0, 3)}`;
+    }
+    if (numbers.length >= 4) {
+      formatted += `) ${numbers.substring(3, 6)}`;
+    }
+    if (numbers.length >= 7) {
+      formatted += `-${numbers.substring(6, 10)}`;
+    }
+    fieldOnChange(formatted);
+  };
+
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
@@ -163,7 +179,14 @@ export function AddEmployeeForm() {
                     <FormControl>
                         <div className="relative">
                             <Phone className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                            <Input type="tel" placeholder="e.g., 1234567890" {...field} value={field.value ?? ''} className="pl-10" />
+                            <Input 
+                                type="tel" 
+                                placeholder="(XXX) XXX-XXXX" 
+                                {...field} 
+                                onChange={(e) => handleMobileNumberChange(e, field.onChange)}
+                                maxLength={14}
+                                value={field.value ?? ''} 
+                                className="pl-10" />
                         </div>
                     </FormControl>
                     <FormMessage />
