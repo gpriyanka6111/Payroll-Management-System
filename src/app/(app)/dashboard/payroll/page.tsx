@@ -1,7 +1,16 @@
+"use client"
+
+import * as React from "react";
+import { format } from "date-fns"
+import { DateRange } from "react-day-picker"
+
 import { PayrollCalculation } from '@/components/payroll/payroll-calculation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Calculator, History, Play } from 'lucide-react';
+import { Calculator, History, Play, Calendar as CalendarIcon } from 'lucide-react';
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { cn } from "@/lib/utils";
 
 // Placeholder data - Replace with actual data fetching for past payrolls
 const pastPayrolls = [
@@ -10,6 +19,8 @@ const pastPayrolls = [
 ];
 
 export default function PayrollPage() {
+  const [date, setDate] = React.useState<DateRange | undefined>()
+
    const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
   };
@@ -31,8 +42,67 @@ export default function PayrollPage() {
         </Button>
       </div>
 
+       {/* Pay Period Selector */}
+       <Card>
+        <CardHeader>
+          <CardTitle>1. Select Pay Period</CardTitle>
+          <CardDescription>Choose the date range for this payroll run.</CardDescription>
+        </CardHeader>
+        <CardContent>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  id="date"
+                  variant={"outline"}
+                  className={cn(
+                    "w-[300px] justify-start text-left font-normal",
+                    !date && "text-muted-foreground"
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {date?.from ? (
+                    date.to ? (
+                      <>
+                        {format(date.from, "LLL dd, y")} -{" "}
+                        {format(date.to, "LLL dd, y")}
+                      </>
+                    ) : (
+                      format(date.from, "LLL dd, y")
+                    )
+                  ) : (
+                    <span>Pick a date range</span>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  initialFocus
+                  mode="range"
+                  defaultMonth={date?.from}
+                  selected={date}
+                  onSelect={setDate}
+                  numberOfMonths={2}
+                />
+              </PopoverContent>
+            </Popover>
+        </CardContent>
+      </Card>
+
+
       {/* Payroll Calculation Component */}
-      <PayrollCalculation />
+       {date?.from && date?.to ? (
+        <PayrollCalculation key={`${format(date.from, "yyyy-MM-dd")}-${format(date.to, "yyyy-MM-dd")}`} />
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center"><Calculator className="mr-2 h-5 w-5 text-muted-foreground"/> 2. Calculate Payroll</CardTitle>
+            <CardDescription>Enter hours for each employee for the selected pay period.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-center text-muted-foreground py-10">Please select a pay period above to begin.</p>
+          </CardContent>
+        </Card>
+      )}
 
 
       {/* Past Payroll Runs */}
