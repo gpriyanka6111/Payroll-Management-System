@@ -137,21 +137,26 @@ export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
     const watchedEmployees = watch("employees");
 
     React.useEffect(() => {
-        watchedEmployees.forEach((employee, index) => {
-            const totalHours = Number(employee.totalHoursWorked) || 0;
-            const checkHours = Number(employee.checkHours) || 0;
-            const currentOtherHours = Number(employee.otherHours) || 0;
-            
-            const calculatedOtherHours = Math.max(0, totalHours - checkHours);
-            
-            if (currentOtherHours !== calculatedOtherHours) {
-                setValue(`employees.${index}.otherHours`, calculatedOtherHours, {
-                    shouldValidate: true,
-                    shouldDirty: true,
-                });
+        const subscription = watch((value, { name }) => {
+            if (name && (name.endsWith('.totalHoursWorked') || name.endsWith('.checkHours'))) {
+                const match = name.match(/^employees\.(\d+)\./);
+                if (match) {
+                    const index = parseInt(match[1], 10);
+                    const employee = value.employees?.[index];
+                    if (employee) {
+                        const totalHours = Number(employee.totalHoursWorked) || 0;
+                        const checkHours = Number(employee.checkHours) || 0;
+                        const calculatedOtherHours = Math.max(0, totalHours - checkHours);
+                        
+                        setValue(`employees.${index}.otherHours`, calculatedOtherHours, {
+                            shouldValidate: true,
+                        });
+                    }
+                }
             }
         });
-    }, [watchedEmployees, setValue]);
+        return () => subscription.unsubscribe();
+    }, [watch, setValue]);
 
 
    const safeGetNumber = (value: unknown): number => {
@@ -163,7 +168,7 @@ export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
     return values.employees.map((emp) => {
       const totalHoursWorked = safeGetNumber(emp.totalHoursWorked);
       const checkHours = safeGetNumber(emp.checkHours);
-      const otherHours = Math.max(0, totalHoursWorked - checkHours);
+      const otherHours = safeGetNumber(emp.otherHours);
       const ptoUsed = safeGetNumber(emp.ptoUsed);
       const payRateCheck = safeGetNumber(emp.payRateCheck);
       const payRateOthers = safeGetNumber(emp.payRateOthers) ?? 0;
@@ -261,9 +266,9 @@ export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
   const formatHours = (hours: unknown): string => {
       const numHours = Number(hours);
       if (hours === undefined || hours === null || isNaN(numHours)) {
-          return 'N/A';
+          return '0.00';
       }
-      return `${numHours.toFixed(2)}`;
+      return numHours.toFixed(2);
   };
 
   return (
@@ -319,7 +324,7 @@ export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
                         <TableCell className="font-medium">Available PTO</TableCell>
                         {fields.map((field, index) => (
                             <TableCell key={field.id} className="text-center text-sm text-muted-foreground tabular-nums">
-                                {`(${formatHours(watchedEmployees[index]?.ptoBalance)})`}
+                                ({formatHours(watchedEmployees[index]?.ptoBalance)})
                             </TableCell>
                         ))}
                      </TableRow>
@@ -476,6 +481,7 @@ export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
                                   <TableRow>
                                       <TableHead>GP</TableHead>
                                       <TableHead>EMPLOYEE</TableHead>
+
                                       <TableHead>DED:</TableHead>
                                       <TableHead>NET</TableHead>
                                       <TableHead>Others</TableHead>
