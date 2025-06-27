@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from 'react';
@@ -236,7 +235,7 @@ export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
 
   return (
      <>
-       <Card className={cn(showResults && 'hidden')}>
+       <Card>
          <CardHeader>
           <CardTitle className="flex items-center"><Calculator className="mr-2 h-5 w-5 text-muted-foreground"/> 2. Calculate Payroll</CardTitle>
           <CardDescription>Enter hours for each employee for the current pay period.</CardDescription>
@@ -414,7 +413,7 @@ export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
           ];
 
            return (
-               <Card>
+               <Card className="mt-6">
                    <CardHeader>
                         <CardTitle>Review Payroll Results</CardTitle>
                         <CardDescription>
@@ -498,7 +497,6 @@ export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
                       </div>
 
                        <div className="mt-6 flex justify-end space-x-2">
-                           <Button variant="outline" onClick={() => setShowResults(false)}>Edit Details</Button>
                            <Button onClick={handleApprovePayroll} disabled={!showResults}>Approve and View Report</Button>
                        </div>
                   </CardContent>
