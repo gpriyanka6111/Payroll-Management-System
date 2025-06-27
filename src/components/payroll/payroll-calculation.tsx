@@ -104,7 +104,7 @@ export function PayrollCalculation() {
           payRateOthers: emp.payRateOthers ?? 0,
         })),
     },
-     mode: "onBlur",
+     mode: "onChange",
   });
 
    const { fields } = useFieldArray({
@@ -148,7 +148,10 @@ export function PayrollCalculation() {
     return values.employees.map((emp) => {
       const totalHoursWorked = safeGetNumber(emp.totalHoursWorked);
       const checkHours = safeGetNumber(emp.checkHours);
-      const otherHours = safeGetNumber(emp.otherHours); // Use the value from the form
+      
+      // Safeguard: Recalculate here to ensure accuracy, ignoring form state for this derived value.
+      const otherHours = Math.max(0, totalHoursWorked - checkHours);
+
       const ptoUsed = safeGetNumber(emp.ptoUsed);
       const payRateCheck = safeGetNumber(emp.payRateCheck);
       const payRateOthers = safeGetNumber(emp.payRateOthers);
@@ -181,7 +184,7 @@ export function PayrollCalculation() {
         effectiveHourlyRate,
         totalHoursWorked,
         checkHours,
-        otherHours, // Pass the calculated value to the results
+        otherHours, // Pass the recalculated value to the results
         ptoUsed,
         newPtoBalance,
       };
