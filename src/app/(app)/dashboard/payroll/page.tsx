@@ -122,7 +122,11 @@ export default function PayrollPage() {
 
       {/* Payroll Calculation Component */}
        {from && to ? (
-        <PayrollCalculation key={`${format(from, "yyyy-MM-dd")}-${format(to, "yyyy-MM-dd")}`} />
+        <PayrollCalculation 
+            key={`${format(from, "yyyy-MM-dd")}-${format(to, "yyyy-MM-dd")}`} 
+            from={from}
+            to={to}
+        />
       ) : (
         <Card>
           <CardHeader>

@@ -2,6 +2,12 @@
 @tailwind components;
 @tailwind utilities;
 
+@media print {
+  body {
+    -webkit-print-color-adjust: exact;
+  }
+}
+
 body {
   font-family: var(--font-geist-sans), sans-serif; /* Use Geist Sans as primary font */
 }

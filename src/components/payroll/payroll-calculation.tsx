@@ -17,12 +17,14 @@ import {
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Calculator, AlertTriangle, CheckCircle } from 'lucide-react';
+import { Calculator, AlertTriangle, CheckCircle, Printer } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { cn } from '@/lib/utils';
 import { employees as placeholderEmployees } from '@/lib/placeholder-data';
+import { Payslip } from './payslip';
+import { format } from 'date-fns';
 
 // Define Zod schema for a single employee's payroll input
 const employeePayrollInputSchema = z.object({
@@ -35,7 +37,7 @@ const employeePayrollInputSchema = z.object({
   otherHours: z.coerce.number().min(0).default(0),
   ptoUsed: z.coerce.number().min(0, { message: 'PTO hours must be non-negative.' }).default(0),
   ptoBalance: z.number().optional(),
-  otherAdjustment: z.coerce.number().default(0), // New field for adjustments
+  otherAdjustment: z.coerce.number().default(0),
 }).refine(data => data.checkHours <= data.totalHoursWorked, {
     message: "Check hours cannot exceed total hours.",
     path: ["checkHours"],
@@ -57,7 +59,7 @@ const payrollFormSchema = z.object({
 type PayrollFormValues = z.infer<typeof payrollFormSchema>;
 
 // Define structure for calculated payroll results.
-type PayrollResult = {
+export type PayrollResult = {
   employeeId: string;
   name: string;
   // Input values to display in results
@@ -87,11 +89,16 @@ const initialEmployeesData = placeholderEmployees.map(emp => ({
   standardCheckHours: emp.standardCheckHours,
 }));
 
+interface PayrollCalculationProps {
+    from: Date;
+    to: Date;
+}
 
-export function PayrollCalculation() {
+export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
   const { toast } = useToast();
   const [payrollResults, setPayrollResults] = React.useState<PayrollResult[]>([]);
   const [showResults, setShowResults] = React.useState(false);
+  const [payrollApproved, setPayrollApproved] = React.useState(false);
 
   const form = useForm<PayrollFormValues>({
     resolver: zodResolver(payrollFormSchema),
@@ -119,29 +126,23 @@ export function PayrollCalculation() {
 
    const { setValue, watch } = form;
 
-   // Watch for changes in the entire employees array
     const watchedEmployees = watch("employees");
 
-   // A callback to handle the other hours calculation
     React.useEffect(() => {
         watchedEmployees.forEach((employee, index) => {
             const totalHours = Number(employee.totalHoursWorked) || 0;
             const checkHours = Number(employee.checkHours) || 0;
-            const currentOtherHours = Number(employee.otherHours) || 0;
-
+            
             const calculatedOtherHours = Math.max(0, totalHours - checkHours);
-
-            if (calculatedOtherHours !== currentOtherHours) {
-                setValue(`employees.${index}.otherHours`, calculatedOtherHours, {
-                    shouldValidate: true,
-                    shouldDirty: true,
-                });
-            }
+            
+            setValue(`employees.${index}.otherHours`, calculatedOtherHours, {
+                shouldValidate: true,
+                shouldDirty: true,
+            });
         });
     }, [watchedEmployees, setValue]);
 
 
-   // Helper function to safely convert value to number for calculations
    const safeGetNumber = (value: unknown): number => {
      const num = Number(value);
      return isNaN(num) ? 0 : num;
@@ -149,10 +150,9 @@ export function PayrollCalculation() {
 
   function calculatePayroll(values: PayrollFormValues): PayrollResult[] {
     return values.employees.map((emp) => {
-      // Re-calculate all values here to ensure accuracy at the point of submission
       const totalHoursWorked = safeGetNumber(emp.totalHoursWorked);
       const checkHours = safeGetNumber(emp.checkHours);
-      const otherHours = Math.max(0, totalHoursWorked - checkHours); // Crucial recalculation
+      const otherHours = Math.max(0, totalHoursWorked - checkHours);
       const ptoUsed = safeGetNumber(emp.ptoUsed);
       const payRateCheck = safeGetNumber(emp.payRateCheck);
       const payRateOthers = safeGetNumber(emp.payRateOthers) ?? 0;
@@ -166,7 +166,7 @@ export function PayrollCalculation() {
       const otherPay = payRateOthers * otherHours;
       const grossOtherAmount = otherPay + otherAdjustment;
 
-      const netPay = grossCheckAmount; // Simplified, no taxes
+      const netPay = grossCheckAmount; 
       const newPtoBalance = initialPtoBalance - ptoUsed;
 
 
@@ -175,14 +175,14 @@ export function PayrollCalculation() {
         name: emp.name,
         totalHoursWorked,
         checkHours,
-        otherHours, // Use the re-calculated value
+        otherHours,
         ptoUsed,
         payRateCheck,
         payRateOthers,
         otherAdjustment,
         grossCheckAmount,
         grossOtherAmount,
-        netPay, // Stays as gross for now
+        netPay,
         newPtoBalance,
       };
     });
@@ -202,7 +202,19 @@ export function PayrollCalculation() {
     });
   }
 
-   const formatCurrency = (amount: number) => {
+  function handleApprovePayroll() {
+    setPayrollApproved(true);
+    toast({
+      title: "Payroll Approved",
+      description: "Payslips are now ready to be printed.",
+    });
+  }
+
+  function handlePrint() {
+    window.print();
+  }
+
+  const formatCurrency = (amount: number) => {
        if (typeof amount !== 'number' || isNaN(amount)) {
           return '$ ---.--';
        }
@@ -217,8 +229,39 @@ export function PayrollCalculation() {
       return `${numHours.toFixed(1)} hrs`;
   };
 
+  if (payrollApproved) {
+    return (
+      <Card>
+        <CardHeader>
+          <div className="flex justify-between items-start print:hidden">
+            <div>
+              <CardTitle>Generated Payslips</CardTitle>
+              <CardDescription>
+                Pay period: {format(from, 'LLL dd, y')} - {format(to, 'LLL dd, y')}
+              </CardDescription>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setPayrollApproved(false)}>Back to Calculation</Button>
+              <Button onClick={handlePrint}><Printer className="mr-2 h-4 w-4"/>Print Payslips</Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {payrollResults.map(result => (
+            <Payslip
+              key={result.employeeId}
+              result={result}
+              payPeriod={{ from, to }}
+              companyName="PayrollPal Inc." // This would come from company settings
+            />
+          ))}
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
-     <Card>
+     <Card className="print:hidden">
        <CardHeader>
         <CardTitle className="flex items-center"><Calculator className="mr-2 h-5 w-5 text-muted-foreground"/> 2. Calculate Payroll</CardTitle>
         <CardDescription>Enter hours for each employee for the current pay period.</CardDescription>
@@ -281,7 +324,7 @@ export function PayrollCalculation() {
                                 <FormItem className="w-full">
                                   <FormLabel className="sr-only">Other Hours for {field.name}</FormLabel>
                                   <FormControl>
-                                      <Input type="number" {...inputField} className="h-8 bg-muted/50" disabled/>
+                                      <Input type="number" {...inputField} className="h-8 bg-muted/50" readOnly/>
                                   </FormControl>
                                    <FormMessage className="text-xs mt-1" />
                                 </FormItem>
@@ -474,7 +517,7 @@ export function PayrollCalculation() {
 
                      <div className="mt-6 flex justify-end space-x-2">
                           <Button variant="outline" onClick={() => setShowResults(false)}>Discard Results</Button>
-                          <Button disabled>Approve Payroll (Not Implemented)</Button>
+                          <Button onClick={handleApprovePayroll} disabled={!showResults}>Approve Payroll</Button>
                      </div>
                 </div>
              )

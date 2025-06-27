@@ -11,7 +11,7 @@ export default function DashboardLayout({
 }) {
   return (
     <SidebarProvider defaultOpen={true}>
-      <Sidebar>
+      <Sidebar className="print:hidden">
         <SidebarHeader className="items-center">
            <Link href="/dashboard" className="flex items-center gap-2">
              {/* Placeholder for Logo */}
@@ -73,7 +73,7 @@ export default function DashboardLayout({
         </SidebarFooter>
       </Sidebar>
       <SidebarInset>
-        <div className="p-6">
+        <div className="p-6 print:p-0">
           {children}
         </div>
       </SidebarInset>
