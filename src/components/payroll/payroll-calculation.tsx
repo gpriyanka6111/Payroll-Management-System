@@ -24,9 +24,6 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { cn } from '@/lib/utils';
 import { employees as placeholderEmployees } from '@/lib/placeholder-data';
 
-// Placeholder fixed tax rate for MVP
-const TAX_RATE = 0.15; // 15%
-
 // Define Zod schema for a single employee's payroll input
 const employeePayrollInputSchema = z.object({
   employeeId: z.string(),
@@ -74,7 +71,6 @@ type PayrollResult = {
   // Calculated values
   grossCheckAmount: number;
   grossOtherAmount: number;
-  taxes: number;
   netPay: number;
   totalGrossPay: number;
   newPtoBalance: number;
@@ -158,8 +154,7 @@ export function PayrollCalculation() {
       const ptoPay = payRateCheck * ptoUsed;
 
       const grossCheckAmount = regularPay + ptoPay;
-      const taxes = grossCheckAmount * TAX_RATE;
-      const netPay = grossCheckAmount - taxes;
+      const netPay = grossCheckAmount;
       
       const otherPay = payRateOthers * otherHours;
       const grossOtherAmount = otherPay + otherAdjustment;
@@ -179,7 +174,6 @@ export function PayrollCalculation() {
         otherAdjustment,
         grossCheckAmount,
         grossOtherAmount,
-        taxes,
         netPay,
         totalGrossPay,
         newPtoBalance,
@@ -351,7 +345,6 @@ export function PayrollCalculation() {
             const totals = {
                 grossCheckAmount: payrollResults.reduce((sum, r) => sum + r.grossCheckAmount, 0),
                 grossOtherAmount: payrollResults.reduce((sum, r) => sum + r.grossOtherAmount, 0),
-                taxes: payrollResults.reduce((sum, r) => sum + r.taxes, 0),
                 netPay: payrollResults.reduce((sum, r) => sum + r.netPay, 0),
                 totalGrossPay: payrollResults.reduce((sum, r) => sum + r.totalGrossPay, 0),
                 otherAdjustment: payrollResults.reduce((sum, r) => sum + r.otherAdjustment, 0),
@@ -384,19 +377,6 @@ export function PayrollCalculation() {
                     label: "Gross Other Amount",
                     getValue: (result) => formatCurrency(result.grossOtherAmount),
                     getTotal: () => formatCurrency(totals.grossOtherAmount),
-                    isBold: true,
-                },
-                { type: 'separator', label: '', getValue: () => '' },
-                 {
-                    label: `Taxes (${TAX_RATE * 100}%)`,
-                    getValue: (result) => `-${formatCurrency(result.taxes)}`,
-                    getTotal: () => `-${formatCurrency(totals.taxes)}`,
-                    isDestructive: true
-                },
-                {
-                    label: "Net Check Pay",
-                    getValue: (result) => formatCurrency(result.netPay),
-                    getTotal: () => formatCurrency(totals.netPay),
                     isBold: true,
                 },
                 { type: 'separator', label: '', getValue: () => '' },

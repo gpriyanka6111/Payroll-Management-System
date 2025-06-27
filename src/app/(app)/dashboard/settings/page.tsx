@@ -22,12 +22,6 @@ export default function SettingsPage() {
              <p className="text-sm text-muted-foreground">This name might appear on future reports or payslips.</p>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="taxRate">Default Tax Rate (%)</Label>
-            <Input id="taxRate" type="number" step="0.1" placeholder="e.g., 15" defaultValue="15" disabled />
-             <p className="text-sm text-muted-foreground">Currently fixed for MVP. More advanced tax options coming soon.</p>
-          </div>
-
            <div className="space-y-2">
             <Label htmlFor="payFrequency">Pay Frequency</Label>
              {/* Replace with ShadCN Select when options are defined */}
