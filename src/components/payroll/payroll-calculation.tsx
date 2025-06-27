@@ -117,8 +117,7 @@ export function PayrollCalculation() {
     name: "employees",
    });
 
-   const watchedEmployees = form.watch("employees");
-   const { setValue, getValues } = form;
+   const { setValue, getValues, trigger } = form;
 
    const handleHoursChange = React.useCallback((index: number) => {
       const employee = getValues(`employees.${index}`);
@@ -143,6 +142,7 @@ export function PayrollCalculation() {
       // Recalculate values to ensure accuracy
       const totalHoursWorked = safeGetNumber(emp.totalHoursWorked);
       const checkHours = safeGetNumber(emp.checkHours);
+      // Re-calculate otherHours here to ensure it's correct for the final result
       const otherHours = Math.max(0, totalHoursWorked - checkHours);
       const ptoUsed = safeGetNumber(emp.ptoUsed);
       const payRateCheck = safeGetNumber(emp.payRateCheck);
@@ -154,12 +154,13 @@ export function PayrollCalculation() {
       const ptoPay = payRateCheck * ptoUsed;
 
       const grossCheckAmount = regularPay + ptoPay;
-      const netPay = grossCheckAmount;
       
       const otherPay = payRateOthers * otherHours;
       const grossOtherAmount = otherPay + otherAdjustment;
       
       const totalGrossPay = grossCheckAmount + grossOtherAmount;
+      // Net pay is simplified for now, no taxes/deductions applied here
+      const netPay = grossCheckAmount; 
       const newPtoBalance = initialPtoBalance - ptoUsed;
 
       return {
@@ -167,7 +168,7 @@ export function PayrollCalculation() {
         name: emp.name,
         totalHoursWorked,
         checkHours,
-        otherHours,
+        otherHours, // Use the re-calculated value
         ptoUsed,
         payRateCheck,
         payRateOthers,
@@ -380,12 +381,6 @@ export function PayrollCalculation() {
                     isBold: true,
                 },
                 { type: 'separator', label: '', getValue: () => '' },
-                 {
-                    label: "Total Gross Pay",
-                    getValue: (result) => formatCurrency(result.totalGrossPay),
-                    getTotal: () => formatCurrency(totals.totalGrossPay),
-                    isBold: true
-                },
                 {
                     label: "New PTO Balance",
                      getValue: (result) => `${formatHours(result.newPtoBalance)}`
@@ -445,6 +440,39 @@ export function PayrollCalculation() {
                         </TableBody>
                      </Table>
                      </div>
+
+                    <Separator className="my-6" />
+                    <h3 className="text-xl font-semibold mb-4">Payroll Summary</h3>
+                     <div className="overflow-x-auto border rounded-lg">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>GP</TableHead>
+                                    <TableHead>EMPLOYEE</TableHead>
+                                    <TableHead>DED:</TableHead>
+                                    <TableHead>NET</TableHead>
+                                    <TableHead>Others</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                <TableRow>
+                                    <TableCell className="font-semibold tabular-nums">{formatCurrency(totals.grossCheckAmount)}</TableCell>
+                                    <TableCell><Input placeholder="Enter value..." /></TableCell>
+                                    <TableCell><Input placeholder="Enter value..." /></TableCell>
+                                    <TableCell><Input placeholder="Enter value..." /></TableCell>
+                                    <TableCell className="font-semibold tabular-nums">{formatCurrency(totals.grossOtherAmount)}</TableCell>
+                                </TableRow>
+                                <TableRow>
+                                    <TableCell><Input placeholder="Enter value..." /></TableCell>
+                                    <TableCell><Input placeholder="Enter value..." /></TableCell>
+                                    <TableCell><Input placeholder="Enter value..." /></TableCell>
+                                    <TableCell><Input placeholder="Enter value..." /></TableCell>
+                                    <TableCell><Input placeholder="Enter value..." /></TableCell>
+                                </TableRow>
+                            </TableBody>
+                        </Table>
+                    </div>
+
                      <div className="mt-6 flex justify-end space-x-2">
                           <Button variant="outline" onClick={() => setShowResults(false)}>Discard Results</Button>
                           <Button disabled>Approve Payroll (Not Implemented)</Button>
