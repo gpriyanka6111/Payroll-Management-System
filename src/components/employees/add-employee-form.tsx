@@ -16,7 +16,7 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { UserPlus, Phone, Shield } from 'lucide-react';
+import { UserPlus, Phone, Shield, Mail } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const Hourly = "Hourly" as const;
@@ -156,7 +156,10 @@ export function AddEmployeeForm() {
             <FormItem>
               <FormLabel>Email (Optional)</FormLabel>
               <FormControl>
-                <Input type="email" placeholder="e.g., jane.doe@example.com" {...field} value={field.value ?? ''} />
+                <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input type="email" placeholder="e.g., jane.doe@example.com" {...field} value={field.value ?? ''} className="pl-10" />
+                </div>
               </FormControl>
               <FormDescription>
                 Used for sending payslips (if feature enabled).

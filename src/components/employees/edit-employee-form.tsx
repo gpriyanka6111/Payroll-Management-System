@@ -1,3 +1,4 @@
+
 "use client";
 import * as React from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -13,7 +14,7 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Save, Phone, Shield } from 'lucide-react';
+import { Mail, Save, Phone, Shield } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { EmployeePlaceholder } from '@/lib/placeholder-data';
 
@@ -24,7 +25,8 @@ const employeeSchema = z.object({
   firstName: z.string().min(2, { message: 'First name must be at least 2 characters.' }),
   lastName: z.string().min(2, { message: 'Last name must be at least 2 characters.' }),
   ssn: z.string().optional().or(z.literal('')),
-  mobileNumber: z.string().min(10, { message: 'Enter a valid mobile number.' }).optional().or(z.literal('')),
+  email: z.string().email({ message: 'Invalid email address.' }).optional().or(z.literal('')),
+  mobileNumber: z.string().regex(/^\d{10,15}$/, { message: 'Enter a valid mobile number (10-15 digits).' }).optional().or(z.literal('')),
   payMethod: z.literal(Hourly).default(Hourly),
   payRateCheck: z.coerce.number().positive({ message: 'Pay rate must be a positive number.' }),
   payRateOthers: z.coerce.number().min(0, { message: 'Pay rate cannot be negative' }).optional(),
@@ -56,6 +58,7 @@ export function EditEmployeeForm({ employee, onSave, onCancel }: EditEmployeeFor
     resolver: zodResolver(refinedEmployeeSchema),
     defaultValues: {
       ...employee,
+      email: employee.email || '',
       ssn: employee.ssn || '',
       mobileNumber: employee.mobileNumber || '',
       payRateOthers: employee.payRateOthers || 0,
@@ -128,7 +131,7 @@ export function EditEmployeeForm({ employee, onSave, onCancel }: EditEmployeeFor
                     <FormControl>
                         <div className="relative">
                             <Phone className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                            <Input type="tel" placeholder="e.g., 123-456-7890" {...field} value={field.value ?? ''} className="pl-10" />
+                            <Input type="tel" placeholder="e.g., 1234567890" {...field} value={field.value ?? ''} className="pl-10" />
                         </div>
                     </FormControl>
                     <FormMessage />
@@ -136,6 +139,24 @@ export function EditEmployeeForm({ employee, onSave, onCancel }: EditEmployeeFor
                 )}
             />
         </div>
+
+        <FormField
+            control={form.control}
+            name="email"
+            render={({ field }) => (
+                <FormItem>
+                <FormLabel>Email (Optional)</FormLabel>
+                <FormControl>
+                    <div className="relative">
+                        <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                        <Input type="email" placeholder="e.g., jane.doe@example.com" {...field} value={field.value ?? ''} className="pl-10" />
+                    </div>
+                </FormControl>
+                <FormMessage />
+                </FormItem>
+            )}
+        />
+
 
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
             <FormField

@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from 'react';
@@ -12,7 +13,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Edit, Trash2, Clock, DollarSign, CalendarDays, Phone, Shield } from "lucide-react";
+import { Edit, Trash2, Clock, DollarSign, CalendarDays, Phone, Shield, Mail } from "lucide-react";
 import type { EmployeePlaceholder } from '@/lib/placeholder-data';
 import {
   AlertDialog,
@@ -65,6 +66,7 @@ export function EmployeeTable({ employees, onUpdate, onDelete }: EmployeeTablePr
         <TableHeader>
           <TableRow>
             <TableHead>Name</TableHead>
+            <TableHead><Mail className="inline-block h-4 w-4 mr-1"/>Email</TableHead>
             <TableHead><Phone className="inline-block h-4 w-4 mr-1"/>Mobile</TableHead>
             <TableHead><Shield className="inline-block h-4 w-4 mr-1"/>SSN</TableHead>
             <TableHead><Clock className="inline-block h-4 w-4 mr-1"/>Pay Method</TableHead>
@@ -79,6 +81,7 @@ export function EmployeeTable({ employees, onUpdate, onDelete }: EmployeeTablePr
           {employees.map((employee) => (
             <TableRow key={employee.id}>
               <TableCell className="font-medium">{`${employee.firstName} ${employee.lastName}`}</TableCell>
+              <TableCell>{employee.email || 'N/A'}</TableCell>
               <TableCell>{employee.mobileNumber || 'N/A'}</TableCell>
               <TableCell>{employee.ssn || 'N/A'}</TableCell>
               <TableCell>
@@ -102,7 +105,7 @@ export function EmployeeTable({ employees, onUpdate, onDelete }: EmployeeTablePr
           ))}
           {employees.length === 0 && (
             <TableRow>
-              <TableCell colSpan={9} className="h-24 text-center text-muted-foreground">
+              <TableCell colSpan={10} className="h-24 text-center text-muted-foreground">
                 No employees found. Add your first employee!
               </TableCell>
             </TableRow>
