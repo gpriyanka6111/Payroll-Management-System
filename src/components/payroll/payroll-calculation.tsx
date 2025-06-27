@@ -412,7 +412,7 @@ export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
           ];
 
            return (
-               <Card>
+               <Card className="payroll-report-card">
                    <CardHeader>
                        <CardTitle>Payroll Results</CardTitle>
                        <CardDescription>

@@ -96,3 +96,38 @@ body {
     font-feature-settings: "rlig" 1, "calt" 1;
   }
 }
+
+@media print {
+  body {
+    -webkit-print-color-adjust: exact;
+  }
+
+  /* Reset the main content layout for printing. The 'main' tag is our content area. */
+  main {
+    display: block !important;
+    min-height: auto !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+  }
+  
+  /* Reset the immediate child div within main, which has padding */
+  main > div {
+     padding: 0 !important;
+  }
+
+  /* Style the report card itself for printing */
+  .payroll-report-card {
+     border: none !important;
+     box-shadow: none !important;
+     padding: 0 !important;
+  }
+
+  .payroll-report-card > div { /* CardContent */
+    padding-top: 0 !important;
+  }
+
+  @page {
+    margin: 0.5in;
+  }
+}
