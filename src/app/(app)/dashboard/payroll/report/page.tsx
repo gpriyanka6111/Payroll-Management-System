@@ -23,9 +23,9 @@ const formatCurrency = (amount: number) => {
 
 const formatHours = (hours: number): string => {
     if (typeof hours !== 'number' || isNaN(hours)) {
-        return '-- hrs';
+        return '--';
     }
-    return `${hours.toFixed(1)} hrs`;
+    return hours.toFixed(2);
 };
 
 export default function PayrollReportPage() {
@@ -88,7 +88,7 @@ export default function PayrollReportPage() {
         { key: 'totalHoursWorked', label: 'Total Hours Worked' },
         { key: 'checkHours', label: 'Check Hours' },
         { key: 'otherHours', label: 'Other Hours' },
-        { key: 'ptoUsed', label: 'PTO Used (hrs)' },
+        { key: 'ptoUsed', label: 'PTO Used' },
     ] as const;
 
     const totals = {
@@ -119,7 +119,7 @@ export default function PayrollReportPage() {
         },
         {
             label: "New PTO Balance",
-            getValue: (result) => formatHours(result.newPtoBalance)
+            getValue: (result) => `(${formatHours(result.newPtoBalance)})`
         },
     ];
 
@@ -162,7 +162,10 @@ export default function PayrollReportPage() {
                                         <TableCell className="font-medium">{metric.label}</TableCell>
                                         {inputs.map(input => (
                                             <TableCell key={input.employeeId} className="text-right tabular-nums">
-                                                {formatHours(input[metric.key])}
+                                                {metric.key === 'ptoUsed' 
+                                                    ? `(${formatHours(input[metric.key])})`
+                                                    : formatHours(input[metric.key])
+                                                }
                                             </TableCell>
                                         ))}
                                     </TableRow>

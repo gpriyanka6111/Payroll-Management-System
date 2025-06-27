@@ -99,7 +99,7 @@ const inputMetrics = [
     { key: 'totalHoursWorked', label: 'Total Hours Worked', props: { step: "0.1", min: "0" } },
     { key: 'checkHours', label: 'Check Hours', props: { step: "0.1", min: "0" } },
     { key: 'otherHours', label: 'Other Hours', props: { readOnly: true, className: "bg-muted/50" } },
-    { key: 'ptoUsed', label: 'PTO Used (hrs)', props: { step: "0.1", min: "0" } },
+    { key: 'ptoUsed', label: 'PTO Used', props: { step: "0.1", min: "0" } },
 ] as const;
 
 
@@ -262,7 +262,7 @@ export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
       if (hours === undefined || hours === null || isNaN(numHours)) {
           return 'N/A';
       }
-      return `${numHours.toFixed(1)} hrs`;
+      return `${numHours.toFixed(2)}`;
   };
 
   return (
@@ -318,7 +318,7 @@ export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
                         <TableCell className="font-medium">Available PTO</TableCell>
                         {fields.map((field) => (
                             <TableCell key={field.id} className="text-center text-sm text-muted-foreground tabular-nums">
-                                {formatHours(field.ptoBalance)}
+                                {`(${formatHours(field.ptoBalance)})`}
                             </TableCell>
                         ))}
                      </TableRow>
@@ -369,7 +369,7 @@ export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
               { label: "Total Hours", getValue: (result) => formatHours(result.totalHoursWorked) },
               { label: "Check Hours", getValue: (result) => formatHours(result.checkHours) },
               { label: "Other Hours", getValue: (result) => formatHours(result.otherHours) },
-              { label: "PTO Time", getValue: (result) => formatHours(result.ptoUsed) },
+              { label: "PTO Time", getValue: (result) => `(${formatHours(result.ptoUsed)})` },
               { type: 'separator', label: '', getValue: () => '' },
               { label: "Rate/Check", getValue: (result) => formatCurrency(result.payRateCheck) + "/hr" },
               { label: "Rate/Others", getValue: (result) => formatCurrency(result.payRateOthers) + "/hr" },
@@ -390,7 +390,7 @@ export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
               { type: 'separator', label: '', getValue: () => '' },
               {
                   label: "New PTO Balance",
-                   getValue: (result) => `${formatHours(result.newPtoBalance)}`
+                   getValue: (result) => `(${formatHours(result.newPtoBalance)})`
               },
           ];
 
