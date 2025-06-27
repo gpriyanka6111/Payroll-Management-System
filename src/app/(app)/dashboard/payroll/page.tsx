@@ -1,8 +1,8 @@
+
 "use client"
 
 import * as React from "react";
 import { format } from "date-fns"
-import { DateRange } from "react-day-picker"
 
 import { PayrollCalculation } from '@/components/payroll/payroll-calculation';
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,7 @@ import { Calculator, History, Play, Calendar as CalendarIcon } from 'lucide-reac
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
+import { Label } from "@/components/ui/label";
 
 // Placeholder data - Replace with actual data fetching for past payrolls
 const pastPayrolls = [
@@ -19,7 +20,8 @@ const pastPayrolls = [
 ];
 
 export default function PayrollPage() {
-  const [date, setDate] = React.useState<DateRange | undefined>()
+  const [from, setFrom] = React.useState<Date | undefined>();
+  const [to, setTo] = React.useState<Date | undefined>();
 
    const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
@@ -49,49 +51,74 @@ export default function PayrollPage() {
           <CardDescription>Choose the date range for this payroll run.</CardDescription>
         </CardHeader>
         <CardContent>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  id="date"
-                  variant={"outline"}
-                  className={cn(
-                    "w-[300px] justify-start text-left font-normal",
-                    !date && "text-muted-foreground"
-                  )}
-                >
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {date?.from ? (
-                    date.to ? (
-                      <>
-                        {format(date.from, "LLL dd, y")} -{" "}
-                        {format(date.to, "LLL dd, y")}
-                      </>
-                    ) : (
-                      format(date.from, "LLL dd, y")
-                    )
-                  ) : (
-                    <span>Pick a date range</span>
-                  )}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  initialFocus
-                  mode="range"
-                  defaultMonth={date?.from}
-                  selected={date}
-                  onSelect={setDate}
-                  numberOfMonths={2}
-                />
-              </PopoverContent>
-            </Popover>
+           <div className="flex flex-wrap items-end gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="from-date">From</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      id="from-date"
+                      variant={"outline"}
+                      className={cn(
+                        "w-[240px] justify-start text-left font-normal",
+                        !from && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {from ? format(from, "LLL dd, y") : <span>Pick a start date</span>}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={from}
+                      onSelect={setFrom}
+                      disabled={(date) =>
+                        (to && date > to) || date > new Date()
+                      }
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              <div className="grid gap-2">
+                 <Label htmlFor="to-date">To</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      id="to-date"
+                      variant={"outline"}
+                      className={cn(
+                        "w-[240px] justify-start text-left font-normal",
+                        !to && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {to ? format(to, "LLL dd, y") : <span>Pick an end date</span>}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={to}
+                      onSelect={setTo}
+                      disabled={(date) =>
+                        !from || date < from || date > new Date()
+                      }
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+            </div>
         </CardContent>
       </Card>
 
 
       {/* Payroll Calculation Component */}
-       {date?.from && date?.to ? (
-        <PayrollCalculation key={`${format(date.from, "yyyy-MM-dd")}-${format(date.to, "yyyy-MM-dd")}`} />
+       {from && to ? (
+        <PayrollCalculation key={`${format(from, "yyyy-MM-dd")}-${format(to, "yyyy-MM-dd")}`} />
       ) : (
         <Card>
           <CardHeader>
