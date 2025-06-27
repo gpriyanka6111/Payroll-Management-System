@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from 'react';
@@ -91,6 +92,14 @@ interface PayrollCalculationProps {
     from: Date;
     to: Date;
 }
+
+const inputMetrics = [
+    { key: 'totalHoursWorked', label: 'Total Hours Worked', props: { step: "0.1", min: "0" } },
+    { key: 'checkHours', label: 'Check Hours', props: { step: "0.1", min: "0" } },
+    { key: 'otherHours', label: 'Other Hours', props: { readOnly: true, className: "bg-muted/50" } },
+    { key: 'ptoUsed', label: 'PTO Used (hrs)', props: { step: "0.1", min: "0" } },
+] as const;
+
 
 export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
   const router = useRouter();
@@ -268,83 +277,49 @@ export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
                <Table>
                    <TableHeader>
                      <TableRow>
-                      <TableHead>Employee</TableHead>
-                      <TableHead className="w-[150px]">Total Hours Worked</TableHead>
-                      <TableHead className="w-[150px]">Check Hours</TableHead>
-                      <TableHead className="w-[150px]">Other Hours</TableHead>
-                      <TableHead className="w-[150px]">PTO Used (hrs)</TableHead>
-                      <TableHead>Available PTO</TableHead>
+                      <TableHead className="font-bold min-w-[200px]">Metric</TableHead>
+                       {fields.map((field) => (
+                          <TableHead key={field.id} className="text-center">{field.name}</TableHead>
+                       ))}
                      </TableRow>
                    </TableHeader>
                    <TableBody>
-                    {fields.map((field, index) => (
-                       <TableRow key={field.id}>
-                           <TableCell className="font-medium">{field.name}</TableCell>
-                           <TableCell>
-                             <FormField
-                                control={form.control}
-                                name={`employees.${index}.totalHoursWorked`}
-                                render={({ field: inputField }) => (
-                                  <FormItem className="w-full">
-                                    <FormLabel className="sr-only">Total Hours Worked for {field.name}</FormLabel>
-                                    <FormControl>
-                                        <Input type="number" step="0.1" min="0" placeholder="e.g., 40" {...inputField} className="h-8" />
-                                    </FormControl>
-                                     <FormMessage className="text-xs mt-1" />
-                                  </FormItem>
-                                )}
-                              />
-                           </TableCell>
-                           <TableCell>
-                             <FormField
-                                control={form.control}
-                                name={`employees.${index}.checkHours`}
-                                render={({ field: inputField }) => (
-                                  <FormItem className="w-full">
-                                    <FormLabel className="sr-only">Check Hours for {field.name}</FormLabel>
-                                    <FormControl>
-                                        <Input type="number" step="0.1" min="0" placeholder="e.g., 35" {...inputField} className="h-8" />
-                                    </FormControl>
-                                     <FormMessage className="text-xs mt-1" />
-                                  </FormItem>
-                                )}
-                              />
-                           </TableCell>
-                           <TableCell>
-                             <FormField
-                                control={form.control}
-                                name={`employees.${index}.otherHours`}
-                                render={({ field: inputField }) => (
-                                  <FormItem className="w-full">
-                                    <FormLabel className="sr-only">Other Hours for {field.name}</FormLabel>
-                                    <FormControl>
-                                        <Input type="number" {...inputField} className="h-8 bg-muted/50" readOnly/>
-                                    </FormControl>
-                                     <FormMessage className="text-xs mt-1" />
-                                  </FormItem>
-                                )}
-                              />
-                           </TableCell>
-                           <TableCell>
-                             <FormField
-                                control={form.control}
-                                name={`employees.${index}.ptoUsed`}
-                                render={({ field: inputField }) => (
-                                  <FormItem className="w-full">
-                                    <FormLabel className="sr-only">PTO Hours Used for {field.name}</FormLabel>
-                                    <FormControl>
-                                        <Input type="number" step="0.1" min="0" placeholder="e.g., 8" {...inputField} className="h-8" />
-                                    </FormControl>
-                                     <FormMessage className="text-xs mt-1" />
-                                  </FormItem>
-                                )}
-                              />
-                           </TableCell>
-                            <TableCell className="text-sm text-muted-foreground">
-                                {formatHours(field.ptoBalance)}
-                            </TableCell>
+                    {inputMetrics.map((metric) => (
+                       <TableRow key={metric.key}>
+                           <TableCell className="font-medium">{metric.label}</TableCell>
+                            {fields.map((field, index) => (
+                               <TableCell key={field.id} className="text-right p-2">
+                                 <FormField
+                                    control={form.control}
+                                    name={`employees.${index}.${metric.key}`}
+                                    render={({ field: inputField }) => (
+                                      <FormItem>
+                                        <FormLabel className="sr-only">{metric.label} for {field.name}</FormLabel>
+                                        <FormControl>
+                                            <Input 
+                                                type="number" 
+                                                placeholder="0" 
+                                                {...inputField} 
+                                                {...metric.props} 
+                                                className="h-8 w-28 text-right mx-auto"
+                                            />
+                                        </FormControl>
+                                         <FormMessage className="text-xs mt-1" />
+                                      </FormItem>
+                                    )}
+                                  />
+                               </TableCell>
+                            ))}
                       </TableRow>
                     ))}
+                     <TableRow className="bg-muted/20 hover:bg-muted/20">
+                        <TableCell className="font-medium">Available PTO</TableCell>
+                        {fields.map((field) => (
+                            <TableCell key={field.id} className="text-center text-sm text-muted-foreground tabular-nums">
+                                {formatHours(field.ptoBalance)}
+                            </TableCell>
+                        ))}
+                     </TableRow>
                      {fields.length === 0 && (
                          <TableRow>
                              <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">

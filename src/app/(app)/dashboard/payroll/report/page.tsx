@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import * as React from 'react';
@@ -97,7 +98,7 @@ export default function PayrollReportPage() {
         otherAdjustment: results.reduce((sum, r) => sum + r.otherAdjustment, 0),
     };
 
-    const metrics: Array<{
+    const resultMetrics: Array<{
         label: string;
         getValue: (result: PayrollResult) => string | number;
         getTotal?: () => string | number;
@@ -132,6 +133,14 @@ export default function PayrollReportPage() {
              getValue: (result) => `${formatHours(result.newPtoBalance)}`
         },
     ];
+    
+    const inputMetricsForReport = [
+        { key: 'totalHoursWorked', label: 'Total Hours Worked' },
+        { key: 'checkHours', label: 'Check Hours' },
+        { key: 'otherHours', label: 'Other Hours' },
+        { key: 'ptoUsed', label: 'PTO Used (hrs)' },
+    ] as const;
+
 
     return (
         <div className="payroll-report-page space-y-6">
@@ -164,21 +173,21 @@ export default function PayrollReportPage() {
                             <Table>
                                 <TableHeader>
                                     <TableRow>
-                                        <TableHead>Employee</TableHead>
-                                        <TableHead className="text-right">Total Hours Worked</TableHead>
-                                        <TableHead className="text-right">Check Hours</TableHead>
-                                        <TableHead className="text-right">Other Hours</TableHead>
-                                        <TableHead className="text-right">PTO Used (hrs)</TableHead>
+                                        <TableHead className="font-bold min-w-[200px]">Metric</TableHead>
+                                        {inputs.map((input) => (
+                                            <TableHead key={input.employeeId} className="text-right">{input.name}</TableHead>
+                                        ))}
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {inputs.map((input) => (
-                                        <TableRow key={input.employeeId} className="break-inside-avoid-page">
-                                            <TableCell className="font-medium">{input.name}</TableCell>
-                                            <TableCell className="text-right tabular-nums">{formatHours(input.totalHoursWorked)}</TableCell>
-                                            <TableCell className="text-right tabular-nums">{formatHours(input.checkHours)}</TableCell>
-                                            <TableCell className="text-right tabular-nums">{formatHours(input.otherHours)}</TableCell>
-                                            <TableCell className="text-right tabular-nums">{formatHours(input.ptoUsed)}</TableCell>
+                                    {inputMetricsForReport.map((metric) => (
+                                        <TableRow key={metric.key} className="break-inside-avoid-page">
+                                            <TableCell className="font-medium">{metric.label}</TableCell>
+                                            {inputs.map((input) => (
+                                                <TableCell key={input.employeeId} className="text-right tabular-nums">
+                                                    {formatHours(input[metric.key as keyof typeof input])}
+                                                </TableCell>
+                                            ))}
                                         </TableRow>
                                     ))}
                                 </TableBody>
@@ -201,7 +210,7 @@ export default function PayrollReportPage() {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {metrics.map((metric, index) => {
+                                {resultMetrics.map((metric, index) => {
                                     if (metric.type === 'separator') {
                                         return (
                                             <TableRow key={`sep-${index}`} className="bg-muted/20 hover:bg-muted/20">
