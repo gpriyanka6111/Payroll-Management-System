@@ -11,8 +11,8 @@ import { History, Play, ArrowLeft } from 'lucide-react';
 
 // Placeholder data - Replace with actual data fetching for past payrolls
 const pastPayrolls = [
-  { id: 'pay001', date: '2024-07-15', totalAmount: 5432.10, status: 'Completed' },
-  { id: 'pay002', date: '2024-06-30', totalAmount: 5310.55, status: 'Completed' },
+  { id: 'pay001', fromDate: '2024-07-01', toDate: '2024-07-15', totalAmount: 5432.10, status: 'Completed' },
+  { id: 'pay002', fromDate: '2024-06-16', toDate: '2024-06-30', totalAmount: 5310.55, status: 'Completed' },
 ];
 
 export default function PayrollHistoryPage() {
@@ -60,7 +60,7 @@ export default function PayrollHistoryPage() {
                 {pastPayrolls.map((payroll) => (
                   <li key={payroll.id} className="flex justify-between items-center p-3 border rounded-md hover:bg-muted/50 transition-colors">
                     <div>
-                      <p className="font-medium">Payroll Run - {formatDate(payroll.date)}</p>
+                      <p className="font-medium">Payroll Run: {formatDate(payroll.fromDate)} - {formatDate(payroll.toDate)}</p>
                       <p className="text-sm text-muted-foreground">Status: {payroll.status}</p>
                     </div>
                     <div className="text-right">
