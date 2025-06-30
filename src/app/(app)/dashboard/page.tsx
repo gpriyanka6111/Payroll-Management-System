@@ -1,11 +1,36 @@
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Users, Calculator, ArrowRight } from "lucide-react";
+import { Users, Calculator, ArrowRight, CheckCircle2, UserPlus, UserRoundCog, FileText } from "lucide-react";
 import Link from "next/link";
 import { employees } from "@/lib/placeholder-data";
 
 export default function DashboardPage() {
   const totalEmployees = employees.length;
+
+  // Placeholder data for recent activities
+  const recentActivities = [
+    {
+      icon: <CheckCircle2 className="h-5 w-5 text-accent" />,
+      text: "Payroll run for July 1-15, 2024 was completed.",
+      time: "2 days ago",
+    },
+    {
+      icon: <UserPlus className="h-5 w-5 text-primary" />,
+      text: "A new employee, Frank Miller, was added to the system.",
+      time: "4 days ago",
+    },
+    {
+      icon: <UserRoundCog className="h-5 w-5 text-[hsl(var(--chart-4))]" />,
+      text: "Pay rate for Alice Smith was updated from $25.00/hr to $25.50/hr.",
+      time: "1 week ago",
+    },
+    {
+      icon: <FileText className="h-5 w-5 text-muted-foreground" />,
+      text: "June 2024 Summary Report was generated.",
+      time: "3 weeks ago",
+    },
+  ];
 
   return (
     <div className="space-y-6">
@@ -73,15 +98,30 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-       {/* Placeholder for recent activity or reports */}
+       {/* Recent activity */}
        <Card>
          <CardHeader>
             <CardTitle>Recent Activity</CardTitle>
-            <CardDescription>Overview of recent payroll actions.</CardDescription>
+            <CardDescription>An overview of the latest actions in your account.</CardDescription>
          </CardHeader>
          <CardContent>
-            <p className="text-muted-foreground">No recent activity to display. Payroll features are under development.</p>
-            {/* List recent activities here */}
+           {recentActivities.length > 0 ? (
+              <div className="space-y-6">
+                {recentActivities.map((activity, index) => (
+                  <div key={index} className="flex items-start gap-4">
+                    <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-muted">
+                        {activity.icon}
+                    </div>
+                    <div className="flex-grow">
+                      <p className="text-sm font-medium">{activity.text}</p>
+                      <p className="text-xs text-muted-foreground">{activity.time}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+           ) : (
+             <p className="text-center text-muted-foreground py-4">No recent activity to display.</p>
+           )}
          </CardContent>
        </Card>
     </div>
