@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'PayrollPal', // Update title
+  title: 'Paypall', // Update title
   description: 'Simplified Payroll for Small Businesses', // Update description
 };
 

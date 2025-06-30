@@ -70,7 +70,7 @@ export function LoginForm() {
   return (
     <Card className="w-full max-w-sm shadow-lg">
       <CardHeader>
-        <CardTitle className="text-2xl font-bold text-center text-primary">PayrollPal Login</CardTitle>
+        <CardTitle className="text-2xl font-bold text-center text-primary">Paypall Login</CardTitle>
         <CardDescription className="text-center">
           Enter your credentials to access your dashboard.
         </CardDescription>

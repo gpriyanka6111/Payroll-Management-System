@@ -101,7 +101,7 @@ export function SignupForm() {
       <CardHeader>
         <CardTitle className="text-2xl font-bold text-center text-primary">Sign Up</CardTitle>
         <CardDescription className="text-center">
-          Create your PayrollPal account.
+          Create your Paypall account.
         </CardDescription>
       </CardHeader>
       <CardContent>
