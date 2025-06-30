@@ -95,12 +95,17 @@
     color: #000 !important;
   }
 
-  /* Hide everything by default */
-  body * {
-    visibility: hidden;
+  /* Hide everything except for the main content area that holds the page */
+  body > div > *:not(main) {
+      display: none !important;
   }
 
-  /* Make the printable section and its children visible */
+  /* Within the main content area, hide all elements by default */
+  main * {
+      visibility: hidden;
+  }
+  
+  /* Make the printable sections and their children visible */
   .payroll-report-page, .payroll-report-page *,
   .printable-section, .printable-section * {
     visibility: visible;
@@ -117,11 +122,7 @@
   }
 
   /* Clean up printable cards */
-  .printable-section {
-      border: none !important;
-      box-shadow: none !important;
-  }
-  
+  .printable-section,
   .report-content-wrapper {
       border: none !important;
       box-shadow: none !important;
@@ -130,7 +131,6 @@
   /* Explicitly hide the action buttons */
   .report-actions, .print-action-button-container {
     display: none !important;
-    visibility: hidden !important;
   }
 
   section {
