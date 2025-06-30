@@ -18,6 +18,7 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { UserPlus, Phone, Shield, Mail } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 
 const Hourly = "Hourly" as const;
 
@@ -33,6 +34,7 @@ const employeeSchema = z.object({
   payRateOthers: z.coerce.number().min(0, { message: 'Pay rate cannot be negative' }).optional(),
   standardCheckHours: z.coerce.number().min(0, { message: 'Standard hours cannot be negative.' }).optional(),
   ptoBalance: z.coerce.number().min(0, { message: 'PTO balance cannot be negative.' }).default(0),
+  comment: z.string().optional(),
 });
 
 const refinedEmployeeSchema = employeeSchema.refine(
@@ -64,6 +66,7 @@ export function AddEmployeeForm() {
       payRateOthers: 0,
       standardCheckHours: 40,
       ptoBalance: 0,
+      comment: '',
     },
     mode: 'onChange',
   });
@@ -295,6 +298,27 @@ export function AddEmployeeForm() {
                 )}
             />
          </div>
+
+        <FormField
+            control={form.control}
+            name="comment"
+            render={({ field }) => (
+                <FormItem>
+                <FormLabel>Comment</FormLabel>
+                <FormControl>
+                    <Textarea
+                    placeholder="Enter any internal comments about the employee..."
+                    className="resize-y"
+                    {...field}
+                    />
+                </FormControl>
+                <FormDescription>
+                    This comment is for internal use and will be visible during payroll runs.
+                </FormDescription>
+                <FormMessage />
+                </FormItem>
+            )}
+        />
 
 
         <Button type="submit" className="w-full bg-accent text-accent-foreground hover:bg-accent/90">

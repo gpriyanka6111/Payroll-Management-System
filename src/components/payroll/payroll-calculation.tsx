@@ -17,7 +17,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Calculator, AlertTriangle, CheckCircle } from 'lucide-react';
+import { Calculator, AlertTriangle, CheckCircle, MessageSquare } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -25,6 +25,8 @@ import { cn } from '@/lib/utils';
 import { employees as placeholderEmployees } from '@/lib/placeholder-data';
 import { format } from 'date-fns';
 import { useRouter } from 'next/navigation';
+import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
+import { Textarea } from '../ui/textarea';
 
 // Define Zod schema for a single employee's payroll input
 const employeePayrollInputSchema = z.object({
@@ -37,6 +39,7 @@ const employeePayrollInputSchema = z.object({
   otherHours: z.coerce.number().min(0).default(0),
   ptoUsed: z.coerce.number().min(0, { message: 'PTO hours must be non-negative.' }).default(0),
   ptoBalance: z.number().optional(),
+  comment: z.string().optional(),
 }).refine(data => data.checkHours <= data.totalHoursWorked, {
     message: "Check hours cannot exceed total hours.",
     path: ["checkHours"],
@@ -88,6 +91,7 @@ const initialEmployeesData = placeholderEmployees.map(emp => ({
   ptoBalance: emp.ptoBalance,
   checkHours: emp.standardCheckHours,
   standardCheckHours: emp.standardCheckHours,
+  comment: emp.comment || '',
 }));
 
 interface PayrollCalculationProps {
@@ -122,6 +126,7 @@ export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
           checkHours: emp.standardCheckHours ?? 0,
           otherHours: 0,
           ptoUsed: 0,
+          comment: emp.comment || '',
         })),
     },
      mode: "onChange",
@@ -132,7 +137,7 @@ export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
     name: "employees",
    });
 
-   const { setValue, watch } = form;
+   const { setValue, watch, control } = form;
 
     const watchedEmployees = watch("employees");
 
@@ -213,7 +218,7 @@ export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
     setShowResults(true);
     toast({
       title: 'Payroll Calculated',
-      description: 'Review the results below before approving.',
+      description: 'Comments updated for this session. Review results below.',
       variant: 'default',
       action: <CheckCircle className="h-4 w-4 text-white"/>
     });
@@ -276,7 +281,7 @@ export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
        <Card>
          <CardHeader>
           <CardTitle className="flex items-center"><Calculator className="mr-2 h-5 w-5 text-muted-foreground"/> 2. Calculate Payroll</CardTitle>
-          <CardDescription>Enter hours for each employee for the current pay period.</CardDescription>
+          <CardDescription>Enter hours and review comments for each employee for the current pay period.</CardDescription>
         </CardHeader>
          <CardContent>
            <Form {...form}>
@@ -327,6 +332,41 @@ export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
                                 ({formatHours(watchedEmployees[index]?.ptoBalance)})
                             </TableCell>
                         ))}
+                     </TableRow>
+                     <TableRow>
+                        <TableCell className="font-medium">Comments</TableCell>
+                         {fields.map((field, index) => (
+                            <TableCell key={field.id} className="text-center">
+                               <Popover>
+                                    <PopoverTrigger asChild>
+                                        <Button variant="outline" size="sm">
+                                            <MessageSquare className="mr-2 h-4 w-4" />
+                                            View/Edit
+                                        </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-80">
+                                       <FormField
+                                            control={control}
+                                            name={`employees.${index}.comment`}
+                                            render={({ field: commentField }) => (
+                                                <FormItem className="grid gap-4">
+                                                    <div className="space-y-2">
+                                                        <h4 className="font-medium leading-none">Comment</h4>
+                                                        <p className="text-sm text-muted-foreground">
+                                                            Internal note for {field.name}.
+                                                        </p>
+                                                    </div>
+                                                    <FormControl>
+                                                      <Textarea {...commentField} value={commentField.value ?? ''} />
+                                                    </FormControl>
+                                                     <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                    </PopoverContent>
+                                </Popover>
+                            </TableCell>
+                         ))}
                      </TableRow>
                      {fields.length === 0 && (
                          <TableRow>

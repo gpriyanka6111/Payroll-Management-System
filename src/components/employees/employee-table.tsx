@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Edit, Trash2, Clock, DollarSign, CalendarDays, Phone, Shield, Mail } from "lucide-react";
+import { Edit, Trash2, Clock, DollarSign, CalendarDays, Phone, Shield, Mail, MessageSquare } from "lucide-react";
 import type { EmployeePlaceholder } from '@/lib/placeholder-data';
 import {
   AlertDialog,
@@ -33,6 +33,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { EditEmployeeForm } from './edit-employee-form';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 
 interface EmployeeTableProps {
   employees: EmployeePlaceholder[];
@@ -60,7 +61,7 @@ export function EmployeeTable({ employees, onUpdate, onDelete }: EmployeeTablePr
   };
 
   return (
-    <>
+    <TooltipProvider>
       <Table>
         <TableCaption>A list of your current employees.</TableCaption>
         <TableHeader>
@@ -69,6 +70,7 @@ export function EmployeeTable({ employees, onUpdate, onDelete }: EmployeeTablePr
             <TableHead><Mail className="inline-block h-4 w-4 mr-1"/>Email</TableHead>
             <TableHead><Phone className="inline-block h-4 w-4 mr-1"/>Mobile</TableHead>
             <TableHead><Shield className="inline-block h-4 w-4 mr-1"/>SSN</TableHead>
+            <TableHead>Comment</TableHead>
             <TableHead><Clock className="inline-block h-4 w-4 mr-1"/>Pay Method</TableHead>
             <TableHead><DollarSign className="inline-block h-4 w-4 mr-1"/>Rate/Check</TableHead>
             <TableHead><DollarSign className="inline-block h-4 w-4 mr-1"/>Rate/Others</TableHead>
@@ -84,6 +86,20 @@ export function EmployeeTable({ employees, onUpdate, onDelete }: EmployeeTablePr
               <TableCell>{employee.email || 'N/A'}</TableCell>
               <TableCell>{employee.mobileNumber || 'N/A'}</TableCell>
               <TableCell>{employee.ssn || 'N/A'}</TableCell>
+              <TableCell className="text-center">
+                 {employee.comment ? (
+                   <Tooltip>
+                    <TooltipTrigger>
+                       <MessageSquare className="h-4 w-4 text-muted-foreground" />
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="max-w-xs">{employee.comment}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                 ) : (
+                  <span className="text-muted-foreground/50">-</span>
+                 )}
+              </TableCell>
               <TableCell>
                   <Badge variant='secondary'>
                       {employee.payMethod}
@@ -105,7 +121,7 @@ export function EmployeeTable({ employees, onUpdate, onDelete }: EmployeeTablePr
           ))}
           {employees.length === 0 && (
             <TableRow>
-              <TableCell colSpan={10} className="h-24 text-center text-muted-foreground">
+              <TableCell colSpan={11} className="h-24 text-center text-muted-foreground">
                 No employees found. Add your first employee!
               </TableCell>
             </TableRow>
@@ -156,6 +172,6 @@ export function EmployeeTable({ employees, onUpdate, onDelete }: EmployeeTablePr
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </>
+    </TooltipProvider>
   );
 }

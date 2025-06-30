@@ -12,11 +12,13 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Mail, Save, Phone, Shield } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { EmployeePlaceholder } from '@/lib/placeholder-data';
+import { Textarea } from '../ui/textarea';
 
 const Hourly = "Hourly" as const;
 
@@ -32,6 +34,7 @@ const employeeSchema = z.object({
   payRateOthers: z.coerce.number().min(0, { message: 'Pay rate cannot be negative' }).optional(),
   standardCheckHours: z.coerce.number().min(0, { message: 'Standard hours cannot be negative.' }).optional(),
   ptoBalance: z.coerce.number().min(0, { message: 'PTO balance cannot be negative.' }).default(0),
+  comment: z.string().optional(),
 });
 
 const refinedEmployeeSchema = employeeSchema.refine(
@@ -63,6 +66,7 @@ export function EditEmployeeForm({ employee, onSave, onCancel }: EditEmployeeFor
       mobileNumber: employee.mobileNumber || '',
       payRateOthers: employee.payRateOthers || 0,
       standardCheckHours: employee.standardCheckHours || 40,
+      comment: employee.comment || '',
     },
     mode: 'onChange',
   });
@@ -284,6 +288,27 @@ export function EditEmployeeForm({ employee, onSave, onCancel }: EditEmployeeFor
                 )}
             />
          </div>
+
+         <FormField
+            control={form.control}
+            name="comment"
+            render={({ field }) => (
+                <FormItem>
+                <FormLabel>Comment</FormLabel>
+                <FormControl>
+                    <Textarea
+                    placeholder="Enter any internal comments about the employee..."
+                    className="resize-y"
+                    {...field}
+                    />
+                </FormControl>
+                 <FormDescription>
+                    This comment is for internal use and will be visible during payroll runs.
+                </FormDescription>
+                <FormMessage />
+                </FormItem>
+            )}
+        />
          <div className="flex justify-end gap-2 pt-4">
             <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
             <Button type="submit" className="bg-accent text-accent-foreground hover:bg-accent/90">
