@@ -1,5 +1,6 @@
 
 // In a real application, this data would come from a database or an API.
+// For the PTO Tracker feature, the 'ptoBalance' is treated as the initial PTO balance for the year.
 export const employees = [
   { id: 'emp001', firstName: 'Alice', lastName: 'Smith', email: 'alice.smith@example.com', mobileNumber: '1234567890', ssn: '***-**-1234', payMethod: 'Hourly' as const, payRateCheck: 25.50, payRateOthers: 15.00, ptoBalance: 40.0, standardCheckHours: 40 },
   { id: 'emp002', firstName: 'Bob', lastName: 'Johnson', email: 'bob.j@example.com', mobileNumber: '2345678901', ssn: '***-**-5678', payMethod: 'Hourly' as const, payRateCheck: 22.00, payRateOthers: 12.00, ptoBalance: 80.0, standardCheckHours: 40 },
@@ -14,3 +15,17 @@ export const employees = [
 ];
 
 export type EmployeePlaceholder = typeof employees[0];
+
+// Placeholder data for historical PTO usage.
+// In a real app, this would be generated from saved payroll reports.
+export const ptoUsageHistory = [
+  { employeeId: 'emp001', ptoUsed: 8, payPeriod: '2024-01-15' },
+  { employeeId: 'emp002', ptoUsed: 16, payPeriod: '2024-01-31' },
+  { employeeId: 'emp004', ptoUsed: 4, payPeriod: '2024-02-15' },
+  { employeeId: 'emp001', ptoUsed: 8, payPeriod: '2024-03-15' },
+  { employeeId: 'emp005', ptoUsed: 8, payPeriod: '2024-03-31' },
+  { employeeId: 'emp006', ptoUsed: 40, payPeriod: '2024-04-15' },
+  { employeeId: 'emp009', ptoUsed: 16, payPeriod: '2024-05-31' },
+  { employeeId: 'emp002', ptoUsed: 8, payPeriod: '2024-06-15' },
+  { employeeId: 'emp010', ptoUsed: 8, payPeriod: '2024-07-01'},
+];

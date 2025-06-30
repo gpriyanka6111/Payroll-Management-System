@@ -1,7 +1,8 @@
+
 import * as React from 'react';
 import { SidebarProvider, Sidebar, SidebarHeader, SidebarContent, SidebarFooter, SidebarTrigger, SidebarInset, SidebarMenu, SidebarMenuItem, SidebarMenuButton } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
-import { Home, Users, Calculator, Settings, LogOut } from 'lucide-react';
+import { Home, Users, Calculator, Settings, LogOut, CalendarClock } from 'lucide-react';
 import Link from 'next/link';
 
 export default function DashboardLayout({
@@ -47,6 +48,14 @@ export default function DashboardLayout({
                  <Link href="/dashboard/payroll">
                   <Calculator />
                   <span>Payroll</span>
+                 </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SidebarMenuButton asChild tooltip="PTO Tracker">
+                 <Link href="/dashboard/pto">
+                  <CalendarClock />
+                  <span>PTO Tracker</span>
                  </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
