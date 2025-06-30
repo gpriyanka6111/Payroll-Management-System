@@ -255,13 +255,42 @@ export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
   function handleApprovePayroll() {
     const currentInputs = form.getValues().employees;
 
+    // Save data for the report page to sessionStorage
     sessionStorage.setItem('payrollResultsData', JSON.stringify(payrollResults));
     sessionStorage.setItem('payrollPeriodData', JSON.stringify({ from, to }));
     sessionStorage.setItem('payrollInputData', JSON.stringify(currentInputs));
+
+    // Save this run to the permanent history in localStorage
+    try {
+        const totalAmount = payrollResults.reduce((sum, r) => sum + r.grossCheckAmount + r.grossOtherAmount, 0);
+        
+        const newHistoryItem = {
+            id: `pay${Date.now()}`, // Simple unique ID
+            fromDate: format(from, 'yyyy-MM-dd'),
+            toDate: format(to, 'yyyy-MM-dd'),
+            totalAmount: totalAmount,
+            status: 'Completed'
+        };
+
+        const existingHistoryJSON = localStorage.getItem('payrollHistory');
+        const existingHistory = existingHistoryJSON ? JSON.parse(existingHistoryJSON) : [];
+        
+        const updatedHistory = [newHistoryItem, ...existingHistory];
+
+        localStorage.setItem('payrollHistory', JSON.stringify(updatedHistory));
+
+    } catch (error) {
+        console.error("Failed to save payroll history to localStorage", error);
+        toast({
+            title: "Error Saving History",
+            description: "Could not save this payroll run to your history.",
+            variant: "destructive",
+        });
+    }
     
     toast({
       title: "Payroll Approved",
-      description: "Redirecting to the printable report page.",
+      description: "Payroll history saved. Redirecting to the printable report page.",
     });
 
     setTimeout(() => {

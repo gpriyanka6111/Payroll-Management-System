@@ -9,13 +9,30 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { History, Play, ArrowLeft } from 'lucide-react';
 
-// Placeholder data - Replace with actual data fetching for past payrolls
-const pastPayrolls = [
-  { id: 'pay001', fromDate: '2024-07-01', toDate: '2024-07-15', totalAmount: 5432.10, status: 'Completed' },
-  { id: 'pay002', fromDate: '2024-06-16', toDate: '2024-06-30', totalAmount: 5310.55, status: 'Completed' },
-];
-
 export default function PayrollHistoryPage() {
+    // Placeholder data for past payrolls, used as an initial fallback.
+    const initialPayrolls = [
+        { id: 'pay001', fromDate: '2024-07-01', toDate: '2024-07-15', totalAmount: 5432.10, status: 'Completed' },
+        { id: 'pay002', fromDate: '2024-06-16', toDate: '2024-06-30', totalAmount: 5310.55, status: 'Completed' },
+    ];
+    
+    const [pastPayrolls, setPastPayrolls] = React.useState(initialPayrolls);
+
+    React.useEffect(() => {
+        try {
+            const storedHistoryJSON = localStorage.getItem('payrollHistory');
+            if (storedHistoryJSON) {
+                const storedHistory = JSON.parse(storedHistoryJSON);
+                if (storedHistory.length > 0) {
+                  setPastPayrolls(storedHistory);
+                }
+            }
+        } catch (error) {
+            console.error("Could not parse payroll history from localStorage", error);
+            setPastPayrolls(initialPayrolls); // Fallback to default
+        }
+    }, []);
+
    const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
   };
