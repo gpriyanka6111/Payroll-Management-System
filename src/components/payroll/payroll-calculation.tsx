@@ -28,6 +28,8 @@ import { useRouter } from 'next/navigation';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { Textarea } from '../ui/textarea';
 
+const COMPANY_STANDARD_BIWEEKLY_HOURS = 100;
+
 // Define Zod schema for a single employee's payroll input
 const employeePayrollInputSchema = z.object({
   employeeId: z.string(),
@@ -48,6 +50,12 @@ const employeePayrollInputSchema = z.object({
   {
     message: "PTO used cannot exceed available balance.",
     path: ["ptoUsed"],
+  }
+).refine(
+  (data) => data.totalHoursWorked <= COMPANY_STANDARD_BIWEEKLY_HOURS,
+  {
+    message: `Hours cannot exceed company standard of ${COMPANY_STANDARD_BIWEEKLY_HOURS}.`,
+    path: ["totalHoursWorked"],
   }
 );
 
@@ -383,7 +391,7 @@ export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
                         <AlertTriangle className="h-4 w-4" />
                         <AlertTitle>Error</AlertTitle>
                         <AlertDescription>
-                          Please check the form for errors. PTO used cannot exceed available balance.
+                          Please check the form for errors. Total or PTO hours may be invalid.
                         </AlertDescription>
                     </Alert>
                 )}

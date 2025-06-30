@@ -61,10 +61,6 @@ export default function SettingsPage() {
                             </SelectContent>
                         </Select>
                     </div>
-                     <div className="space-y-2">
-                        <Label htmlFor="workdayHours">Standard Hours per Workday</Label>
-                        <Input id="workdayHours" type="number" placeholder="e.g., 8" defaultValue="8" disabled />
-                    </div>
                 </CardContent>
             </Card>
         </div>
