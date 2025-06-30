@@ -4,9 +4,10 @@
 import * as React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { User, History } from 'lucide-react';
+import { User, History, Printer } from 'lucide-react';
 import { employees, ptoUsageHistory } from '@/lib/placeholder-data';
 import { format } from 'date-fns';
+import { Button } from '@/components/ui/button';
 
 // Data processing
 const ptoSummary = employees.map(employee => {
@@ -93,13 +94,20 @@ export default function PtoTrackerPage() {
       </Card>
 
       {/* PTO History Log Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center">
-            <History className="mr-2 h-5 w-5 text-muted-foreground" />
-            Detailed PTO Log
-          </CardTitle>
-          <CardDescription>A complete log of all PTO hours used during payroll runs.</CardDescription>
+      <Card className="printable-section">
+        <CardHeader className="flex flex-row justify-between items-start">
+          <div>
+            <CardTitle className="flex items-center">
+              <History className="mr-2 h-5 w-5 text-muted-foreground" />
+              Detailed PTO Log
+            </CardTitle>
+            <CardDescription>A complete log of all PTO hours used during payroll runs.</CardDescription>
+          </div>
+          <div className="print-action-button-container">
+              <Button variant="outline" size="sm" onClick={() => window.print()}>
+                  <Printer className="mr-2 h-4 w-4" /> Print Log
+              </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <Table>

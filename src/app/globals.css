@@ -100,13 +100,14 @@
     visibility: hidden;
   }
 
-  /* Make the report section and its children visible */
-  .payroll-report-page, .payroll-report-page * {
+  /* Make the printable section and its children visible */
+  .payroll-report-page, .payroll-report-page *,
+  .printable-section, .printable-section * {
     visibility: visible;
   }
   
-  /* Position the report to take over the page */
-  .payroll-report-page {
+  /* Position the printable section to take over the page */
+  .payroll-report-page, .printable-section {
     position: absolute;
     left: 0;
     top: 0;
@@ -115,15 +116,21 @@
     margin: 0;
   }
 
-  /* Explicitly hide the action buttons */
-  .report-actions {
-    display: none !important;
-    visibility: hidden !important;
+  /* Clean up printable cards */
+  .printable-section {
+      border: none !important;
+      box-shadow: none !important;
   }
   
   .report-content-wrapper {
       border: none !important;
       box-shadow: none !important;
+  }
+
+  /* Explicitly hide the action buttons */
+  .report-actions, .print-action-button-container {
+    display: none !important;
+    visibility: hidden !important;
   }
 
   section {
