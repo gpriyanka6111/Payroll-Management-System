@@ -39,6 +39,12 @@ const formatDate = (dateString: string) => {
 };
 
 export default function PtoTrackerPage() {
+  const [today, setToday] = React.useState('');
+
+  React.useEffect(() => {
+    setToday(format(new Date(), "MMMM d, yyyy"));
+  }, []);
+
   return (
     <div className="space-y-6">
       <div>
@@ -53,7 +59,7 @@ export default function PtoTrackerPage() {
             <User className="mr-2 h-5 w-5 text-muted-foreground" />
             PTO Balance Summary
           </CardTitle>
-          <CardDescription>An overview of current PTO balances for all employees.</CardDescription>
+          <CardDescription>An overview of current PTO balances for all employees as of {today}.</CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
