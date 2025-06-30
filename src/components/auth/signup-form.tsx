@@ -24,7 +24,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 
 const signupSchema = z.object({
   email: z.string().email({ message: 'Invalid email address.' }),
-  password: z.string().min(6, { message: 'Password must be at least 6 characters.' }),
+  password: z.string()
+    .min(8, { message: 'Password must be at least 8 characters.' })
+    .regex(/[0-9]/, { message: 'Password must contain at least one number.' })
+    .regex(/[^a-zA-Z0-9]/, { message: 'Password must contain at least one special character.' }),
   confirmPassword: z.string(),
   payFrequency: z.string().default('bi-weekly'),
   standardBiWeeklyHours: z.coerce.number().positive({ message: "Standard hours must be positive." }),
