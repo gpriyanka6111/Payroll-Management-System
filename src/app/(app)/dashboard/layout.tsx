@@ -1,7 +1,8 @@
+'use client';
 
 import * as React from 'react';
+import { useRouter } from 'next/navigation';
 import { SidebarProvider, Sidebar, SidebarHeader, SidebarContent, SidebarFooter, SidebarTrigger, SidebarInset, SidebarMenu, SidebarMenuItem, SidebarMenuButton } from '@/components/ui/sidebar';
-import { Button } from '@/components/ui/button';
 import { Home, Users, Calculator, Settings, LogOut, CalendarClock } from 'lucide-react';
 import Link from 'next/link';
 
@@ -10,6 +11,13 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const router = useRouter();
+
+  const handleLogout = () => {
+    // In a real application, you would also clear authentication tokens or session data.
+    router.push('/login');
+  };
+
   return (
     <SidebarProvider defaultOpen={true}>
       <Sidebar>
@@ -72,8 +80,7 @@ export default function DashboardLayout({
         <SidebarFooter>
           <SidebarMenu>
             <SidebarMenuItem>
-              {/* TODO: Implement Logout */}
-              <SidebarMenuButton tooltip="Logout">
+              <SidebarMenuButton tooltip="Logout" onClick={handleLogout}>
                 <LogOut />
                 <span>Logout</span>
               </SidebarMenuButton>
