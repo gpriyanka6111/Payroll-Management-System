@@ -12,7 +12,6 @@ import { Printer, ArrowLeft } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Input } from '@/components/ui/input';
 
 const formatCurrency = (amount: unknown) => {
     const num = Number(amount);
@@ -96,6 +95,7 @@ export default function PayrollReportPage() {
     const totals = {
         grossCheckAmount: results.reduce((sum, r) => sum + r.grossCheckAmount, 0),
         grossOtherAmount: results.reduce((sum, r) => sum + r.grossOtherAmount, 0),
+        netPay: results.reduce((sum, r) => sum + r.netPay, 0),
     };
 
     const resultMetrics: Array<{
@@ -231,9 +231,9 @@ export default function PayrollReportPage() {
                             <TableBody>
                                 <TableRow>
                                     <TableCell className="font-semibold tabular-nums">{formatCurrency(totals.grossCheckAmount)}</TableCell>
-                                    <TableCell><Input placeholder="Enter value..." className="print:border print:border-gray-400" /></TableCell>
-                                    <TableCell><Input placeholder="Enter value..." className="print:border print:border-gray-400" /></TableCell>
-                                    <TableCell><Input placeholder="Enter value..." className="print:border print:border-gray-400" /></TableCell>
+                                    <TableCell className="text-muted-foreground">--</TableCell>
+                                    <TableCell className="text-muted-foreground">--</TableCell>
+                                    <TableCell className="font-semibold tabular-nums">{formatCurrency(totals.netPay)}</TableCell>
                                     <TableCell className="font-semibold tabular-nums">{formatCurrency(totals.grossOtherAmount)}</TableCell>
                                 </TableRow>
                             </TableBody>
