@@ -1,12 +1,19 @@
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Settings as SettingsIcon } from "lucide-react"; // Rename import
+import { Settings as SettingsIcon, ArrowLeft } from "lucide-react"; // Rename import
+import Link from 'next/link';
 
 export default function SettingsPage() {
   return (
     <div className="space-y-6">
+       <Button variant="outline" asChild className="w-fit">
+        <Link href="/dashboard">
+            <ArrowLeft className="mr-2 h-4 w-4" /> Back to Dashboard
+        </Link>
+      </Button>
       <h1 className="text-3xl font-bold">Settings</h1>
       <p className="text-muted-foreground">Manage your account and application settings.</p>
 

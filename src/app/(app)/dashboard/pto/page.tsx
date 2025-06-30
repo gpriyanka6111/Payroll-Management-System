@@ -4,10 +4,11 @@
 import * as React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { User, History, Printer } from 'lucide-react';
+import { User, History, Printer, ArrowLeft } from 'lucide-react';
 import { employees, ptoUsageHistory } from '@/lib/placeholder-data';
 import { format } from 'date-fns';
 import { Button } from '@/components/ui/button';
+import Link from 'next/link';
 
 // Data processing
 const ptoSummary = employees.map(employee => {
@@ -48,6 +49,11 @@ export default function PtoTrackerPage() {
 
   return (
     <div className="space-y-6">
+      <Button variant="outline" asChild className="w-fit">
+        <Link href="/dashboard">
+            <ArrowLeft className="mr-2 h-4 w-4" /> Back to Dashboard
+        </Link>
+      </Button>
       <div>
         <h1 className="text-3xl font-bold">PTO Tracker</h1>
         <p className="text-muted-foreground">Review employee Paid Time Off balances and history.</p>

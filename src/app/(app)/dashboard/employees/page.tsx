@@ -1,10 +1,11 @@
+
 "use client";
 
 import { useState } from 'react';
 import { EmployeeTable } from '@/components/employees/employee-table';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { UserPlus } from 'lucide-react';
+import { UserPlus, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import { employees as initialEmployees, type EmployeePlaceholder } from '@/lib/placeholder-data';
 import { useToast } from '@/hooks/use-toast';
@@ -35,6 +36,12 @@ export default function EmployeesPage() {
 
   return (
     <div className="space-y-6">
+       <Button variant="outline" asChild className="w-fit">
+        <Link href="/dashboard">
+            <ArrowLeft className="mr-2 h-4 w-4" /> Back to Dashboard
+        </Link>
+      </Button>
+
        <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold">Employees</h1>

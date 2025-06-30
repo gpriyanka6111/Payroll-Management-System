@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react";
@@ -6,7 +7,7 @@ import Link from "next/link";
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { History, Play } from 'lucide-react';
+import { History, Play, ArrowLeft } from 'lucide-react';
 
 // Placeholder data - Replace with actual data fetching for past payrolls
 const pastPayrolls = [
@@ -30,6 +31,11 @@ export default function PayrollHistoryPage() {
 
   return (
     <div className="space-y-6">
+       <Button variant="outline" asChild className="w-fit">
+        <Link href="/dashboard">
+            <ArrowLeft className="mr-2 h-4 w-4" /> Back to Dashboard
+        </Link>
+      </Button>
        <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold">Payroll</h1>
