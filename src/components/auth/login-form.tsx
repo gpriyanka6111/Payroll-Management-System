@@ -18,6 +18,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { LogIn } from 'lucide-react';
+import Link from 'next/link';
 
 const loginSchema = z.object({
   email: z.string().email({ message: 'Invalid email address.' }),
@@ -88,6 +89,12 @@ export function LoginForm() {
             </Button>
           </form>
         </Form>
+        <p className="mt-4 text-center text-sm text-muted-foreground">
+          Don't have an account?{' '}
+          <Link href="/signup" className="font-medium text-primary hover:underline">
+            Sign up
+          </Link>
+        </p>
       </CardContent>
     </Card>
   );
