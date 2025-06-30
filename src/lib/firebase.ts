@@ -1,11 +1,10 @@
 
 // Import the functions you need from the SDKs you need
-import { initializeApp, getApps, getApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
+import { getAuth, type Auth } from "firebase/auth";
+import { getFirestore, type Firestore } from "firebase/firestore";
 
 // Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
@@ -16,8 +15,31 @@ const firebaseConfig = {
   measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
 };
 
-// Initialize Firebase
-const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+// We will export these, but they may be null if config is missing.
+let app: FirebaseApp | null = null;
+let auth: Auth | null = null;
+let db: Firestore | null = null;
+let firebaseError: string | null = null;
 
-export const auth = getAuth(app);
-export const db = getFirestore(app);
+// Only initialize Firebase if the API key is provided
+if (firebaseConfig.apiKey && firebaseConfig.apiKey !== "undefined") {
+    try {
+        app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+        auth = getAuth(app);
+        db = getFirestore(app);
+    } catch (e: any) {
+        firebaseError = e.message;
+        console.error("Firebase initialization error:", e);
+    }
+} else {
+    firebaseError = "Firebase configuration is missing. Please add your Firebase project keys to a .env.local file in the root of your project.";
+    console.error(firebaseError);
+}
+
+
+// A helper to check if firebase is initialized
+export function isFirebaseInitialized() {
+    return !!app;
+}
+
+export { app, auth, db, firebaseError };
