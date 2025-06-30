@@ -21,6 +21,11 @@ import Link from 'next/link';
 import { UserPlus } from 'lucide-react';
 import { Separator } from '../ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { auth, db } from '@/lib/firebase';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { doc, setDoc } from 'firebase/firestore';
+import { useRouter } from 'next/navigation';
+
 
 const signupSchema = z.object({
   email: z.string().email({ message: 'Invalid email address.' }),
@@ -40,6 +45,9 @@ type SignupFormValues = z.infer<typeof signupSchema>;
 
 export function SignupForm() {
   const { toast } = useToast();
+  const router = useRouter();
+  const [isLoading, setIsLoading] = React.useState(false);
+
   const form = useForm<SignupFormValues>({
     resolver: zodResolver(signupSchema),
     defaultValues: {
@@ -51,15 +59,41 @@ export function SignupForm() {
     },
   });
 
-  function onSubmit(values: SignupFormValues) {
-    // TODO: Implement actual signup logic (e.g., API call)
-    console.log('Signup submitted:', values);
-    toast({
-      title: 'Signup Attempted',
-      description: 'Signup functionality is not yet implemented.',
-    });
-    // On successful signup, potentially redirect to login or dashboard
-    // router.push('/login');
+  async function onSubmit(values: SignupFormValues) {
+    setIsLoading(true);
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
+      const user = userCredential.user;
+
+      // Create a document in the 'users' collection
+      await setDoc(doc(db, "users", user.uid), {
+        email: user.email,
+        uid: user.uid,
+        payFrequency: values.payFrequency,
+        standardBiWeeklyHours: values.standardBiWeeklyHours,
+        createdAt: new Date(),
+      });
+      
+      toast({
+        title: 'Account Created Successfully!',
+        description: 'Redirecting you to the dashboard.',
+      });
+
+      router.push('/dashboard');
+
+    } catch (error: any) {
+       let errorMessage = "An unexpected error occurred during signup.";
+       if (error.code === 'auth/email-already-in-use') {
+         errorMessage = "This email address is already in use.";
+       }
+       toast({
+        title: 'Signup Failed',
+        description: errorMessage,
+        variant: 'destructive',
+      });
+    } finally {
+        setIsLoading(false);
+    }
   }
 
   return (
@@ -80,7 +114,7 @@ export function SignupForm() {
                 <FormItem>
                   <FormLabel>Email</FormLabel>
                   <FormControl>
-                    <Input placeholder="you@example.com" {...field} />
+                    <Input placeholder="you@example.com" {...field} disabled={isLoading} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -93,7 +127,7 @@ export function SignupForm() {
                 <FormItem>
                   <FormLabel>Password</FormLabel>
                   <FormControl>
-                    <Input type="password" placeholder="••••••••" {...field} />
+                    <Input type="password" placeholder="••••••••" {...field} disabled={isLoading} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -106,7 +140,7 @@ export function SignupForm() {
                 <FormItem>
                   <FormLabel>Confirm Password</FormLabel>
                   <FormControl>
-                    <Input type="password" placeholder="••••••••" {...field} />
+                    <Input type="password" placeholder="••••••••" {...field} disabled={isLoading} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -124,7 +158,7 @@ export function SignupForm() {
                       <FormLabel>Pay Frequency</FormLabel>
                       <Select onValueChange={field.onChange} defaultValue={field.value} disabled>
                           <FormControl>
-                          <SelectTrigger>
+                          <SelectTrigger disabled={isLoading}>
                               <SelectValue placeholder="Select a frequency" />
                           </SelectTrigger>
                           </FormControl>
@@ -143,7 +177,7 @@ export function SignupForm() {
                       <FormItem>
                       <FormLabel>Standard Bi-Weekly Hours</FormLabel>
                       <FormControl>
-                          <Input type="number" placeholder="e.g., 80" {...field} />
+                          <Input type="number" placeholder="e.g., 80" {...field} disabled={isLoading} />
                       </FormControl>
                       <FormMessage />
                       </FormItem>
@@ -152,8 +186,8 @@ export function SignupForm() {
             </div>
 
 
-            <Button type="submit" className="w-full">
-              <UserPlus className="mr-2 h-4 w-4" /> Sign Up
+            <Button type="submit" className="w-full" disabled={isLoading}>
+              {isLoading ? 'Signing up...' : <><UserPlus className="mr-2 h-4 w-4" /> Sign Up</>}
             </Button>
           </form>
         </Form>
