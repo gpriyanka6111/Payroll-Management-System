@@ -29,11 +29,11 @@ if (firebaseConfig.apiKey && firebaseConfig.apiKey !== "undefined") {
         db = getFirestore(app);
     } catch (e: any) {
         firebaseError = e.message;
-        console.error("Firebase initialization error:", e);
+        // The UI will handle displaying this error, so no need for a console log.
     }
 } else {
     firebaseError = "Firebase configuration is missing. Please add your Firebase project keys to a .env.local file in the root of your project.";
-    console.error(firebaseError);
+    // The UI will handle displaying this error, so no need for a console log.
 }
 
 
