@@ -22,7 +22,22 @@ const requiredKeys = [
 const missingKeys = requiredKeys.filter(key => !process.env[key]);
 
 if (missingKeys.length > 0) {
-    firebaseError = `Firebase configuration is incomplete. The following required keys are missing from your .env.local file: ${missingKeys.join(', ')}. Please add them and restart the server.`;
+    firebaseError = `Firebase Initialization Error: The application server cannot find the required Firebase keys.
+
+This usually means the .env.local file is not being loaded correctly. Please double-check the following:
+
+1.  **File Name & Location**: 
+    Ensure there is a file named exactly '.env.local' in the absolute root directory of your project (at the same level as package.json).
+
+2.  **Server Restart**: 
+    You MUST restart the development server after creating or changing the .env.local file.
+
+3.  **File Contents**: 
+    The file should contain plain text like: NEXT_PUBLIC_FIREBASE_API_KEY="your-key"
+
+The following keys were reported as missing by the server process:
+- ${missingKeys.join('\n- ')}
+`;
 } else {
     // All keys are present, now build the config and initialize
     const firebaseConfig = {
