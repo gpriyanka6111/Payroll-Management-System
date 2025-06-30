@@ -19,27 +19,27 @@ const firebaseConfig = {
 let app: FirebaseApp | null = null;
 let auth: Auth | null = null;
 let db: Firestore | null = null;
-let firebaseError: string | null = null;
+export let firebaseError: string | null = null; // Export for detailed error display
 
-// Only initialize Firebase if the API key is provided
-if (firebaseConfig.apiKey && firebaseConfig.apiKey !== "undefined") {
+// Check for the existence of the API key
+if (!firebaseConfig.apiKey) {
+    firebaseError = "Firebase API key is missing. Please ensure NEXT_PUBLIC_FIREBASE_API_KEY is set in your .env.local file and that you have restarted the development server.";
+} else {
     try {
+        // Initialize Firebase only if it hasn't been initialized yet
         app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
         auth = getAuth(app);
         db = getFirestore(app);
     } catch (e: any) {
-        firebaseError = e.message;
-        // The UI will handle displaying this error, so no need for a console log.
+        // Catch potential errors during initialization (e.g., invalid config)
+        firebaseError = `Firebase initialization failed: ${e.message}`;
     }
-} else {
-    firebaseError = "Firebase configuration is missing. Please add your Firebase project keys to a .env.local file in the root of your project.";
-    // The UI will handle displaying this error, so no need for a console log.
 }
 
 
-// A helper to check if firebase is initialized
+// A helper to check if firebase is initialized successfully
 export function isFirebaseInitialized() {
-    return !!app;
+    return !!app && !firebaseError;
 }
 
-export { app, auth, db, firebaseError };
+export { app, auth, db };

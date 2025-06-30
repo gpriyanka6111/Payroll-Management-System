@@ -23,7 +23,7 @@ function FirebaseErrorDisplay() {
                 <AlertTitle>Firebase Configuration Error</AlertTitle>
                 <AlertDescription>
                     <p className="mb-2">The application could not connect to Firebase. This usually means your Firebase project credentials are missing or invalid.</p>
-                    <p className="mb-4">Please ensure you have created a <strong>.env.local</strong> file in the root of your project with your Firebase configuration keys, as shown below.</p>
+                    <p className="mb-4">Please ensure you have created a <strong>.env.local</strong> file in the root of your project with your Firebase configuration keys, as shown below. <strong>After creating the file, you must restart the development server.</strong></p>
                     <pre className="p-3 rounded-md bg-muted text-muted-foreground text-xs overflow-x-auto">
                         {`NEXT_PUBLIC_FIREBASE_API_KEY="AIza..."
 NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN="your-project.firebaseapp.com"
@@ -34,8 +34,8 @@ NEXT_PUBLIC_FIREBASE_APP_ID="1:..."
 NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID="G-..."`}
                     </pre>
                     <p className="mt-4 text-sm">
-                        <strong>Specific Error:</strong>
-                        <span className="ml-2 font-mono bg-muted px-1 py-0.5 rounded">{firebaseError}</span>
+                        <strong>Specific Error Detected:</strong>
+                        <span className="ml-2 block mt-1 font-mono bg-muted px-2 py-1 rounded">{firebaseError}</span>
                     </p>
                 </AlertDescription>
             </Alert>
