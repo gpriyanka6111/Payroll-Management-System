@@ -1,12 +1,14 @@
+
 "use client"
 
 import * as React from "react";
 import { format } from "date-fns"
+import Link from "next/link";
 
 import { PayrollCalculation } from '@/components/payroll/payroll-calculation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Calculator, Calendar as CalendarIcon } from 'lucide-react';
+import { Calculator, Calendar as CalendarIcon, ArrowLeft } from 'lucide-react';
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
@@ -18,6 +20,11 @@ export default function RunPayrollPage() {
 
   return (
     <div className="space-y-6">
+       <Button variant="outline" asChild className="w-fit">
+        <Link href="/dashboard">
+            <ArrowLeft className="mr-2 h-4 w-4" /> Back to Dashboard
+        </Link>
+      </Button>
        <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold">Run New Payroll</h1>
