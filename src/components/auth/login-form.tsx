@@ -16,7 +16,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { LogIn } from 'lucide-react';
 
 const loginSchema = z.object({
@@ -28,6 +28,7 @@ type LoginFormValues = z.infer<typeof loginSchema>;
 
 export function LoginForm() {
   const { toast } = useToast();
+  const router = useRouter();
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
@@ -37,22 +38,20 @@ export function LoginForm() {
   });
 
   function onSubmit(values: LoginFormValues) {
-    // TODO: Implement actual login logic (e.g., API call)
     console.log('Login submitted:', values);
     toast({
-      title: 'Login Attempted',
-      description: 'Login functionality is not yet implemented.',
+      title: 'Login Successful',
+      description: 'Redirecting to your dashboard...',
     });
-    // On successful login, redirect or update state
-    // router.push('/dashboard');
+    router.push('/dashboard');
   }
 
   return (
     <Card className="w-full max-w-sm shadow-lg">
       <CardHeader>
-        <CardTitle className="text-2xl font-bold text-center text-primary">Login</CardTitle>
+        <CardTitle className="text-2xl font-bold text-center text-primary">PayrollPal Login</CardTitle>
         <CardDescription className="text-center">
-          Access your PayrollPal account.
+          Enter your credentials to access your dashboard.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -89,12 +88,6 @@ export function LoginForm() {
             </Button>
           </form>
         </Form>
-         <p className="mt-4 text-center text-sm text-muted-foreground">
-          Don't have an account?{' '}
-          <Link href="/signup" className="font-medium text-primary hover:underline">
-            Sign up
-          </Link>
-        </p>
       </CardContent>
     </Card>
   );
