@@ -21,9 +21,6 @@ import Link from 'next/link';
 import { UserPlus } from 'lucide-react';
 import { Separator } from '../ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { auth, db } from '@/lib/firebase';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 
 
@@ -61,39 +58,16 @@ export function SignupForm() {
 
   async function onSubmit(values: SignupFormValues) {
     setIsLoading(true);
-    try {
-      const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
-      const user = userCredential.user;
-
-      // Create a document in the 'users' collection
-      await setDoc(doc(db, "users", user.uid), {
-        email: user.email,
-        uid: user.uid,
-        payFrequency: values.payFrequency,
-        standardBiWeeklyHours: values.standardBiWeeklyHours,
-        createdAt: new Date(),
-      });
+    // Simulate API call for demonstration
+    await new Promise(resolve => setTimeout(resolve, 1000));
       
-      toast({
-        title: 'Account Created Successfully!',
-        description: 'Redirecting you to the dashboard.',
-      });
+    toast({
+      title: 'Account Created Successfully!',
+      description: 'Redirecting you to the dashboard.',
+    });
 
-      router.push('/dashboard');
-
-    } catch (error: any) {
-       let errorMessage = "An unexpected error occurred during signup.";
-       if (error.code === 'auth/email-already-in-use') {
-         errorMessage = "This email address is already in use.";
-       }
-       toast({
-        title: 'Signup Failed',
-        description: errorMessage,
-        variant: 'destructive',
-      });
-    } finally {
-        setIsLoading(false);
-    }
+    router.push('/dashboard');
+    setIsLoading(false);
   }
 
   return (

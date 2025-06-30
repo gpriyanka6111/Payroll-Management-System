@@ -20,8 +20,6 @@ import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { LogIn } from 'lucide-react';
 import Link from 'next/link';
-import { signInWithEmailAndPassword } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
 
 const loginSchema = z.object({
   email: z.string().email({ message: 'Invalid email address.' }),
@@ -45,26 +43,15 @@ export function LoginForm() {
 
   async function onSubmit(values: LoginFormValues) {
     setIsLoading(true);
-    try {
-      await signInWithEmailAndPassword(auth, values.email, values.password);
-      toast({
-        title: 'Login Successful',
-        description: 'Redirecting to your dashboard...',
-      });
-      router.push('/dashboard');
-    } catch (error: any) {
-      let errorMessage = "An unexpected error occurred.";
-      if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
-        errorMessage = "Invalid email or password. Please try again.";
-      }
-      toast({
-        title: 'Login Failed',
-        description: errorMessage,
-        variant: 'destructive',
-      });
-    } finally {
-        setIsLoading(false);
-    }
+    // Simulate API call for demonstration
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    toast({
+      title: 'Login Successful',
+      description: 'Redirecting to your dashboard...',
+    });
+    router.push('/dashboard');
+    setIsLoading(false);
   }
 
   return (

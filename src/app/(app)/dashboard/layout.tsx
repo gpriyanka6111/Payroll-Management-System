@@ -6,8 +6,6 @@ import { useRouter } from 'next/navigation';
 import { SidebarProvider, Sidebar, SidebarHeader, SidebarContent, SidebarFooter, SidebarTrigger, SidebarInset, SidebarMenu, SidebarMenuItem, SidebarMenuButton } from '@/components/ui/sidebar';
 import { Home, Users, Calculator, Settings, LogOut, CalendarClock } from 'lucide-react';
 import Link from 'next/link';
-import { useAuth } from '@/contexts/auth-context';
-import { auth } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 
 export default function DashboardLayout({
@@ -16,45 +14,17 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const router = useRouter();
-  const { user, loading } = useAuth();
   const { toast } = useToast();
 
-  React.useEffect(() => {
-    // If loading is finished and there's no user, redirect to login.
-    if (!loading && !user) {
-      router.replace('/login');
-    }
-  }, [user, loading, router]);
-
-  const handleLogout = async () => {
-    try {
-      await auth.signOut();
-      toast({
-        title: "Logged Out",
-        description: "You have been successfully logged out.",
-      });
-      router.push('/login');
-    } catch (error) {
-      console.error("Logout error:", error);
-      toast({
-        title: "Logout Failed",
-        description: "An error occurred while logging out. Please try again.",
-        variant: "destructive"
-      });
-    }
+  const handleLogout = () => {
+    // Simulate logout
+    toast({
+      title: "Logged Out",
+      description: "You have been successfully logged out.",
+    });
+    router.push('/login');
   };
 
-  // While loading or if user is null (before redirect happens),
-  // you might want to show a loader or nothing to prevent content flashing.
-  if (loading || !user) {
-    return (
-        <div className="flex h-screen w-screen items-center justify-center">
-             <div className="w-1/2 space-y-4">
-                <p className="text-center text-muted-foreground">Authenticating...</p>
-            </div>
-        </div>
-    );
-  }
 
   return (
     <SidebarProvider defaultOpen={true}>
