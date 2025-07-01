@@ -7,17 +7,31 @@ import Link from "next/link";
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { History, Play, ArrowLeft, Pencil } from 'lucide-react';
+import { History, Play, ArrowLeft, Pencil, Trash2 } from 'lucide-react';
 import { useAuth } from "@/contexts/auth-context";
-import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
+import { collection, onSnapshot, query, orderBy, doc, getDoc, writeBatch } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { Payroll } from "@/lib/types";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useToast } from "@/hooks/use-toast";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+
 
 export default function PayrollHistoryPage() {
     const { user } = useAuth();
+    const { toast } = useToast();
     const [pastPayrolls, setPastPayrolls] = React.useState<Payroll[]>([]);
     const [isLoading, setIsLoading] = React.useState(true);
+    const [payrollToDelete, setPayrollToDelete] = React.useState<Payroll | null>(null);
 
     React.useEffect(() => {
         if (!user) return;
@@ -45,6 +59,53 @@ export default function PayrollHistoryPage() {
     const [year, month, day] = dateString.split('-').map(Number);
     const date = new Date(year, month - 1, day);
     return format(date, "MMMM d, yyyy");
+  };
+
+  const handleDeletePayroll = async () => {
+    if (!user || !payrollToDelete) return;
+
+    try {
+      const batch = writeBatch(db);
+
+      // 1. Revert PTO balances for each employee in the payroll
+      for (const result of payrollToDelete.results) {
+        const employeeDocRef = doc(db, 'users', user.uid, 'employees', result.employeeId);
+        const ptoToRestore = result.ptoUsed || 0;
+        
+        if (ptoToRestore > 0) {
+            const employeeSnap = await getDoc(employeeDocRef);
+            if (employeeSnap.exists()) {
+                const employeeData = employeeSnap.data();
+                const currentPtoBalance = employeeData.ptoBalance || 0;
+                const restoredPtoBalance = currentPtoBalance + ptoToRestore;
+                batch.update(employeeDocRef, { ptoBalance: restoredPtoBalance });
+            }
+        }
+      }
+
+      // 2. Delete the payroll document
+      const payrollDocRef = doc(db, 'users', user.uid, 'payrolls', payrollToDelete.id);
+      batch.delete(payrollDocRef);
+
+      // 3. Commit the batch
+      await batch.commit();
+
+      toast({
+        title: "Payroll Deleted",
+        description: `The payroll for ${formatDate(payrollToDelete.fromDate)} - ${formatDate(payrollToDelete.toDate)} has been deleted.`,
+        variant: "destructive",
+      });
+
+    } catch (error) {
+      console.error("Error deleting payroll: ", error);
+      toast({
+        title: "Delete Failed",
+        description: "Could not delete the payroll record. PTO balances have not been changed.",
+        variant: "destructive",
+      });
+    } finally {
+        setPayrollToDelete(null);
+    }
   };
 
 
@@ -90,11 +151,14 @@ export default function PayrollHistoryPage() {
                     </div>
                     <div className="text-right flex items-center space-x-2">
                       <p className="font-semibold">{formatCurrency(payroll.totalAmount)}</p>
-                      <div>
+                      <div className="flex items-center">
                         <Button variant="ghost" size="icon" asChild>
                             <Link href={`/dashboard/payroll/run?id=${payroll.id}`} aria-label="Edit Payroll">
                                 <Pencil className="h-4 w-4" />
                             </Link>
+                        </Button>
+                         <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => setPayrollToDelete(payroll)} aria-label="Delete Payroll">
+                            <Trash2 className="h-4 w-4" />
                         </Button>
                        <Button variant="link" size="sm" className="p-0 h-auto text-xs" asChild>
                          <Link href={`/dashboard/payroll/report?id=${payroll.id}`}>View Details</Link>
@@ -109,6 +173,31 @@ export default function PayrollHistoryPage() {
            )}
         </CardContent>
       </Card>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!payrollToDelete} onOpenChange={(isOpen) => !isOpen && setPayrollToDelete(null)}>
+        <AlertDialogContent>
+        <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+            This action cannot be undone. This will permanently delete the payroll record
+            for the period{' '}
+            <span className="font-semibold">{payrollToDelete ? `${formatDate(payrollToDelete.fromDate)} - ${formatDate(payrollToDelete.toDate)}` : ''}</span>.
+            <br/><br/>
+            Deleting this payroll will also <span className="font-semibold text-destructive">restore the PTO hours</span> used by employees during this period to their current balances.
+            </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+            onClick={handleDeletePayroll}
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+            Yes, delete payroll
+            </AlertDialogAction>
+        </AlertDialogFooter>
+        </AlertDialogContent>
+    </AlertDialog>
     </div>
   );
 }
