@@ -61,19 +61,19 @@ export function Payslip({ companyName, payPeriod, result, input }: PayslipProps)
                      <div className="grid grid-cols-4 gap-2 text-center border rounded-md p-2">
                         <div>
                             <p className="text-xs text-muted-foreground">Total</p>
-                            <p className="font-medium tabular-nums">{formatHours(input.totalHoursWorked)}</p>
+                            <p className="font-medium tabular-nums">{formatHours(result.totalHoursWorked)}</p>
                         </div>
                         <div>
                             <p className="text-xs text-muted-foreground">Check</p>
-                            <p className="font-medium tabular-nums">{formatHours(input.checkHours)}</p>
+                            <p className="font-medium tabular-nums">{formatHours(result.checkHours)}</p>
                         </div>
                         <div>
                             <p className="text-xs text-muted-foreground">Other</p>
-                            <p className="font-medium tabular-nums">{formatHours(input.otherHours)}</p>
+                            <p className="font-medium tabular-nums">{formatHours(result.otherHours)}</p>
                         </div>
                         <div>
                             <p className="text-xs text-muted-foreground">PTO</p>
-                            <p className="font-medium tabular-nums">{formatHours(input.ptoUsed)}</p>
+                            <p className="font-medium tabular-nums">{formatHours(result.ptoUsed)}</p>
                         </div>
                     </div>
                 </div>
