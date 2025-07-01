@@ -17,7 +17,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Mail, Save, Phone, Shield } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import type { EmployeePlaceholder } from '@/lib/placeholder-data';
+import type { Employee } from '@/lib/types';
 import { Textarea } from '../ui/textarea';
 
 const Hourly = "Hourly" as const;
@@ -51,7 +51,7 @@ const refinedEmployeeSchema = employeeSchema.refine(
 type EmployeeFormValues = z.infer<typeof refinedEmployeeSchema>;
 
 interface EditEmployeeFormProps {
-    employee: EmployeePlaceholder;
+    employee: Employee;
     onSave: (values: EmployeeFormValues) => void;
     onCancel: () => void;
 }

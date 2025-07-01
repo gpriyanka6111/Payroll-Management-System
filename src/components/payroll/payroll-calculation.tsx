@@ -22,11 +22,15 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { cn } from '@/lib/utils';
-import { employees as placeholderEmployees } from '@/lib/placeholder-data';
 import { format } from 'date-fns';
 import { useRouter } from 'next/navigation';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { Textarea } from '../ui/textarea';
+import type { Employee } from '@/lib/types';
+import { useAuth } from '@/contexts/auth-context';
+import { collection, getDocs, query, orderBy } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import { Skeleton } from '../ui/skeleton';
 
 const COMPANY_STANDARD_BIWEEKLY_HOURS = 100;
 
@@ -89,19 +93,6 @@ export type PayrollResult = {
   newPtoBalance: number;
 };
 
-
-// The form expects a specific data shape, so we map our placeholder data to it.
-const initialEmployeesData = placeholderEmployees.map(emp => ({
-  employeeId: emp.id,
-  name: `${emp.firstName} ${emp.lastName}`,
-  payRateCheck: emp.payRateCheck,
-  payRateOthers: emp.payRateOthers,
-  ptoBalance: emp.ptoBalance,
-  checkHours: emp.standardCheckHours,
-  standardCheckHours: emp.standardCheckHours,
-  comment: emp.comment || '',
-}));
-
 interface PayrollCalculationProps {
     from: Date;
     to: Date;
@@ -118,24 +109,15 @@ const inputMetrics = [
 export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
   const router = useRouter();
   const { toast } = useToast();
+  const { user } = useAuth();
+  const [isLoading, setIsLoading] = React.useState(true);
   const [payrollResults, setPayrollResults] = React.useState<PayrollResult[]>([]);
   const [showResults, setShowResults] = React.useState(false);
 
   const form = useForm<PayrollFormValues>({
     resolver: zodResolver(payrollFormSchema),
     defaultValues: {
-      employees: initialEmployeesData.map(emp => ({
-          employeeId: emp.employeeId,
-          name: emp.name,
-          payRateCheck: emp.payRateCheck,
-          payRateOthers: emp.payRateOthers ?? 0,
-          ptoBalance: emp.ptoBalance,
-          totalHoursWorked: emp.standardCheckHours ?? 0,
-          checkHours: emp.standardCheckHours ?? 0,
-          otherHours: 0,
-          ptoUsed: 0,
-          comment: emp.comment || '',
-        })),
+      employees: [],
     },
      mode: "onChange",
   });
@@ -145,9 +127,44 @@ export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
     name: "employees",
    });
 
-   const { setValue, watch, control } = form;
+   const { setValue, watch, control, reset } = form;
 
     const watchedEmployees = watch("employees");
+
+   React.useEffect(() => {
+    if (!user) return;
+
+    const fetchEmployees = async () => {
+      setIsLoading(true);
+      const employeesCollectionRef = collection(db, 'users', user.uid, 'employees');
+      const q = query(employeesCollectionRef, orderBy('lastName', 'asc'));
+      const querySnapshot = await getDocs(q);
+      const employeesData: Employee[] = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      } as Employee));
+
+      // Map fetched data to the shape required by the form
+      const formValues = employeesData.map(emp => ({
+          employeeId: emp.id,
+          name: `${emp.firstName} ${emp.lastName}`,
+          payRateCheck: emp.payRateCheck,
+          payRateOthers: emp.payRateOthers ?? 0,
+          ptoBalance: emp.ptoBalance,
+          totalHoursWorked: emp.standardCheckHours ?? 0,
+          checkHours: emp.standardCheckHours ?? 0,
+          otherHours: 0,
+          ptoUsed: 0,
+          comment: emp.comment || '',
+      }));
+      
+      reset({ employees: formValues });
+      setIsLoading(false);
+    };
+
+    fetchEmployees();
+  }, [user, reset]);
+
 
     React.useEffect(() => {
         const subscription = watch((value, { name }) => {
@@ -313,6 +330,25 @@ export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
       return numHours.toFixed(2);
   };
 
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center"><Calculator className="mr-2 h-5 w-5 text-muted-foreground"/> 2. Calculate Payroll</CardTitle>
+          <CardDescription>Loading employee data...</CardDescription>
+        </CardHeader>
+        <CardContent className="py-10">
+          <div className="space-y-2">
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+
   return (
      <>
        <Card>
@@ -408,7 +444,7 @@ export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
                      {fields.length === 0 && (
                          <TableRow>
                              <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
-                                 No active employees found for this payroll run.
+                                 No active employees found. Please add an employee first.
                              </TableCell>
                          </TableRow>
                      )}

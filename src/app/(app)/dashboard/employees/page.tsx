@@ -1,37 +1,93 @@
 
 "use client";
 
-import { useState } from 'react';
+import * as React from 'react';
 import { EmployeeTable } from '@/components/employees/employee-table';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { UserPlus, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
-import { employees as initialEmployees, type EmployeePlaceholder } from '@/lib/placeholder-data';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/auth-context';
+import { collection, onSnapshot, doc, updateDoc, deleteDoc, query, orderBy } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import type { Employee } from '@/lib/types';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export default function EmployeesPage() {
-  const [employees, setEmployees] = useState<EmployeePlaceholder[]>(initialEmployees);
+  const [employees, setEmployees] = React.useState<Employee[]>([]);
+  const [isLoading, setIsLoading] = React.useState(true);
   const { toast } = useToast();
+  const { user } = useAuth();
 
-  const handleUpdateEmployee = (updatedEmployee: EmployeePlaceholder) => {
-    setEmployees(employees.map(e => e.id === updatedEmployee.id ? updatedEmployee : e));
-    toast({
-        title: "Employee Updated",
-        description: `${updatedEmployee.firstName} ${updatedEmployee.lastName}'s information has been saved.`,
+  React.useEffect(() => {
+    if (!user) return;
+
+    const employeesCollectionRef = collection(db, 'users', user.uid, 'employees');
+    const q = query(employeesCollectionRef, orderBy('lastName', 'asc'));
+
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const employeesData: Employee[] = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      } as Employee));
+      setEmployees(employeesData);
+      setIsLoading(false);
+    }, (error) => {
+      console.error("Error fetching employees: ", error);
+      toast({
+        title: "Error",
+        description: "Could not fetch employee data.",
+        variant: "destructive"
+      });
+      setIsLoading(false);
     });
+
+    return () => unsubscribe();
+  }, [user, toast]);
+
+  const handleUpdateEmployee = async (updatedEmployee: Employee) => {
+    if (!user) return;
+    const employeeDocRef = doc(db, 'users', user.uid, 'employees', updatedEmployee.id);
+    try {
+      // The id should not be part of the document data itself.
+      const { id, ...employeeData } = updatedEmployee;
+      await updateDoc(employeeDocRef, employeeData);
+      toast({
+          title: "Employee Updated",
+          description: `${updatedEmployee.firstName} ${updatedEmployee.lastName}'s information has been saved.`,
+      });
+    } catch (error) {
+       console.error("Error updating employee: ", error);
+       toast({
+          title: "Update Failed",
+          description: "Could not update employee information.",
+          variant: "destructive",
+       });
+    }
   };
 
-  const handleDeleteEmployee = (employeeId: string) => {
-    const employee = employees.find(e => e.id === employeeId);
-    setEmployees(employees.filter(e => e.id !== employeeId));
-    if (employee) {
-        toast({
-            title: "Employee Deleted",
-            description: `${employee.firstName} ${employee.lastName} has been removed from the system.`,
-            variant: "destructive",
-        });
-    }
+  const handleDeleteEmployee = async (employeeId: string) => {
+     if (!user) return;
+     const employee = employees.find(e => e.id === employeeId);
+     if (!employee) return;
+     
+     const employeeDocRef = doc(db, 'users', user.uid, 'employees', employeeId);
+     try {
+      await deleteDoc(employeeDocRef);
+      toast({
+          title: "Employee Deleted",
+          description: `${employee.firstName} ${employee.lastName} has been removed from the system.`,
+          variant: "destructive",
+      });
+     } catch (error) {
+       console.error("Error deleting employee: ", error);
+       toast({
+          title: "Delete Failed",
+          description: "Could not remove employee.",
+          variant: "destructive",
+       });
+     }
   };
 
   return (
@@ -60,11 +116,19 @@ export default function EmployeesPage() {
           <CardDescription>View and manage all your employees.</CardDescription>
         </CardHeader>
         <CardContent>
-           <EmployeeTable 
-             employees={employees} 
-             onUpdate={handleUpdateEmployee}
-             onDelete={handleDeleteEmployee}
-           />
+           {isLoading ? (
+             <div className="space-y-2">
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+             </div>
+           ) : (
+             <EmployeeTable 
+              employees={employees} 
+              onUpdate={handleUpdateEmployee}
+              onDelete={handleDeleteEmployee}
+             />
+           )}
         </CardContent>
       </Card>
     </div>

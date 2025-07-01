@@ -6,11 +6,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Users, Calculator, ArrowRight, UserPlus } from "lucide-react";
 import Link from "next/link";
-import { employees } from "@/lib/placeholder-data";
 import { format } from "date-fns";
+import { useAuth } from '@/contexts/auth-context';
+import { collection, onSnapshot, query } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 export default function DashboardPage() {
-  const totalEmployees = employees.length;
+  const { user } = useAuth();
+  const [totalEmployees, setTotalEmployees] = React.useState(0);
+  const [isLoading, setIsLoading] = React.useState(true);
 
   // Placeholder data for past payrolls, used as an initial fallback.
   const initialPayrolls = [
@@ -19,6 +23,18 @@ export default function DashboardPage() {
   ];
 
   const [pastPayrolls, setPastPayrolls] = React.useState(initialPayrolls);
+
+  React.useEffect(() => {
+    if (user) {
+      const employeesCollectionRef = collection(db, 'users', user.uid, 'employees');
+      const q = query(employeesCollectionRef);
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        setTotalEmployees(snapshot.size);
+        setIsLoading(false);
+      });
+      return () => unsubscribe();
+    }
+  }, [user]);
 
   React.useEffect(() => {
     try {
@@ -60,9 +76,13 @@ export default function DashboardPage() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{totalEmployees}</div>
+            {isLoading ? (
+                <div className="text-2xl font-bold">-</div>
+            ) : (
+                <div className="text-2xl font-bold">{totalEmployees}</div>
+            )}
             <p className="text-xs text-muted-foreground">
-              +2 since last month
+              Live data from your database.
             </p>
              <Button variant="link" size="sm" className="p-0 h-auto mt-2" asChild>
                <Link href="/dashboard/employees">

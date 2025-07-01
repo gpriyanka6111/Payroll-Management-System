@@ -14,7 +14,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Edit, Trash2, Clock, DollarSign, CalendarDays, Phone, Shield, Mail, MessageSquare } from "lucide-react";
-import type { EmployeePlaceholder } from '@/lib/placeholder-data';
+import type { Employee } from '@/lib/types';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -36,14 +36,14 @@ import { EditEmployeeForm } from './edit-employee-form';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 
 interface EmployeeTableProps {
-  employees: EmployeePlaceholder[];
-  onUpdate: (employee: EmployeePlaceholder) => void;
+  employees: Employee[];
+  onUpdate: (employee: Employee) => void;
   onDelete: (employeeId: string) => void;
 }
 
 export function EmployeeTable({ employees, onUpdate, onDelete }: EmployeeTableProps) {
-  const [employeeToDelete, setEmployeeToDelete] = React.useState<EmployeePlaceholder | null>(null);
-  const [employeeToEdit, setEmployeeToEdit] = React.useState<EmployeePlaceholder | null>(null);
+  const [employeeToDelete, setEmployeeToDelete] = React.useState<Employee | null>(null);
+  const [employeeToEdit, setEmployeeToEdit] = React.useState<Employee | null>(null);
 
   const formatCurrency = (amount: number | undefined) => {
     if (amount === undefined) return 'N/A';
@@ -55,7 +55,7 @@ export function EmployeeTable({ employees, onUpdate, onDelete }: EmployeeTablePr
     return `${hours.toFixed(1)} hrs`;
    };
 
-  const handleSaveEdit = (updatedEmployeeData: EmployeePlaceholder) => {
+  const handleSaveEdit = (updatedEmployeeData: Employee) => {
     onUpdate(updatedEmployeeData);
     setEmployeeToEdit(null);
   };

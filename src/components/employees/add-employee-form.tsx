@@ -19,6 +19,10 @@ import { useToast } from '@/hooks/use-toast';
 import { UserPlus, Phone, Shield, Mail } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { useAuth } from '@/contexts/auth-context';
+import { useRouter } from 'next/navigation';
+import { collection, addDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 const Hourly = "Hourly" as const;
 
@@ -53,6 +57,10 @@ type EmployeeFormValues = z.infer<typeof refinedEmployeeSchema>;
 
 export function AddEmployeeForm() {
   const { toast } = useToast();
+  const { user } = useAuth();
+  const router = useRouter();
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
+
   const form = useForm<EmployeeFormValues>({
     resolver: zodResolver(refinedEmployeeSchema),
     defaultValues: {
@@ -73,16 +81,31 @@ export function AddEmployeeForm() {
 
   const payMethod = form.watch('payMethod');
 
-  function onSubmit(values: EmployeeFormValues) {
-    console.log('Employee data submitted:', values);
-    toast({
-      title: 'Employee Added (Simulated)',
-      description: `${values.firstName} ${values.lastName} has been added to the system.`,
-       variant: "default",
-    });
-    // Optionally reset form or redirect
-    // form.reset();
-    // router.push('/dashboard/employees');
+  async function onSubmit(values: EmployeeFormValues) {
+    if (!user) {
+        toast({ title: "Not Authenticated", description: "You must be logged in to add an employee.", variant: "destructive" });
+        return;
+    }
+    setIsSubmitting(true);
+    try {
+        const employeesCollectionRef = collection(db, 'users', user.uid, 'employees');
+        await addDoc(employeesCollectionRef, values);
+        toast({
+            title: 'Employee Added',
+            description: `${values.firstName} ${values.lastName} has been added successfully.`,
+            variant: "default",
+        });
+        router.push('/dashboard/employees');
+    } catch (error) {
+        console.error("Error adding employee: ", error);
+        toast({
+            title: 'Error',
+            description: 'Failed to add employee. Please try again.',
+            variant: 'destructive',
+        });
+    } finally {
+        setIsSubmitting(false);
+    }
   }
 
   const handleSsnChange = (e: React.ChangeEvent<HTMLInputElement>, fieldOnChange: (value: string) => void) => {
@@ -128,7 +151,7 @@ export function AddEmployeeForm() {
                 <FormItem>
                 <FormLabel>First Name *</FormLabel>
                 <FormControl>
-                    <Input placeholder="e.g., Jane" {...field} />
+                    <Input placeholder="e.g., Jane" {...field} disabled={isSubmitting} />
                 </FormControl>
                 <FormMessage />
                 </FormItem>
@@ -141,7 +164,7 @@ export function AddEmployeeForm() {
                 <FormItem>
                 <FormLabel>Last Name *</FormLabel>
                 <FormControl>
-                    <Input placeholder="e.g., Doe" {...field} />
+                    <Input placeholder="e.g., Doe" {...field} disabled={isSubmitting} />
                 </FormControl>
                 <FormMessage />
                 </FormItem>
@@ -166,7 +189,7 @@ export function AddEmployeeForm() {
                                 onChange={(e) => handleSsnChange(e, field.onChange)}
                                 maxLength={11}
                                 value={field.value ?? ''} 
-                                className="pl-10" />
+                                className="pl-10" disabled={isSubmitting} />
                         </div>
                     </FormControl>
                     <FormMessage />
@@ -189,7 +212,7 @@ export function AddEmployeeForm() {
                                 onChange={(e) => handleMobileNumberChange(e, field.onChange)}
                                 maxLength={14}
                                 value={field.value ?? ''} 
-                                className="pl-10" />
+                                className="pl-10" disabled={isSubmitting} />
                         </div>
                     </FormControl>
                     <FormMessage />
@@ -207,7 +230,7 @@ export function AddEmployeeForm() {
               <FormControl>
                 <div className="relative">
                     <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input type="email" placeholder="e.g., jane.doe@example.com" {...field} value={field.value ?? ''} className="pl-10" />
+                    <Input type="email" placeholder="e.g., jane.doe@example.com" {...field} value={field.value ?? ''} className="pl-10" disabled={isSubmitting}/>
                 </div>
               </FormControl>
               <FormDescription>
@@ -225,7 +248,7 @@ export function AddEmployeeForm() {
             render={({ field }) => (
                 <FormItem>
                 <FormLabel>Pay Method *</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isSubmitting}>
                     <FormControl>
                     <SelectTrigger>
                         <SelectValue placeholder="Select pay method" />
@@ -246,7 +269,7 @@ export function AddEmployeeForm() {
                 <FormItem>
                 <FormLabel>Hourly Rate Check ($) *</FormLabel>
                 <FormControl>
-                    <Input type="number" step="0.01" min="0" placeholder="e.g., 25.50" {...field} />
+                    <Input type="number" step="0.01" min="0" placeholder="e.g., 25.50" {...field} disabled={isSubmitting} />
                 </FormControl>
                 <FormMessage />
                 </FormItem>
@@ -259,7 +282,7 @@ export function AddEmployeeForm() {
                 <FormItem>
                 <FormLabel>Hourly Rate Others ($)</FormLabel>
                 <FormControl>
-                    <Input type="number" step="0.01" min="0" placeholder="e.g., 15.00" {...field} />
+                    <Input type="number" step="0.01" min="0" placeholder="e.g., 15.00" {...field} disabled={isSubmitting}/>
                 </FormControl>
                 <FormMessage />
                 </FormItem>
@@ -278,7 +301,7 @@ export function AddEmployeeForm() {
                     <FormItem>
                         <FormLabel>Standard Check Hours / Pay Period {isHourly ? '*' : ''}</FormLabel>
                         <FormControl>
-                            <Input type="number" step="0.1" min="0" placeholder="e.g., 40" {...field} value={field.value ?? ''} disabled={!isHourly} />
+                            <Input type="number" step="0.1" min="0" placeholder="e.g., 40" {...field} value={field.value ?? ''} disabled={!isHourly || isSubmitting} />
                         </FormControl>
                         <FormMessage />
                     </FormItem>
@@ -291,7 +314,7 @@ export function AddEmployeeForm() {
                     <FormItem>
                     <FormLabel>Initial PTO Balance (hours)</FormLabel>
                     <FormControl>
-                        <Input type="number" step="0.1" min="0" placeholder="e.g., 40" {...field} />
+                        <Input type="number" step="0.1" min="0" placeholder="e.g., 40" {...field} disabled={isSubmitting} />
                     </FormControl>
                     <FormMessage />
                     </FormItem>
@@ -310,6 +333,7 @@ export function AddEmployeeForm() {
                     placeholder="Enter any internal comments about the employee..."
                     className="resize-y"
                     {...field}
+                    disabled={isSubmitting}
                     />
                 </FormControl>
                 <FormDescription>
@@ -321,8 +345,8 @@ export function AddEmployeeForm() {
         />
 
 
-        <Button type="submit" className="w-full bg-accent text-accent-foreground hover:bg-accent/90">
-           <UserPlus className="mr-2 h-4 w-4" /> Add Employee
+        <Button type="submit" className="w-full bg-accent text-accent-foreground hover:bg-accent/90" disabled={isSubmitting}>
+           {isSubmitting ? 'Adding...' : <><UserPlus className="mr-2 h-4 w-4" /> Add Employee</>}
         </Button>
       </form>
     </Form>
