@@ -14,7 +14,7 @@ import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import { Label } from '@/components/ui/label';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, getDocs, query } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/contexts/auth-context';
 import type { Payroll } from '@/lib/types';
@@ -29,6 +29,45 @@ function RunPayrollPageContent() {
   const [to, setTo] = React.useState<Date | undefined>();
   const [initialData, setInitialData] = React.useState<Payroll | null>(null);
   const [isLoading, setIsLoading] = React.useState(!!payrollId);
+  const [isFetchingRanges, setIsFetchingRanges] = React.useState(true);
+  const [disabledDateRanges, setDisabledDateRanges] = React.useState<{ from: Date; to: Date }[]>([]);
+
+  const isEditMode = !!payrollId;
+
+  // Fetch existing payroll ranges to disable dates in the calendar
+  React.useEffect(() => {
+    if (!user || isEditMode) {
+        setIsFetchingRanges(false);
+        return;
+    };
+
+    const fetchPayrollRanges = async () => {
+      setIsFetchingRanges(true);
+      try {
+        const payrollsCollectionRef = collection(db, 'users', user.uid, 'payrolls');
+        const q = query(payrollsCollectionRef);
+        const querySnapshot = await getDocs(q);
+        const ranges = querySnapshot.docs
+          .map(doc => {
+            const data = doc.data();
+            const [fromY, fromM, fromD] = data.fromDate.split('-').map(Number);
+            const [toY, toM, toD] = data.toDate.split('-').map(Number);
+            return {
+              from: new Date(fromY, fromM - 1, fromD),
+              to: new Date(toY, toM - 1, toD),
+            };
+          });
+        setDisabledDateRanges(ranges);
+      } catch (error) {
+        console.error("Error fetching payroll ranges:", error);
+      } finally {
+        setIsFetchingRanges(false);
+      }
+    };
+
+    fetchPayrollRanges();
+  }, [user, isEditMode]);
+
 
   React.useEffect(() => {
     if (payrollId && user) {
@@ -54,10 +93,23 @@ function RunPayrollPageContent() {
         .finally(() => {
           setIsLoading(false);
         });
+    } else {
+        setIsLoading(false);
     }
   }, [payrollId, user]);
 
-  const isEditMode = !!payrollId;
+  const isDateDisabled = (date: Date) => {
+    if (isEditMode) return false; // Don't disable any dates when editing
+    for (const range of disabledDateRanges) {
+      // Check if the date falls within one of the existing payroll periods
+      if (date >= range.from && date <= range.to) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  const isPageLoading = isLoading || isFetchingRanges;
 
   return (
     <div className="space-y-6">
@@ -77,7 +129,7 @@ function RunPayrollPageContent() {
         </div>
       </div>
 
-      {isLoading ? (
+      {isPageLoading ? (
         <Card>
             <CardHeader>
                 <CardTitle>Loading Payroll Data...</CardTitle>
@@ -97,7 +149,7 @@ function RunPayrollPageContent() {
                 <CardDescription>
                     {isEditMode
                     ? 'The pay period for this run is locked.'
-                    : 'Choose the date range for this payroll run.'}
+                    : 'Choose the date range for this payroll run. Previously used dates are disabled.'}
                 </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -124,7 +176,7 @@ function RunPayrollPageContent() {
                             mode="single"
                             selected={from}
                             onSelect={setFrom}
-                            disabled={(date) => (to && date > to) || date > new Date() || isEditMode}
+                            disabled={(date) => (to && date > to) || date > new Date() || isEditMode || isDateDisabled(date)}
                             initialFocus
                         />
                         </PopoverContent>
@@ -153,7 +205,7 @@ function RunPayrollPageContent() {
                             mode="single"
                             selected={to}
                             onSelect={setTo}
-                            disabled={(date) => !from || date < from || date > new Date() || isEditMode}
+                            disabled={(date) => !from || date < from || date > new Date() || isEditMode || isDateDisabled(date)}
                             initialFocus
                         />
                         </PopoverContent>
