@@ -152,7 +152,7 @@ export default function DashboardPage() {
                     <div className="text-right">
                       <p className="font-semibold">{formatCurrency(payroll.totalAmount)}</p>
                        <Button variant="link" size="sm" className="p-0 h-auto text-xs" asChild>
-                        <Link href="/dashboard/payroll">View Details</Link>
+                        <Link href={`/dashboard/payroll/report?id=${payroll.id}`}>View Details</Link>
                        </Button>
                     </div>
                   </li>

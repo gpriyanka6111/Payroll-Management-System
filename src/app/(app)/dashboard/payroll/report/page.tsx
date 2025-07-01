@@ -10,9 +10,12 @@ import type { PayrollResult, EmployeePayrollInput } from '@/components/payroll/p
 import { Payslip } from '@/components/payroll/payslip';
 import { format } from 'date-fns';
 import { Printer, ArrowLeft, Users } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { useAuth } from '@/contexts/auth-context';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 const formatCurrency = (amount: unknown) => {
     const num = Number(amount);
@@ -30,31 +33,77 @@ const formatHours = (hours: unknown): string => {
     return num.toFixed(2);
 };
 
-export default function PayrollReportPage() {
+function PayrollReportContent() {
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const { user } = useAuth();
+    
     const [results, setResults] = React.useState<PayrollResult[]>([]);
     const [inputs, setInputs] = React.useState<EmployeePayrollInput[]>([]);
     const [period, setPeriod] = React.useState<{ from: Date; to: Date } | null>(null);
     const [isLoading, setIsLoading] = React.useState(true);
 
     React.useEffect(() => {
-        const resultsData = sessionStorage.getItem('payrollResultsData');
-        const periodData = sessionStorage.getItem('payrollPeriodData');
-        const inputData = sessionStorage.getItem('payrollInputData');
+        const payrollId = searchParams.get('id');
 
-        if (resultsData && periodData && inputData) {
-            const parsedPeriod = JSON.parse(periodData);
-            setResults(JSON.parse(resultsData));
-            setInputs(JSON.parse(inputData));
-            setPeriod({
-                from: new Date(parsedPeriod.from),
-                to: new Date(parsedPeriod.to),
-            });
-        } else {
-            router.replace('/dashboard/payroll/run');
-        }
-        setIsLoading(false);
-    }, [router]);
+        const loadPayrollData = async () => {
+            setIsLoading(true);
+            if (payrollId) {
+                if (!user) {
+                    // Waiting for auth context to load user
+                    return;
+                }
+                try {
+                    const payrollDocRef = doc(db, 'users', user.uid, 'payrolls', payrollId);
+                    const payrollSnap = await getDoc(payrollDocRef);
+                    if (payrollSnap.exists()) {
+                        const payrollData = payrollSnap.data();
+                        const [fromY, fromM, fromD] = payrollData.fromDate.split('-').map(Number);
+                        const [toY, toM, toD] = payrollData.toDate.split('-').map(Number);
+
+                        setResults(payrollData.results);
+                        setInputs(payrollData.inputs);
+                        setPeriod({
+                            from: new Date(fromY, fromM - 1, fromD),
+                            to: new Date(toY, toM - 1, toD),
+                        });
+                    } else {
+                        console.error("Payroll document not found.");
+                        router.replace('/dashboard/payroll');
+                    }
+                } catch (error) {
+                    console.error("Error fetching payroll data:", error);
+                    router.replace('/dashboard/payroll');
+                } finally {
+                    setIsLoading(false);
+                }
+            } else {
+                // Fallback to sessionStorage for the "run new payroll" flow
+                const resultsData = sessionStorage.getItem('payrollResultsData');
+                const periodData = sessionStorage.getItem('payrollPeriodData');
+                const inputData = sessionStorage.getItem('payrollInputData');
+
+                if (resultsData && periodData && inputData) {
+                    const parsedPeriod = JSON.parse(periodData);
+                    setResults(JSON.parse(resultsData));
+                    setInputs(JSON.parse(inputData));
+                    setPeriod({
+                        from: new Date(parsedPeriod.from),
+                        to: new Date(parsedPeriod.to),
+                    });
+                     // Clear session storage after loading to prevent stale data on back navigation
+                    sessionStorage.removeItem('payrollResultsData');
+                    sessionStorage.removeItem('payrollPeriodData');
+                    sessionStorage.removeItem('payrollInputData');
+                } else {
+                    router.replace('/dashboard/payroll/run');
+                }
+                 setIsLoading(false);
+            }
+        };
+
+        loadPayrollData();
+    }, [router, searchParams, user]);
     
     const handlePrint = () => {
         window.print();
@@ -76,7 +125,7 @@ export default function PayrollReportPage() {
     if (!period || results.length === 0 || inputs.length === 0) {
         return (
             <div className="text-center py-10">
-                <p>No payroll data found.</p>
+                <p>No payroll data found or you do not have permission to view it.</p>
                 <Button onClick={() => router.push('/dashboard/payroll/run')}>Start a new payroll run</Button>
             </div>
         )
@@ -128,7 +177,7 @@ export default function PayrollReportPage() {
         <div className="space-y-6">
             <div className="report-actions flex justify-between items-center">
                 <Button variant="outline" onClick={() => router.back()}>
-                    <ArrowLeft className="mr-2 h-4 w-4" /> Back to Calculation
+                    <ArrowLeft className="mr-2 h-4 w-4" /> Back
                 </Button>
                  <Button onClick={handlePrint}>
                     <Printer className="mr-2 h-4 w-4" /> Print Report
@@ -271,4 +320,12 @@ export default function PayrollReportPage() {
             </div>
         </div>
     );
+}
+
+export default function PayrollReportPage() {
+    return (
+        <React.Suspense fallback={<div className="flex h-screen items-center justify-center">Loading Report...</div>}>
+            <PayrollReportContent />
+        </React.Suspense>
+    )
 }
