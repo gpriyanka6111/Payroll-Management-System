@@ -58,24 +58,24 @@ export function Payslip({ companyName, payPeriod, result, input }: PayslipProps)
             <CardContent className="space-y-4">
                 <div>
                      <h3 className="text-base font-semibold mb-2">Hours Summary (hrs)</h3>
-                     <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Total</TableHead>
-                                <TableHead>Check</TableHead>
-                                <TableHead>Other</TableHead>
-                                <TableHead>PTO</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            <TableRow>
-                                <TableCell>{formatHours(input.totalHoursWorked)}</TableCell>
-                                <TableCell>{formatHours(input.checkHours)}</TableCell>
-                                <TableCell>{formatHours(input.otherHours)}</TableCell>
-                                <TableCell>{formatHours(input.ptoUsed)}</TableCell>
-                            </TableRow>
-                        </TableBody>
-                     </Table>
+                     <div className="grid grid-cols-4 gap-2 text-center border rounded-md p-2">
+                        <div>
+                            <p className="text-xs text-muted-foreground">Total</p>
+                            <p className="font-medium tabular-nums">{formatHours(input.totalHoursWorked)}</p>
+                        </div>
+                        <div>
+                            <p className="text-xs text-muted-foreground">Check</p>
+                            <p className="font-medium tabular-nums">{formatHours(input.checkHours)}</p>
+                        </div>
+                        <div>
+                            <p className="text-xs text-muted-foreground">Other</p>
+                            <p className="font-medium tabular-nums">{formatHours(input.otherHours)}</p>
+                        </div>
+                        <div>
+                            <p className="text-xs text-muted-foreground">PTO</p>
+                            <p className="font-medium tabular-nums">{formatHours(input.ptoUsed)}</p>
+                        </div>
+                    </div>
                 </div>
                 
                 <Separator />
