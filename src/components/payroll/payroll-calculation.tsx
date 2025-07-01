@@ -17,7 +17,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Calculator, AlertTriangle, CheckCircle, MessageSquare, Loader2 } from 'lucide-react';
+import { Calculator, AlertTriangle, CheckCircle, MessageSquare, Loader2, Save } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -26,7 +26,7 @@ import { format } from 'date-fns';
 import { useRouter } from 'next/navigation';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { Textarea } from '../ui/textarea';
-import type { Employee } from '@/lib/types';
+import type { Employee, Payroll } from '@/lib/types';
 import { useAuth } from '@/contexts/auth-context';
 import { collection, getDocs, query, orderBy, addDoc, doc, updateDoc, writeBatch } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -91,6 +91,8 @@ export type PayrollResult = {
 interface PayrollCalculationProps {
     from: Date;
     to: Date;
+    payrollId: string | null;
+    initialPayrollData: Payroll | null;
 }
 
 const inputMetrics = [
@@ -101,7 +103,7 @@ const inputMetrics = [
 ] as const;
 
 
-export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
+export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: PayrollCalculationProps) {
   const router = useRouter();
   const { toast } = useToast();
   const { user } = useAuth();
@@ -109,6 +111,8 @@ export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
   const [isApproving, setIsApproving] = React.useState(false);
   const [payrollResults, setPayrollResults] = React.useState<PayrollResult[]>([]);
   const [showResults, setShowResults] = React.useState(false);
+
+  const isEditMode = !!payrollId;
 
   const form = useForm<PayrollFormValues>({
     resolver: zodResolver(payrollFormSchema),
@@ -130,7 +134,7 @@ export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
    React.useEffect(() => {
     if (!user) return;
 
-    const fetchEmployees = async () => {
+    const fetchAndSetData = async () => {
       setIsLoading(true);
       const employeesCollectionRef = collection(db, 'users', user.uid, 'employees');
       const q = query(employeesCollectionRef, orderBy('lastName', 'asc'));
@@ -140,25 +144,60 @@ export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
         ...doc.data()
       } as Employee));
 
-      const formValues = employeesData.map(emp => ({
-          employeeId: emp.id,
-          name: `${emp.firstName} ${emp.lastName}`,
-          payRateCheck: emp.payRateCheck,
-          payRateOthers: emp.payRateOthers ?? 0,
-          ptoBalance: emp.ptoBalance,
-          totalHoursWorked: emp.standardCheckHours ?? 0,
-          checkHours: emp.standardCheckHours ?? 0,
-          otherHours: 0,
-          ptoUsed: 0,
-          comment: emp.comment || '',
-      }));
+      let formValues: EmployeePayrollInput[];
+
+      if (isEditMode && initialPayrollData) {
+        // Edit Mode: Map initial data to the most recent employee data
+        formValues = initialPayrollData.inputs.map(initialInput => {
+            const currentEmployee = employeesData.find(e => e.id === initialInput.employeeId);
+            return {
+                ...initialInput,
+                // Crucially, use the LATEST ptoBalance from the DB
+                ptoBalance: currentEmployee ? currentEmployee.ptoBalance : initialInput.ptoBalance,
+                comment: currentEmployee ? currentEmployee.comment : initialInput.comment,
+            };
+        });
+        
+        // If there are new employees since the payroll was run, add them
+        const employeesInPayroll = new Set(initialPayrollData.inputs.map(i => i.employeeId));
+        const newEmployees = employeesData.filter(e => !employeesInPayroll.has(e.id));
+        newEmployees.forEach(emp => {
+            formValues.push({
+                employeeId: emp.id,
+                name: `${emp.firstName} ${emp.lastName}`,
+                payRateCheck: emp.payRateCheck,
+                payRateOthers: emp.payRateOthers ?? 0,
+                ptoBalance: emp.ptoBalance,
+                totalHoursWorked: emp.standardCheckHours ?? 0,
+                checkHours: emp.standardCheckHours ?? 0,
+                otherHours: 0,
+                ptoUsed: 0,
+                comment: emp.comment || '',
+            });
+        });
+
+      } else {
+        // Create Mode: Use fresh data for all employees
+        formValues = employeesData.map(emp => ({
+            employeeId: emp.id,
+            name: `${emp.firstName} ${emp.lastName}`,
+            payRateCheck: emp.payRateCheck,
+            payRateOthers: emp.payRateOthers ?? 0,
+            ptoBalance: emp.ptoBalance,
+            totalHoursWorked: emp.standardCheckHours ?? 0,
+            checkHours: emp.standardCheckHours ?? 0,
+            otherHours: 0,
+            ptoUsed: 0,
+            comment: emp.comment || '',
+        }));
+      }
       
       reset({ employees: formValues });
       setIsLoading(false);
     };
 
-    fetchEmployees();
-  }, [user, reset]);
+    fetchAndSetData();
+  }, [user, reset, isEditMode, initialPayrollData]);
 
 
     React.useEffect(() => {
@@ -198,7 +237,20 @@ export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
       const payRateCheck = safeGetNumber(emp.payRateCheck);
       const payRateOthers = safeGetNumber(emp.payRateOthers) ?? 0;
       const otherAdjustment = 0; // No adjustment from input form
-      const initialPtoBalance = safeGetNumber(emp.ptoBalance);
+      
+      const initialPtoBalanceFromDb = safeGetNumber(emp.ptoBalance);
+      
+      let newPtoBalance;
+
+      if (isEditMode && initialPayrollData) {
+        const originalInput = initialPayrollData.inputs.find(i => i.employeeId === emp.employeeId);
+        const originalPtoUsed = originalInput ? safeGetNumber(originalInput.ptoUsed) : 0;
+        // The balance from the DB already reflects the original deduction. We must add it back before subtracting the new value.
+        const effectiveInitialBalance = initialPtoBalanceFromDb + originalPtoUsed;
+        newPtoBalance = effectiveInitialBalance - ptoUsed;
+      } else {
+        newPtoBalance = initialPtoBalanceFromDb - ptoUsed;
+      }
 
       const regularPay = payRateCheck * checkHours;
       const ptoPay = payRateCheck * ptoUsed;
@@ -208,8 +260,6 @@ export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
       const grossOtherAmount = otherPay + otherAdjustment;
 
       const netPay = grossCheckAmount; 
-      const newPtoBalance = initialPtoBalance - ptoUsed;
-
 
       return {
         employeeId: emp.employeeId,
@@ -236,7 +286,7 @@ export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
     setShowResults(true);
     toast({
       title: 'Payroll Calculated',
-      description: 'Comments updated for this session. Review results below.',
+      description: 'Review the results below. Finalize by approving.',
       variant: 'default',
       action: <CheckCircle className="h-4 w-4 text-white"/>
     });
@@ -273,9 +323,7 @@ export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
     try {
         const totalAmount = payrollResults.reduce((sum, r) => sum + r.grossCheckAmount + r.grossOtherAmount, 0);
         
-        // 1. Save the payroll run document
-        const payrollsCollectionRef = collection(db, 'users', user.uid, 'payrolls');
-        const newPayrollDoc = {
+        const payrollDocData = {
             fromDate: format(from, 'yyyy-MM-dd'),
             toDate: format(to, 'yyyy-MM-dd'),
             totalAmount: totalAmount,
@@ -283,15 +331,24 @@ export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
             results: payrollResults,
             inputs: currentInputs,
         };
-        await addDoc(payrollsCollectionRef, newPayrollDoc);
+
+        let finalPayrollId = payrollId;
+
+        // 1. Save or Update the payroll run document
+        if (isEditMode && payrollId) {
+             const payrollDocRef = doc(db, 'users', user.uid, 'payrolls', payrollId);
+             await updateDoc(payrollDocRef, payrollDocData);
+        } else {
+            const payrollsCollectionRef = collection(db, 'users', user.uid, 'payrolls');
+            const newDocRef = await addDoc(payrollsCollectionRef, payrollDocData);
+            finalPayrollId = newDocRef.id;
+        }
 
         // 2. Update employee PTO balances in a batch
         const batch = writeBatch(db);
         payrollResults.forEach(result => {
-            if (result.ptoUsed > 0) {
-                const employeeDocRef = doc(db, 'users', user.uid, 'employees', result.employeeId);
-                batch.update(employeeDocRef, { ptoBalance: result.newPtoBalance });
-            }
+            const employeeDocRef = doc(db, 'users', user.uid, 'employees', result.employeeId);
+            batch.update(employeeDocRef, { ptoBalance: result.newPtoBalance });
         });
         await batch.commit();
 
@@ -299,18 +356,20 @@ export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
         sessionStorage.setItem('payrollResultsData', JSON.stringify(payrollResults));
         sessionStorage.setItem('payrollPeriodData', JSON.stringify({ from, to }));
         sessionStorage.setItem('payrollInputData', JSON.stringify(currentInputs));
+        // Pass the ID to the report page
+        sessionStorage.setItem('payrollId', finalPayrollId!);
         
         toast({
-            title: "Payroll Approved",
+            title: `Payroll ${isEditMode ? 'Updated' : 'Approved'}`,
             description: "Payroll history saved and PTO balances updated. Redirecting to report...",
         });
 
-        router.push('/dashboard/payroll/report');
+        router.push(`/dashboard/payroll/report?id=${finalPayrollId}`);
 
     } catch (error) {
         console.error("Failed to approve payroll:", error);
         toast({
-            title: "Error Approving Payroll",
+            title: `Error ${isEditMode ? 'Updating' : 'Approving'} Payroll`,
             description: "Could not save this payroll run. Please try again.",
             variant: "destructive",
         });
@@ -369,7 +428,7 @@ export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
                      <TableRow>
                       <TableHead className="font-bold min-w-[200px]">Metric</TableHead>
                        {fields.map((field) => (
-                          <TableHead key={field.id} className="text-center">{field.name}</TableHead>
+                          <TableHead key={field.id} className="text-right">{field.name}</TableHead>
                        ))}
                      </TableRow>
                    </TableHeader>
@@ -484,7 +543,6 @@ export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
           const metrics: Array<{
               label: string;
               getValue: (result: PayrollResult) => string | number;
-              getTotal?: () => string | number;
               isBold?: boolean;
               isDestructive?: boolean;
               type?: 'separator';
@@ -501,13 +559,11 @@ export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
               {
                   label: "Gross Check Amount",
                   getValue: (result) => formatCurrency(result.grossCheckAmount),
-                  getTotal: () => formatCurrency(totals.grossCheckAmount),
                   isBold: true,
               },
               {
                   label: "Gross Other Amount",
                   getValue: (result) => formatCurrency(result.grossOtherAmount),
-                  getTotal: () => formatCurrency(totals.grossOtherAmount),
                   isBold: true,
               },
               { type: 'separator', label: '', getValue: () => '' },
@@ -530,18 +586,17 @@ export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
                           <CheckCircle className="h-4 w-4 text-primary" />
                           <AlertTitle className="text-primary">Calculation Complete</AlertTitle>
                           <AlertDescription>
-                            Review the payroll details below. Click "Approve and View Report" to finalize.
+                            Review the payroll details below. Click "Approve" to finalize.
                           </AlertDescription>
                        </Alert>
                       <div className="overflow-x-auto">
-                       <Table>
+                       <Table className="w-auto">
                           <TableHeader>
                               <TableRow>
                                  <TableHead className="font-bold min-w-[200px]">Metric</TableHead>
                                  {payrollResults.map((result) => (
                                      <TableHead key={result.employeeId} className="text-right">{result.name}</TableHead>
                                  ))}
-                                 <TableHead className="text-right font-bold">Totals</TableHead>
                               </TableRow>
                           </TableHeader>
                           <TableBody>
@@ -549,7 +604,7 @@ export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
                                   if (metric.type === 'separator') {
                                       return (
                                           <TableRow key={`sep-${index}`} className="bg-muted/20 hover:bg-muted/20">
-                                              <TableCell colSpan={payrollResults.length + 2} className="h-2 p-0"></TableCell>
+                                              <TableCell colSpan={payrollResults.length + 1} className="h-2 p-0"></TableCell>
                                           </TableRow>
                                       );
                                   }
@@ -578,11 +633,6 @@ export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
                                                 )}
                                             </TableCell>
                                          ))}
-                                         <TableCell className={cn("text-right font-bold tabular-nums", {
-                                              "text-destructive": metric.isDestructive,
-                                         })}>
-                                             {metric.getTotal ? metric.getTotal() : ''}
-                                         </TableCell>
                                       </TableRow>
                                   );
                               })}
@@ -618,7 +668,7 @@ export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
 
                        <div className="mt-6 flex justify-end space-x-2">
                            <Button onClick={handleApprovePayroll} disabled={isApproving}>
-                             {isApproving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Approving...</> : "Approve and View Report"}
+                             {isApproving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Approving...</> : (isEditMode ? <><Save className="mr-2 h-4 w-4" /> Update and View Report</> : "Approve and View Report")}
                            </Button>
                        </div>
                   </CardContent>

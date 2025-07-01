@@ -7,7 +7,7 @@ import Link from "next/link";
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { History, Play, ArrowLeft } from 'lucide-react';
+import { History, Play, ArrowLeft, Pencil } from 'lucide-react';
 import { useAuth } from "@/contexts/auth-context";
 import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -88,11 +88,18 @@ export default function PayrollHistoryPage() {
                       <p className="font-medium">Payroll Run: {formatDate(payroll.fromDate)} - {formatDate(payroll.toDate)}</p>
                       <p className="text-sm text-muted-foreground">Status: {payroll.status}</p>
                     </div>
-                    <div className="text-right">
+                    <div className="text-right flex items-center space-x-2">
                       <p className="font-semibold">{formatCurrency(payroll.totalAmount)}</p>
+                      <div>
+                        <Button variant="ghost" size="icon" asChild>
+                            <Link href={`/dashboard/payroll/run?id=${payroll.id}`} aria-label="Edit Payroll">
+                                <Pencil className="h-4 w-4" />
+                            </Link>
+                        </Button>
                        <Button variant="link" size="sm" className="p-0 h-auto text-xs" asChild>
                          <Link href={`/dashboard/payroll/report?id=${payroll.id}`}>View Details</Link>
                        </Button>
+                      </div>
                     </div>
                   </li>
                 ))}
