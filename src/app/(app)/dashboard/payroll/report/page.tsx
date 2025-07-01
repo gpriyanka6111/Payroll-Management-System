@@ -149,7 +149,6 @@ function PayrollReportContent() {
     const resultMetrics: Array<{
         label: string;
         getValue: (result: PayrollResult) => string | number;
-        getTotal?: () => string | number;
         isBold?: boolean;
     }> = [
         { label: "Rate/Check", getValue: (result) => formatCurrency(result.payRateCheck) + "/hr" },
@@ -158,13 +157,11 @@ function PayrollReportContent() {
         {
             label: "Gross Check Amount",
             getValue: (result) => formatCurrency(result.grossCheckAmount),
-            getTotal: () => formatCurrency(totals.grossCheckAmount),
             isBold: true,
         },
         {
             label: "Gross Other Amount",
             getValue: (result) => formatCurrency(result.grossOtherAmount),
-            getTotal: () => formatCurrency(totals.grossOtherAmount),
             isBold: true,
         },
         {
@@ -231,14 +228,13 @@ function PayrollReportContent() {
                  <section className="mb-8">
                     <h2 className="text-xl font-semibold mb-4">Payroll Results</h2>
                      <div className="overflow-x-auto border rounded-lg">
-                        <Table>
+                        <Table className="w-auto">
                             <TableHeader>
                                 <TableRow>
                                     <TableHead className="font-bold min-w-[200px]">Metric</TableHead>
                                     {results.map((result) => (
                                         <TableHead key={result.employeeId} className="text-right">{result.name}</TableHead>
                                     ))}
-                                    <TableHead className="text-right font-bold">Totals</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -250,9 +246,6 @@ function PayrollReportContent() {
                                                 {metric.getValue(result)}
                                             </TableCell>
                                         ))}
-                                        <TableCell className="text-right font-bold tabular-nums">
-                                            {metric.getTotal ? metric.getTotal() : ''}
-                                        </TableCell>
                                     </TableRow>
                                 ))}
                             </TableBody>
