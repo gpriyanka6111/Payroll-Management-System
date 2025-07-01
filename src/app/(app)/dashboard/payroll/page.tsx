@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { History, Play, ArrowLeft, Pencil, Trash2 } from 'lucide-react';
 import { useAuth } from "@/contexts/auth-context";
-import { collection, onSnapshot, query, orderBy, doc, getDoc, writeBatch } from "firebase/firestore";
+import { collection, onSnapshot, query, orderBy, doc, deleteDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { Payroll } from "@/lib/types";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -65,30 +65,9 @@ export default function PayrollHistoryPage() {
     if (!user || !payrollToDelete) return;
 
     try {
-      const batch = writeBatch(db);
-
-      // 1. Revert PTO balances for each employee in the payroll
-      for (const result of payrollToDelete.results) {
-        const employeeDocRef = doc(db, 'users', user.uid, 'employees', result.employeeId);
-        const ptoToRestore = result.ptoUsed || 0;
-        
-        if (ptoToRestore > 0) {
-            const employeeSnap = await getDoc(employeeDocRef);
-            if (employeeSnap.exists()) {
-                const employeeData = employeeSnap.data();
-                const currentPtoBalance = employeeData.ptoBalance || 0;
-                const restoredPtoBalance = currentPtoBalance + ptoToRestore;
-                batch.update(employeeDocRef, { ptoBalance: restoredPtoBalance });
-            }
-        }
-      }
-
-      // 2. Delete the payroll document
+      // Delete the payroll document
       const payrollDocRef = doc(db, 'users', user.uid, 'payrolls', payrollToDelete.id);
-      batch.delete(payrollDocRef);
-
-      // 3. Commit the batch
-      await batch.commit();
+      await deleteDoc(payrollDocRef);
 
       toast({
         title: "Payroll Deleted",
@@ -100,7 +79,7 @@ export default function PayrollHistoryPage() {
       console.error("Error deleting payroll: ", error);
       toast({
         title: "Delete Failed",
-        description: "Could not delete the payroll record. PTO balances have not been changed.",
+        description: "Could not delete the payroll record.",
         variant: "destructive",
       });
     } finally {
@@ -184,7 +163,7 @@ export default function PayrollHistoryPage() {
             for the period{' '}
             <span className="font-semibold">{payrollToDelete ? `${formatDate(payrollToDelete.fromDate)} - ${formatDate(payrollToDelete.toDate)}` : ''}</span>.
             <br/><br/>
-            Deleting this payroll will also <span className="font-semibold text-destructive">restore the PTO hours</span> used by employees during this period to their current balances.
+            Employee PTO balances will <span className="font-semibold text-destructive">not</span> be changed.
             </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
