@@ -202,7 +202,7 @@ function PayrollReportContent() {
                                 <TableRow>
                                     <TableHead className="font-bold min-w-[200px]">Metric</TableHead>
                                     {inputs.map((input) => (
-                                        <TableHead key={input.employeeId} className="text-right">{input.name}</TableHead>
+                                        <TableHead key={input.employeeId}>{input.name}</TableHead>
                                     ))}
                                 </TableRow>
                             </TableHeader>
