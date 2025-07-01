@@ -18,10 +18,14 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
-import { UserPlus } from 'lucide-react';
+import { UserPlus, AlertTriangle } from 'lucide-react';
 import { Separator } from '../ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { useRouter } from 'next/navigation';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { doc, setDoc } from 'firebase/firestore';
+import { auth, db } from '@/lib/firebase';
+import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
 
 
 const signupSchema = z.object({
@@ -31,6 +35,7 @@ const signupSchema = z.object({
     .regex(/[0-9]/, { message: 'Password must contain at least one number.' })
     .regex(/[^a-zA-Z0-9]/, { message: 'Password must contain at least one special character.' }),
   confirmPassword: z.string(),
+  companyName: z.string().min(1, { message: "Company name is required." }),
   payFrequency: z.string().default('bi-weekly'),
   standardBiWeeklyHours: z.coerce.number().positive({ message: "Standard hours must be positive." }),
 }).refine((data) => data.password === data.confirmPassword, {
@@ -44,6 +49,7 @@ export function SignupForm() {
   const { toast } = useToast();
   const router = useRouter();
   const [isLoading, setIsLoading] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
 
   const form = useForm<SignupFormValues>({
     resolver: zodResolver(signupSchema),
@@ -51,6 +57,7 @@ export function SignupForm() {
       email: '',
       password: '',
       confirmPassword: '',
+      companyName: '',
       payFrequency: 'bi-weekly',
       standardBiWeeklyHours: 80,
     },
@@ -58,20 +65,49 @@ export function SignupForm() {
 
   async function onSubmit(values: SignupFormValues) {
     setIsLoading(true);
-    // Simulate API call for demonstration
-    await new Promise(resolve => setTimeout(resolve, 1000));
-      
-    toast({
-      title: 'Account Created Successfully!',
-      description: 'Redirecting you to the dashboard.',
-    });
+    setError(null);
 
-    router.push('/dashboard');
-    setIsLoading(false);
+    if (!auth || !db) {
+        setError("Firebase is not configured correctly. Please contact support.");
+        setIsLoading(false);
+        return;
+    }
+
+    try {
+        const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
+        const user = userCredential.user;
+
+        // Create a document for the user in Firestore
+        await setDoc(doc(db, "users", user.uid), {
+            email: user.email,
+            companyName: values.companyName,
+            payFrequency: values.payFrequency,
+            standardBiWeeklyHours: values.standardBiWeeklyHours,
+            createdAt: new Date(),
+        });
+        
+        toast({
+            title: 'Account Created Successfully!',
+            description: 'Redirecting you to the dashboard.',
+        });
+
+        router.push('/dashboard');
+    } catch (err: any) {
+        let errorMessage = "An unknown error occurred.";
+        if (err.code === 'auth/email-already-in-use') {
+            errorMessage = "This email address is already in use.";
+        } else {
+            errorMessage = "Failed to create an account. Please try again.";
+        }
+        console.error("Signup Error:", err);
+        setError(errorMessage);
+    } finally {
+        setIsLoading(false);
+    }
   }
 
   return (
-    <Card className="w-full max-w-sm shadow-lg">
+    <Card className="w-full max-w-lg shadow-lg">
       <CardHeader>
         <CardTitle className="text-2xl font-bold text-center text-primary">Sign Up</CardTitle>
         <CardDescription className="text-center">
@@ -80,7 +116,29 @@ export function SignupForm() {
       </CardHeader>
       <CardContent>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            {error && (
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Signup Failed</AlertTitle>
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+
+            <FormField
+              control={form.control}
+              name="companyName"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Company Name</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Your Company LLC" {...field} disabled={isLoading} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
             <FormField
               control={form.control}
               name="email"

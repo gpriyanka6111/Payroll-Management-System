@@ -7,6 +7,9 @@ import { SidebarProvider, Sidebar, SidebarHeader, SidebarContent, SidebarFooter,
 import { Home, Users, Calculator, Settings, LogOut, CalendarClock } from 'lucide-react';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/auth-context';
+import { auth } from '@/lib/firebase';
+import { signOut } from 'firebase/auth';
 
 export default function DashboardLayout({
   children,
@@ -15,15 +18,37 @@ export default function DashboardLayout({
 }) {
   const router = useRouter();
   const { toast } = useToast();
+  const { user, loading } = useAuth();
 
-  const handleLogout = () => {
-    // Simulate logout
-    toast({
-      title: "Logged Out",
-      description: "You have been successfully logged out.",
-    });
-    router.push('/login');
+  React.useEffect(() => {
+    if (!loading && !user) {
+      router.replace('/login');
+    }
+  }, [user, loading, router]);
+
+  const handleLogout = async () => {
+    if (!auth) return;
+    try {
+        await signOut(auth);
+        toast({
+            title: "Logged Out",
+            description: "You have been successfully logged out.",
+        });
+        router.push('/login');
+    } catch (error) {
+        console.error("Logout Error: ", error);
+        toast({
+            title: "Logout Failed",
+            description: "An error occurred while logging out.",
+            variant: "destructive"
+        });
+    }
   };
+
+  if (loading || !user) {
+      // You can show a loading skeleton here while checking auth state
+      return <div className="flex h-screen items-center justify-center">Loading...</div>;
+  }
 
 
   return (

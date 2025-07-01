@@ -20,6 +20,11 @@ import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { LogIn } from 'lucide-react';
 import Link from 'next/link';
+import { signInWithEmailAndPassword } from 'firebase/auth';
+import { auth } from '@/lib/firebase';
+import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
+import { AlertTriangle } from 'lucide-react';
+
 
 const loginSchema = z.object({
   email: z.string().email({ message: 'Invalid email address.' }),
@@ -32,6 +37,7 @@ export function LoginForm() {
   const { toast } = useToast();
   const router = useRouter();
   const [isLoading, setIsLoading] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -43,15 +49,32 @@ export function LoginForm() {
 
   async function onSubmit(values: LoginFormValues) {
     setIsLoading(true);
-    // Simulate API call for demonstration
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    toast({
-      title: 'Login Successful',
-      description: 'Redirecting to your dashboard...',
-    });
-    router.push('/dashboard');
-    setIsLoading(false);
+    setError(null);
+    if (!auth) {
+        setError("Firebase authentication is not available. Please check your configuration.");
+        setIsLoading(false);
+        return;
+    }
+
+    try {
+        await signInWithEmailAndPassword(auth, values.email, values.password);
+        toast({
+            title: 'Login Successful',
+            description: 'Redirecting to your dashboard...',
+        });
+        router.push('/dashboard');
+    } catch (err: any) {
+        let errorMessage = "An unknown error occurred.";
+        if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+            errorMessage = "Invalid email or password. Please try again.";
+        } else {
+            errorMessage = "An error occurred during login. Please try again later.";
+        }
+        console.error("Login error:", err);
+        setError(errorMessage);
+    } finally {
+        setIsLoading(false);
+    }
   }
 
   return (
@@ -64,33 +87,42 @@ export function LoginForm() {
       </CardHeader>
       <CardContent>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            <FormField
-              control={form.control}
-              name="email"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Email</FormLabel>
-                  <FormControl>
-                    <Input placeholder="you@example.com" {...field} disabled={isLoading}/>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="password"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Password</FormLabel>
-                  <FormControl>
-                    <Input type="password" placeholder="••••••••" {...field} disabled={isLoading} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            {error && (
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Login Failed</AlertTitle>
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+            <div className="space-y-6">
+                <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => (
+                    <FormItem>
+                    <FormLabel>Email</FormLabel>
+                    <FormControl>
+                        <Input placeholder="you@example.com" {...field} disabled={isLoading}/>
+                    </FormControl>
+                    <FormMessage />
+                    </FormItem>
+                )}
+                />
+                <FormField
+                control={form.control}
+                name="password"
+                render={({ field }) => (
+                    <FormItem>
+                    <FormLabel>Password</FormLabel>
+                    <FormControl>
+                        <Input type="password" placeholder="••••••••" {...field} disabled={isLoading} />
+                    </FormControl>
+                    <FormMessage />
+                    </FormItem>
+                )}
+                />
+            </div>
             <Button type="submit" className="w-full" disabled={isLoading}>
               {isLoading ? "Logging in..." : <><LogIn className="mr-2 h-4 w-4" /> Login</>}
             </Button>
