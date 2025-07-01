@@ -9,13 +9,14 @@ import { cn } from '@/lib/utils';
 import type { PayrollResult, EmployeePayrollInput } from '@/components/payroll/payroll-calculation';
 import { Payslip } from '@/components/payroll/payslip';
 import { format } from 'date-fns';
-import { Printer, ArrowLeft, Users } from 'lucide-react';
+import { Printer, ArrowLeft, Users, Pencil } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useAuth } from '@/contexts/auth-context';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import Link from 'next/link';
 
 const formatCurrency = (amount: unknown) => {
     const num = Number(amount);
@@ -37,6 +38,7 @@ function PayrollReportContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const { user } = useAuth();
+    const payrollId = searchParams.get('id');
     
     const [results, setResults] = React.useState<PayrollResult[]>([]);
     const [inputs, setInputs] = React.useState<EmployeePayrollInput[]>([]);
@@ -44,8 +46,6 @@ function PayrollReportContent() {
     const [isLoading, setIsLoading] = React.useState(true);
 
     React.useEffect(() => {
-        const payrollId = searchParams.get('id');
-
         const loadPayrollData = async () => {
             setIsLoading(true);
             if (payrollId) {
@@ -103,7 +103,7 @@ function PayrollReportContent() {
         };
 
         loadPayrollData();
-    }, [router, searchParams, user]);
+    }, [router, payrollId, user]);
     
     const handlePrint = () => {
         window.print();
@@ -176,9 +176,18 @@ function PayrollReportContent() {
                 <Button variant="outline" onClick={() => router.back()}>
                     <ArrowLeft className="mr-2 h-4 w-4" /> Back
                 </Button>
-                 <Button onClick={handlePrint}>
-                    <Printer className="mr-2 h-4 w-4" /> Print Report
-                </Button>
+                <div className="flex items-center gap-2">
+                    {payrollId && (
+                        <Button variant="outline" asChild>
+                            <Link href={`/dashboard/payroll/run?id=${payrollId}`}>
+                                <Pencil className="mr-2 h-4 w-4" /> Edit
+                            </Link>
+                        </Button>
+                    )}
+                    <Button onClick={handlePrint}>
+                        <Printer className="mr-2 h-4 w-4" /> Print Report
+                    </Button>
+                </div>
             </div>
             
             <div className="report-content-wrapper border rounded-lg p-6 bg-card text-card-foreground">
