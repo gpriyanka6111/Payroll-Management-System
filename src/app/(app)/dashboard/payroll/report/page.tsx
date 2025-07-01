@@ -197,12 +197,12 @@ function PayrollReportContent() {
                 <section className="mb-8">
                     <h2 className="text-xl font-semibold mb-4">Payroll Inputs</h2>
                     <div className="overflow-x-auto border rounded-lg">
-                        <Table>
+                        <Table className="w-auto">
                             <TableHeader>
                                 <TableRow>
                                     <TableHead className="font-bold min-w-[200px]">Metric</TableHead>
                                     {inputs.map((input) => (
-                                        <TableHead key={input.employeeId}>{input.name}</TableHead>
+                                        <TableHead key={input.employeeId} className="text-right">{input.name}</TableHead>
                                     ))}
                                 </TableRow>
                             </TableHeader>
