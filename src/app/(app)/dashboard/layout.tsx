@@ -28,7 +28,7 @@ export default function DashboardLayout({
 
   return (
     <SidebarProvider defaultOpen={true}>
-      <Sidebar>
+      <Sidebar collapsible="icon">
         <SidebarHeader className="items-center">
            <Link href="/dashboard" className="flex items-center gap-2">
              {/* Placeholder for Logo */}
@@ -39,7 +39,7 @@ export default function DashboardLayout({
             </svg>
             <h1 className="text-xl font-semibold text-primary group-data-[collapsible=icon]:hidden">Paypall</h1>
            </Link>
-          <SidebarTrigger className="ml-auto group-data-[collapsible=icon]:hidden" />
+          <SidebarTrigger className="ml-auto" />
         </SidebarHeader>
         <SidebarContent>
           <SidebarMenu>
