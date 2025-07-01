@@ -17,7 +17,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Calculator, AlertTriangle, CheckCircle, MessageSquare } from 'lucide-react';
+import { Calculator, AlertTriangle, CheckCircle, MessageSquare, Loader2 } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -28,13 +28,12 @@ import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { Textarea } from '../ui/textarea';
 import type { Employee } from '@/lib/types';
 import { useAuth } from '@/contexts/auth-context';
-import { collection, getDocs, query, orderBy } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, addDoc, doc, updateDoc, writeBatch } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Skeleton } from '../ui/skeleton';
 
 const COMPANY_STANDARD_BIWEEKLY_HOURS = 100;
 
-// Define Zod schema for a single employee's payroll input
 const employeePayrollInputSchema = z.object({
   employeeId: z.string(),
   name: z.string(),
@@ -66,7 +65,6 @@ const employeePayrollInputSchema = z.object({
 export type EmployeePayrollInput = z.infer<typeof employeePayrollInputSchema>;
 
 
-// Define Zod schema for the overall form
 const payrollFormSchema = z.object({
   employees: z.array(employeePayrollInputSchema),
 });
@@ -74,11 +72,9 @@ const payrollFormSchema = z.object({
 
 type PayrollFormValues = z.infer<typeof payrollFormSchema>;
 
-// Define structure for calculated payroll results.
 export type PayrollResult = {
   employeeId: string;
   name: string;
-  // Input values to display in results
   totalHoursWorked: number;
   checkHours: number;
   otherHours: number;
@@ -86,7 +82,6 @@ export type PayrollResult = {
   payRateCheck: number;
   payRateOthers: number;
   otherAdjustment: number;
-  // Calculated values
   grossCheckAmount: number;
   grossOtherAmount: number;
   netPay: number;
@@ -111,6 +106,7 @@ export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
   const { toast } = useToast();
   const { user } = useAuth();
   const [isLoading, setIsLoading] = React.useState(true);
+  const [isApproving, setIsApproving] = React.useState(false);
   const [payrollResults, setPayrollResults] = React.useState<PayrollResult[]>([]);
   const [showResults, setShowResults] = React.useState(false);
 
@@ -144,7 +140,6 @@ export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
         ...doc.data()
       } as Employee));
 
-      // Map fetched data to the shape required by the form
       const formValues = employeesData.map(emp => ({
           employeeId: emp.id,
           name: `${emp.firstName} ${emp.lastName}`,
@@ -212,7 +207,6 @@ export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
       const otherPay = payRateOthers * otherHours;
       const grossOtherAmount = otherPay + otherAdjustment;
 
-      // Net pay is now just the gross check amount as taxes are removed.
       const netPay = grossCheckAmount; 
       const newPtoBalance = initialPtoBalance - ptoUsed;
 
@@ -237,7 +231,6 @@ export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
 
 
   function onSubmit(values: PayrollFormValues) {
-    console.log('Payroll data submitted:', values);
     const results = calculatePayroll(values);
     setPayrollResults(results);
     setShowResults(true);
@@ -269,50 +262,61 @@ export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
     );
   };
 
-  function handleApprovePayroll() {
+  async function handleApprovePayroll() {
+    if (!user) {
+        toast({ title: "Not Authenticated", variant: "destructive" });
+        return;
+    }
+    setIsApproving(true);
     const currentInputs = form.getValues().employees;
 
-    // Save data for the report page to sessionStorage
-    sessionStorage.setItem('payrollResultsData', JSON.stringify(payrollResults));
-    sessionStorage.setItem('payrollPeriodData', JSON.stringify({ from, to }));
-    sessionStorage.setItem('payrollInputData', JSON.stringify(currentInputs));
-
-    // Save this run to the permanent history in localStorage
     try {
         const totalAmount = payrollResults.reduce((sum, r) => sum + r.grossCheckAmount + r.grossOtherAmount, 0);
         
-        const newHistoryItem = {
-            id: `pay${Date.now()}`, // Simple unique ID
+        // 1. Save the payroll run document
+        const payrollsCollectionRef = collection(db, 'users', user.uid, 'payrolls');
+        const newPayrollDoc = {
             fromDate: format(from, 'yyyy-MM-dd'),
             toDate: format(to, 'yyyy-MM-dd'),
             totalAmount: totalAmount,
-            status: 'Completed'
+            status: 'Completed',
+            results: payrollResults,
+            inputs: currentInputs,
         };
+        await addDoc(payrollsCollectionRef, newPayrollDoc);
 
-        const existingHistoryJSON = localStorage.getItem('payrollHistory');
-        const existingHistory = existingHistoryJSON ? JSON.parse(existingHistoryJSON) : [];
+        // 2. Update employee PTO balances in a batch
+        const batch = writeBatch(db);
+        payrollResults.forEach(result => {
+            if (result.ptoUsed > 0) {
+                const employeeDocRef = doc(db, 'users', user.uid, 'employees', result.employeeId);
+                batch.update(employeeDocRef, { ptoBalance: result.newPtoBalance });
+            }
+        });
+        await batch.commit();
+
+        // 3. Save to sessionStorage for immediate report viewing
+        sessionStorage.setItem('payrollResultsData', JSON.stringify(payrollResults));
+        sessionStorage.setItem('payrollPeriodData', JSON.stringify({ from, to }));
+        sessionStorage.setItem('payrollInputData', JSON.stringify(currentInputs));
         
-        const updatedHistory = [newHistoryItem, ...existingHistory];
+        toast({
+            title: "Payroll Approved",
+            description: "Payroll history saved and PTO balances updated. Redirecting to report...",
+        });
 
-        localStorage.setItem('payrollHistory', JSON.stringify(updatedHistory));
+        router.push('/dashboard/payroll/report');
 
     } catch (error) {
-        console.error("Failed to save payroll history to localStorage", error);
+        console.error("Failed to approve payroll:", error);
         toast({
-            title: "Error Saving History",
-            description: "Could not save this payroll run to your history.",
+            title: "Error Approving Payroll",
+            description: "Could not save this payroll run. Please try again.",
             variant: "destructive",
         });
+    } finally {
+        setIsApproving(false);
     }
-    
-    toast({
-      title: "Payroll Approved",
-      description: "Payroll history saved. Redirecting to the printable report page.",
-    });
-
-    setTimeout(() => {
-        router.push('/dashboard/payroll/report');
-    }, 500);
   }
 
   const formatCurrency = (amount: number) => {
@@ -613,7 +617,9 @@ export function PayrollCalculation({ from, to }: PayrollCalculationProps) {
                       </div>
 
                        <div className="mt-6 flex justify-end space-x-2">
-                           <Button onClick={handleApprovePayroll} disabled={!showResults}>Approve and View Report</Button>
+                           <Button onClick={handleApprovePayroll} disabled={isApproving}>
+                             {isApproving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Approving...</> : "Approve and View Report"}
+                           </Button>
                        </div>
                   </CardContent>
                </Card>

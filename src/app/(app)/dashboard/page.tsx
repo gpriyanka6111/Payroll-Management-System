@@ -8,49 +8,46 @@ import { Users, Calculator, ArrowRight, UserPlus } from "lucide-react";
 import Link from "next/link";
 import { format } from "date-fns";
 import { useAuth } from '@/contexts/auth-context';
-import { collection, onSnapshot, query } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, limit } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import type { Payroll } from '@/lib/types';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export default function DashboardPage() {
   const { user } = useAuth();
   const [totalEmployees, setTotalEmployees] = React.useState(0);
-  const [isLoading, setIsLoading] = React.useState(true);
-
-  // Placeholder data for past payrolls, used as an initial fallback.
-  const initialPayrolls = [
-    { id: 'pay001', fromDate: '2024-07-01', toDate: '2024-07-15', totalAmount: 5432.10, status: 'Completed' },
-    { id: 'pay002', fromDate: '2024-06-16', toDate: '2024-06-30', totalAmount: 5310.55, status: 'Completed' },
-  ];
-
-  const [pastPayrolls, setPastPayrolls] = React.useState(initialPayrolls);
+  const [pastPayrolls, setPastPayrolls] = React.useState<Payroll[]>([]);
+  const [isLoadingEmployees, setIsLoadingEmployees] = React.useState(true);
+  const [isLoadingPayrolls, setIsLoadingPayrolls] = React.useState(true);
 
   React.useEffect(() => {
     if (user) {
+      // Listener for employees count
       const employeesCollectionRef = collection(db, 'users', user.uid, 'employees');
-      const q = query(employeesCollectionRef);
-      const unsubscribe = onSnapshot(q, (snapshot) => {
+      const employeesQuery = query(employeesCollectionRef);
+      const unsubscribeEmployees = onSnapshot(employeesQuery, (snapshot) => {
         setTotalEmployees(snapshot.size);
-        setIsLoading(false);
+        setIsLoadingEmployees(false);
       });
-      return () => unsubscribe();
+
+      // Listener for payroll history
+      const payrollsCollectionRef = collection(db, 'users', user.uid, 'payrolls');
+      const payrollsQuery = query(payrollsCollectionRef, orderBy('toDate', 'desc'), limit(5)); // Get latest 5
+      const unsubscribePayrolls = onSnapshot(payrollsQuery, (snapshot) => {
+        const payrollsData = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        } as Payroll));
+        setPastPayrolls(payrollsData);
+        setIsLoadingPayrolls(false);
+      }, () => setIsLoadingPayrolls(false));
+
+      return () => {
+        unsubscribeEmployees();
+        unsubscribePayrolls();
+      };
     }
   }, [user]);
-
-  React.useEffect(() => {
-    try {
-        const storedHistoryJSON = localStorage.getItem('payrollHistory');
-        if (storedHistoryJSON) {
-            const storedHistory = JSON.parse(storedHistoryJSON);
-            if (storedHistory.length > 0) {
-              setPastPayrolls(storedHistory);
-            }
-        }
-    } catch (error) {
-        console.error("Could not parse payroll history from localStorage", error);
-        setPastPayrolls(initialPayrolls); // Fallback to default
-    }
-  }, []);
-
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
@@ -76,7 +73,7 @@ export default function DashboardPage() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            {isLoading ? (
+            {isLoadingEmployees ? (
                 <div className="text-2xl font-bold">-</div>
             ) : (
                 <div className="text-2xl font-bold">{totalEmployees}</div>
@@ -139,7 +136,12 @@ export default function DashboardPage() {
             <CardDescription>A summary of your most recent payroll runs.</CardDescription>
          </CardHeader>
          <CardContent>
-           {pastPayrolls.length > 0 ? (
+           {isLoadingPayrolls ? (
+             <div className="space-y-3">
+                <Skeleton className="h-16 w-full" />
+                <Skeleton className="h-16 w-full" />
+             </div>
+           ) : pastPayrolls.length > 0 ? (
               <ul className="space-y-3">
                 {pastPayrolls.map((payroll) => (
                   <li key={payroll.id} className="flex justify-between items-center p-3 border rounded-md hover:bg-muted/50 transition-colors">

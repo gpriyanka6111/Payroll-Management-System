@@ -7,8 +7,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import type { PayrollResult, EmployeePayrollInput } from '@/components/payroll/payroll-calculation';
+import { Payslip } from '@/components/payroll/payslip';
 import { format } from 'date-fns';
-import { Printer, ArrowLeft } from 'lucide-react';
+import { Printer, ArrowLeft, Users } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -42,7 +43,6 @@ export default function PayrollReportPage() {
         const inputData = sessionStorage.getItem('payrollInputData');
 
         if (resultsData && periodData && inputData) {
-            // Must parse dates manually after JSON.parse
             const parsedPeriod = JSON.parse(periodData);
             setResults(JSON.parse(resultsData));
             setInputs(JSON.parse(inputData));
@@ -51,7 +51,6 @@ export default function PayrollReportPage() {
                 to: new Date(parsedPeriod.to),
             });
         } else {
-            // Handle case where data is missing (e.g., direct navigation)
             router.replace('/dashboard/payroll/run');
         }
         setIsLoading(false);
@@ -126,7 +125,7 @@ export default function PayrollReportPage() {
     ];
 
     return (
-        <div className="payroll-report-page p-6 space-y-6">
+        <div className="space-y-6">
             <div className="report-actions flex justify-between items-center">
                 <Button variant="outline" onClick={() => router.back()}>
                     <ArrowLeft className="mr-2 h-4 w-4" /> Back to Calculation
@@ -240,6 +239,35 @@ export default function PayrollReportPage() {
                         </Table>
                     </div>
                 </section>
+            </div>
+            
+            {/* Individual Payslips Section */}
+            <div className="payslip-section mt-8 printable-section">
+                <header className="flex items-center justify-between mb-6">
+                    <div>
+                        <h2 className="text-xl font-semibold flex items-center">
+                            <Users className="mr-2 h-5 w-5"/> Individual Payslips
+                        </h2>
+                        <p className="text-muted-foreground">
+                            A payslip for each employee included in this payroll run.
+                        </p>
+                    </div>
+                </header>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 print:grid-cols-1">
+                    {results.map(result => {
+                        const input = inputs.find(i => i.employeeId === result.employeeId);
+                        if (!input) return null;
+                        return (
+                             <Payslip
+                                key={result.employeeId}
+                                companyName={companyName}
+                                payPeriod={period}
+                                result={result}
+                                input={input}
+                            />
+                        )
+                    })}
+                </div>
             </div>
         </div>
     );

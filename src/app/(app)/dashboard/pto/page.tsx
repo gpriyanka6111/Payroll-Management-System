@@ -5,20 +5,26 @@ import * as React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { User, History, Printer, ArrowLeft } from 'lucide-react';
-import { ptoUsageHistory } from '@/lib/placeholder-data';
 import { format } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/auth-context';
-import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { Employee } from '@/lib/types';
+import type { Employee, Payroll } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
 
+interface PtoUsageRecord {
+  employeeId: string;
+  employeeName: string;
+  payPeriod: string; // YYYY-MM-DD
+  ptoUsed: number;
+}
 
 export default function PtoTrackerPage() {
   const { user } = useAuth();
   const [employees, setEmployees] = React.useState<Employee[]>([]);
+  const [ptoHistory, setPtoHistory] = React.useState<PtoUsageRecord[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [today, setToday] = React.useState('');
 
@@ -29,29 +35,56 @@ export default function PtoTrackerPage() {
   React.useEffect(() => {
     if (!user) return;
 
-    const employeesCollectionRef = collection(db, 'users', user.uid, 'employees');
-    const q = query(employeesCollectionRef, orderBy('lastName', 'asc'));
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const employeesData: Employee[] = snapshot.docs.map(doc => ({
+    const fetchAllData = async () => {
+      setIsLoading(true);
+      
+      // Fetch Employees
+      const employeesCollectionRef = collection(db, 'users', user.uid, 'employees');
+      const employeesQuery = query(employeesCollectionRef, orderBy('lastName', 'asc'));
+      const employeeSnapshot = await getDocs(employeesQuery);
+      const employeesData: Employee[] = employeeSnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       } as Employee));
       setEmployees(employeesData);
-      setIsLoading(false);
-    }, () => setIsLoading(false));
 
-    return () => unsubscribe();
+      // Fetch Payrolls and generate PTO history
+      const payrollsCollectionRef = collection(db, 'users', user.uid, 'payrolls');
+      const payrollsQuery = query(payrollsCollectionRef, orderBy('toDate', 'desc'));
+      const payrollSnapshot = await getDocs(payrollsQuery);
+      const payrollsData: Payroll[] = payrollSnapshot.docs.map(doc => doc.data() as Payroll);
+      
+      const usageHistory: PtoUsageRecord[] = [];
+      payrollsData.forEach(payroll => {
+        payroll.results.forEach((result: any) => {
+          if (result.ptoUsed > 0) {
+            usageHistory.push({
+              employeeId: result.employeeId,
+              employeeName: result.name,
+              payPeriod: payroll.toDate,
+              ptoUsed: result.ptoUsed,
+            });
+          }
+        });
+      });
+      
+      setPtoHistory(usageHistory);
+      setIsLoading(false);
+    };
+
+    fetchAllData().catch(console.error);
+
   }, [user]);
 
   // Data processing
   const ptoSummary = employees.map(employee => {
-      const usedYTD = ptoUsageHistory
+      const usedYTD = ptoHistory
           .filter(record => record.employeeId === employee.id)
           .reduce((sum, record) => sum + record.ptoUsed, 0);
       
-      const initialBalance = employee.ptoBalance;
-      const remainingBalance = initialBalance - usedYTD;
+      // The current employee.ptoBalance should be the most up-to-date remaining balance
+      const remainingBalance = employee.ptoBalance;
+      const initialBalance = remainingBalance + usedYTD;
 
       return {
           ...employee,
@@ -60,8 +93,6 @@ export default function PtoTrackerPage() {
           remainingBalance,
       };
   });
-
-  const sortedHistory = [...ptoUsageHistory].sort((a, b) => new Date(b.payPeriod).getTime() - new Date(a.payPeriod).getTime());
 
   const formatHours = (hours: number): string => {
       return `${hours.toFixed(2)}`;
@@ -82,7 +113,7 @@ export default function PtoTrackerPage() {
       </Button>
       <div>
         <h1 className="text-3xl font-bold">PTO Tracker</h1>
-        <p className="text-muted-foreground">Review employee Paid Time Off balances and history.</p>
+        <p className="text-muted-foreground">Review employee Paid Time Off balances and history from live payroll data.</p>
       </div>
 
       {/* PTO Summary Card */}
@@ -105,7 +136,7 @@ export default function PtoTrackerPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Employee</TableHead>
-                  <TableHead className="text-right">Initial Balance</TableHead>
+                  <TableHead className="text-right">Initial Balance (YTD)</TableHead>
                   <TableHead className="text-right">Used (YTD)</TableHead>
                   <TableHead className="text-right">Remaining Balance</TableHead>
                 </TableRow>
@@ -119,7 +150,7 @@ export default function PtoTrackerPage() {
                     <TableCell className="text-right font-semibold tabular-nums">{formatHours(employee.remainingBalance)}</TableCell>
                   </TableRow>
                 ))}
-                {ptoSummary.length === 0 && (
+                {ptoSummary.length === 0 && !isLoading && (
                   <TableRow>
                     <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
                       No employee data found.
@@ -149,34 +180,38 @@ export default function PtoTrackerPage() {
           </div>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Employee</TableHead>
-                <TableHead>Pay Period End Date</TableHead>
-                <TableHead className="text-right">Hours Used</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {sortedHistory.map((record, index) => {
-                const employee = employees.find(e => e.id === record.employeeId);
-                return (
-                  <TableRow key={`${record.employeeId}-${record.payPeriod}-${index}`}>
-                    <TableCell className="font-medium">{employee ? `${employee.firstName} ${employee.lastName}` : 'Unknown Employee'}</TableCell>
-                    <TableCell>{formatDate(record.payPeriod)}</TableCell>
-                    <TableCell className="text-right tabular-nums">({formatHours(record.ptoUsed)})</TableCell>
-                  </TableRow>
-                );
-              })}
-              {sortedHistory.length === 0 && (
+           {isLoading ? (
+             <div className="space-y-2">
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+             </div>
+           ): (
+            <Table>
+                <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={3} className="h-24 text-center text-muted-foreground">
-                    No PTO usage history found.
-                  </TableCell>
+                    <TableHead>Employee</TableHead>
+                    <TableHead>Pay Period End Date</TableHead>
+                    <TableHead className="text-right">Hours Used</TableHead>
                 </TableRow>
-              )}
-            </TableBody>
-          </Table>
+                </TableHeader>
+                <TableBody>
+                {ptoHistory.map((record, index) => (
+                    <TableRow key={`${record.employeeId}-${record.payPeriod}-${index}`}>
+                        <TableCell className="font-medium">{record.employeeName}</TableCell>
+                        <TableCell>{formatDate(record.payPeriod)}</TableCell>
+                        <TableCell className="text-right tabular-nums">({formatHours(record.ptoUsed)})</TableCell>
+                    </TableRow>
+                ))}
+                {ptoHistory.length === 0 && !isLoading && (
+                    <TableRow>
+                    <TableCell colSpan={3} className="h-24 text-center text-muted-foreground">
+                        No PTO usage history found.
+                    </TableCell>
+                    </TableRow>
+                )}
+                </TableBody>
+            </Table>
+           )}
         </CardContent>
       </Card>
     </div>
