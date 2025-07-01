@@ -24,9 +24,9 @@ const formatCurrency = (amount: number) => {
 
 const formatHours = (hours: number): string => {
     if (typeof hours !== 'number' || isNaN(hours)) {
-        return '-- hrs';
+        return '--';
     }
-    return `${hours.toFixed(2)} hrs`;
+    return hours.toFixed(2);
 };
 
 export function Payslip({ companyName, payPeriod, result, input }: PayslipProps) {
@@ -57,7 +57,7 @@ export function Payslip({ companyName, payPeriod, result, input }: PayslipProps)
             </CardHeader>
             <CardContent className="space-y-4">
                 <div>
-                     <h3 className="text-base font-semibold mb-2">Hours Summary</h3>
+                     <h3 className="text-base font-semibold mb-2">Hours Summary (hrs)</h3>
                      <Table>
                         <TableHeader>
                             <TableRow>
