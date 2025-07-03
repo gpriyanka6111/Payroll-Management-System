@@ -212,10 +212,14 @@ function PayrollReportContent() {
 
         // Summary
         ws_data.push(['PAYROLL SUMMARY']);
-        ws_data.push(['Total Gross Pay', totals.totalGrossPay]);
-        ws_data.push(['Total Net Pay (Checks)', totals.totalNetPay]);
-        ws_data.push(['Total Other Pay', totals.totalOtherPay]);
-        ws_data.push(['Total Employees', totals.totalEmployees]);
+        ws_data.push(['GP', 'EMPLOYEE', 'DED:', 'NET', 'OTHERS']);
+        ws_data.push([
+            totals.totalNetPay,
+            summaryData.employee || '',
+            summaryData.deductions || '',
+            summaryData.netPay || '',
+            totals.totalOtherPay,
+        ]);
         
         const ws = XLSX.utils.aoa_to_sheet(ws_data);
 
@@ -231,7 +235,7 @@ function PayrollReportContent() {
         // Default height for data rows
         resultMetricsForExport.forEach(() => rowHeights.push({ hpt: 15 }));
         // Spacers and summary rows
-        rowHeights.push({}, {}, { hpt: 20 }, { hpt: 15 }, { hpt: 15 }, { hpt: 15 }, { hpt: 15 });
+        rowHeights.push({}, {}, { hpt: 20 }, { hpt: 15 }, { hpt: 15 });
         ws['!rows'] = rowHeights;
     
         XLSX.utils.book_append_sheet(wb, ws, "Payroll Report");
