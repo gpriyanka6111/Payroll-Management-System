@@ -153,6 +153,11 @@ function PayrollReportContent() {
         const wb = XLSX.utils.book_new();
         const worksheetData: (string | number)[][] = [];
 
+        // Add Company Name and Pay Range at the top
+        worksheetData.push([companyName]);
+        worksheetData.push([`Pay Period: ${format(period.from, 'LLL dd, yyyy')} - ${format(period.to, 'LLL dd, yyyy')}`]);
+        worksheetData.push([]); // Spacer row
+
         // 1. Header Row
         const headerRow = ['Metric', ...results.map(r => r.name)];
         worksheetData.push(headerRow);
