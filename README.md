@@ -51,26 +51,22 @@ To make your app accessible to others, you must connect it to a live Firebase da
 
 Here’s how to do it:
 
-**Step 1: Create a Firebase Project**
+**Step 1: Get Your Firebase Config Keys**
 
-*   Go to the [Firebase Console](https://console.firebase.google.com/).
-*   Click "Add project" and follow the on-screen instructions.
-*   Once your project is created, navigate to the "Project Settings" (click the gear icon ⚙️).
-
-**Step 2: Get Your Firebase Config Keys**
-
+*   Go to the [Firebase Console](https://console.firebase.google.com/) and open the production project you just created.
+*   Navigate to the "Project Settings" by clicking the gear icon ⚙️ next to "Project Overview".
 *   In your Project Settings, scroll down to the "Your apps" card.
 *   Click the Web icon (`</>`) to create a new web app for your project.
-*   Give it a nickname (e.g., "Paypall App") and register the app.
+*   Give it a nickname (e.g., "Paypall App") and click "Register app".
 *   Firebase will show you your configuration keys (like `apiKey`, `authDomain`, etc.). Keep this page open.
 
-**Step 3: Create a `.env.local` file**
+**Step 2: Create a `.env.local` file**
 
 *   In the root directory of this project, create a new file named `.env.local`.
-*   Copy the code block below into your new `.env.local` file.
 
-**Step 4: Add Your Keys to the File**
+**Step 3: Add Your Keys to the File**
 
+*   Copy the code block below and paste it into your new `.env.local` file.
 *   Go back to the Firebase console page with your config keys.
 *   Copy each key's value and paste it into the `.env.local` file, replacing the placeholder text.
 
@@ -87,14 +83,14 @@ NEXT_PUBLIC_FIREBASE_APP_ID="1:..."
 NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID="G-..."
 ```
 
-**Step 5: Restart Your Application**
+**Step 4: Restart Your Application**
 
 *   After saving the `.env.local` file, you must stop and restart the development server (`npm run dev`) for the changes to take effect.
 
 That's it! Your application will now be connected to your live Firebase project, ready for deployment.
 
 
-## Deployment to Firebase
+## Deployment to Firebase (Making the App Live)
 
 Once you have connected your app to a live database (see above), you can deploy it to a public URL using Firebase Hosting.
 
@@ -122,6 +118,7 @@ When prompted:
 - Select "Use an existing project" and choose the Firebase project you just configured.
 - For your public directory, enter **`.next`**.
 - When asked to configure as a single-page app, say **No**.
+- When asked to set up automatic builds and deploys with GitHub, say **No** for now.
 
 ### 3. Build and Deploy
 
