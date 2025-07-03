@@ -211,10 +211,10 @@ function PayrollReportContent() {
         // 4. Create worksheet and workbook
         const ws = XLSX.utils.aoa_to_sheet(worksheetData);
         
-        // Set column widths
+        // Set column widths for better formatting
         ws['!cols'] = [
-            { wch: 25 }, // Metric column
-            ...results.map(() => ({ wch: 18 })) // Employee columns
+            { wch: 25 }, // Metric column width
+            ...results.map(() => ({ wch: 18 })) // Employee columns width
         ];
 
         XLSX.utils.book_append_sheet(wb, ws, "Payroll Report");
