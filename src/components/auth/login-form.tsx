@@ -21,10 +21,9 @@ import { useRouter } from 'next/navigation';
 import { LogIn } from 'lucide-react';
 import Link from 'next/link';
 import { signInWithEmailAndPassword } from 'firebase/auth';
-import { auth, firebaseConfig } from '@/lib/firebase';
+import { auth } from '@/lib/firebase';
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
 import { AlertTriangle } from 'lucide-react';
-import { Badge } from '../ui/badge';
 
 
 const loginSchema = z.object({
@@ -135,14 +134,6 @@ export function LoginForm() {
             Sign up
           </Link>
         </p>
-         <div className="mt-6 text-center border-t pt-4">
-            <Badge variant="secondary">
-                Connected to: {firebaseConfig.projectId || 'Not connected'}
-            </Badge>
-            <p className="text-xs text-muted-foreground mt-2 px-4">
-                Verify this Project ID matches your production project in the Firebase Console.
-            </p>
-        </div>
       </CardContent>
     </Card>
   );
