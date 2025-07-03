@@ -185,16 +185,16 @@ function PayrollReportContent() {
     
         // Main table rows
         const resultMetricsForExport = [
-            { label: 'TOTAL HOURS WORKED', getValue: (r: PayrollResult) => Number(formatHours(r.totalHoursWorked)) },
-            { label: 'CHECK HOURS', getValue: (r: PayrollResult) => Number(formatHours(r.checkHours)) },
-            { label: 'OTHER HOURS', getValue: (r: PayrollResult) => Number(formatHours(r.otherHours)) },
-            { label: 'PTO USED', getValue: (r: PayrollResult) => Number(formatHours(r.ptoUsed)) },
-            { label: 'RATE/CHECK', getValue: (r: PayrollResult) => r.payRateCheck },
-            { label: 'RATE/OTHERS', getValue: (r: PayrollResult) => r.payRateOthers },
-            { label: 'OTHERS-ADJ ($)', getValue: (r: PayrollResult) => r.otherAdjustment },
-            { label: 'GROSS CHECK AMOUNT', getValue: (r: PayrollResult) => r.grossCheckAmount },
-            { label: 'GROSS OTHER AMOUNT', getValue: (r: PayrollResult) => r.grossOtherAmount },
-            { label: 'NEW PTO BALANCE', getValue: (r: PayrollResult) => Number(formatHours(r.newPtoBalance)) },
+            { label: 'TOTAL HOURS WORKED', getValue: (r: PayrollResult) => formatHours(r.totalHoursWorked) },
+            { label: 'CHECK HOURS', getValue: (r: PayrollResult) => formatHours(r.checkHours) },
+            { label: 'OTHER HOURS', getValue: (r: PayrollResult) => formatHours(r.otherHours) },
+            { label: 'PTO USED', getValue: (r: PayrollResult) => formatHours(r.ptoUsed) },
+            { label: 'RATE/CHECK', getValue: (r: PayrollResult) => r.payRateCheck.toFixed(2) },
+            { label: 'RATE/OTHERS', getValue: (r: PayrollResult) => r.payRateOthers.toFixed(2) },
+            { label: 'OTHERS-ADJ ($)', getValue: (r: PayrollResult) => r.otherAdjustment.toFixed(2) },
+            { label: 'GROSS CHECK AMOUNT', getValue: (r: PayrollResult) => r.grossCheckAmount.toFixed(2) },
+            { label: 'GROSS OTHER AMOUNT', getValue: (r: PayrollResult) => r.grossOtherAmount.toFixed(2) },
+            { label: 'NEW PTO BALANCE', getValue: (r: PayrollResult) => formatHours(r.newPtoBalance) },
         ];
         
         resultMetricsForExport.forEach(metric => {
@@ -214,11 +214,11 @@ function PayrollReportContent() {
         ws_data.push(['PAYROLL SUMMARY']);
         ws_data.push(['GP', 'EMPLOYEE', 'DED:', 'NET', 'OTHERS']);
         ws_data.push([
-            totals.totalNetPay,
+            totals.totalNetPay.toFixed(2),
             summaryData.employee || '',
             summaryData.deductions || '',
             summaryData.netPay || '',
-            totals.totalOtherPay,
+            totals.totalOtherPay.toFixed(2),
         ]);
         
         const ws = XLSX.utils.aoa_to_sheet(ws_data);
