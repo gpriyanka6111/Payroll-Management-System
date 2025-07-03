@@ -153,85 +153,86 @@ function PayrollReportContent() {
     }
 
     const inputMetrics = [
-        { key: 'totalHoursWorked', label: 'Total Hours Worked' },
-        { key: 'checkHours', label: 'Check Hours' },
-        { key: 'otherHours', label: 'Other Hours' },
-        { key: 'ptoUsed', label: 'PTO Used' },
+        { key: 'totalHoursWorked', label: 'TOTAL HOURS WORKED' },
+        { key: 'checkHours', label: 'CHECK HOURS' },
+        { key: 'otherHours', label: 'OTHER HOURS' },
+        { key: 'ptoUsed', label: 'PTO USED' },
     ] as const;
 
     const totals = {
-        grossCheckAmount: results.reduce((sum, r) => sum + r.grossCheckAmount, 0),
-        grossOtherAmount: results.reduce((sum, r) => sum + r.grossOtherAmount, 0),
+        totalGrossPay: results.reduce((sum, r) => sum + r.grossCheckAmount + r.grossOtherAmount, 0),
+        totalNetPay: results.reduce((sum, r) => sum + r.grossCheckAmount, 0),
+        totalOtherPay: results.reduce((sum, r) => sum + r.grossOtherAmount, 0),
+        totalEmployees: results.length,
     };
 
     const handleExportToExcel = () => {
         if (!period || !results.length) return;
     
         const wb = XLSX.utils.book_new();
-    
-        const worksheetData: (string | number)[][] = [];
-    
-        worksheetData.push([companyName]);
-        worksheetData.push([`Pay Period: ${format(period.from, 'LLL dd, yyyy')} - ${format(period.to, 'LLL dd, yyyy')}`]);
-        worksheetData.push([]); 
-    
+        const ws_data: (string | number)[][] = [];
+
+        // Header
+        ws_data.push([companyName]);
+        ws_data.push([`Pay Period: ${format(period.from, 'LLL dd, yyyy')} - ${format(period.to, 'LLL dd, yyyy')}`]);
+        ws_data.push([]); // Empty row for spacing
+
+        // Main table headers
         const headerRow = ['Metric', ...results.map(r => r.name)];
-        worksheetData.push(headerRow);
-    
+        ws_data.push(headerRow);
+
         const employeeIds = results.map(r => r.employeeId);
     
-        const metrics = [
-            { label: 'TOTAL HOURS WORKED', getValue: (r: PayrollResult) => formatHours(r.totalHoursWorked) },
-            { label: 'CHECK HOURS', getValue: (r: PayrollResult) => formatHours(r.checkHours) },
-            { label: 'OTHER HOURS', getValue: (r: PayrollResult) => formatHours(r.otherHours) },
-            { label: 'PTO USED', getValue: (r: PayrollResult) => `(${formatHours(r.ptoUsed)})` },
-            { label: 'RATE/CHECK', getValue: (r: PayrollResult) => formatCurrency(r.payRateCheck) },
-            { label: 'RATE/OTHERS', getValue: (r: PayrollResult) => formatCurrency(r.payRateOthers) },
-            { label: 'OTHERS-ADJ ($)', getValue: (r: PayrollResult) => formatCurrency(r.otherAdjustment) },
-            { label: 'GROSS CHECK AMOUNT', getValue: (r: PayrollResult) => formatCurrency(r.grossCheckAmount) },
-            { label: 'GROSS OTHER AMOUNT', getValue: (r: PayrollResult) => formatCurrency(r.grossOtherAmount) },
-            { label: 'NEW PTO BALANCE', getValue: (r: PayrollResult) => `(${formatHours(r.newPtoBalance)})` },
+        // Main table rows
+        const resultMetricsForExport = [
+            { label: 'TOTAL HOURS WORKED', getValue: (r: PayrollResult) => Number(formatHours(r.totalHoursWorked)) },
+            { label: 'CHECK HOURS', getValue: (r: PayrollResult) => Number(formatHours(r.checkHours)) },
+            { label: 'OTHER HOURS', getValue: (r: PayrollResult) => Number(formatHours(r.otherHours)) },
+            { label: 'PTO USED', getValue: (r: PayrollResult) => Number(formatHours(r.ptoUsed)) },
+            { label: 'RATE/CHECK', getValue: (r: PayrollResult) => r.payRateCheck },
+            { label: 'RATE/OTHERS', getValue: (r: PayrollResult) => r.payRateOthers },
+            { label: 'OTHERS-ADJ ($)', getValue: (r: PayrollResult) => r.otherAdjustment },
+            { label: 'GROSS CHECK AMOUNT', getValue: (r: PayrollResult) => r.grossCheckAmount },
+            { label: 'GROSS OTHER AMOUNT', getValue: (r: PayrollResult) => r.grossOtherAmount },
+            { label: 'NEW PTO BALANCE', getValue: (r: PayrollResult) => Number(formatHours(r.newPtoBalance)) },
         ];
         
-        metrics.forEach(metric => {
+        resultMetricsForExport.forEach(metric => {
             const rowData: (string | number)[] = [metric.label];
             employeeIds.forEach(id => {
                 const result = results.find(r => r.employeeId === id);
-                rowData.push(result ? metric.getValue(result) : ''); 
+                rowData.push(result ? metric.getValue(result) : '');
             });
-            worksheetData.push(rowData);
+            ws_data.push(rowData);
         });
-    
-        worksheetData.push([]); 
-        worksheetData.push([]); 
-        worksheetData.push(['PAYROLL SUMMARY']);
-    
-        const summaryHeaders = ['GP', 'EMPLOYEE', 'DED:', 'NET', 'OTHERS'];
-        const summaryValues = [
-            formatCurrency(totals.grossCheckAmount),
-            summaryData.employee || '',
-            summaryData.deductions || '',
-            summaryData.netPay || '',
-            formatCurrency(totals.grossOtherAmount),
-        ];
-        worksheetData.push(summaryHeaders);
-        worksheetData.push(summaryValues);
+
+        // Spacing before summary
+        ws_data.push([]); 
+        ws_data.push([]); 
+
+        // Summary
+        ws_data.push(['PAYROLL SUMMARY']);
+        ws_data.push(['Total Gross Pay', totals.totalGrossPay]);
+        ws_data.push(['Total Net Pay', totals.totalNetPay]);
+        ws_data.push(['Total Other Pay', totals.totalOtherPay]);
+        ws_data.push(['Total Employees', totals.totalEmployees]);
         
-        const ws = XLSX.utils.aoa_to_sheet(worksheetData);
-        
-        ws['!cols'] = [
-            { wch: 30 }, 
-            ...results.map(() => ({ wch: 20 })) 
+        const ws = XLSX.utils.aoa_to_sheet(ws_data);
+
+        // Apply formatting
+        ws['!cols'] = [{ wch: 30 }, ...results.map(() => ({ wch: 20 }))];
+
+        const rowHeights = [
+            { hpt: 24 }, // Company Name
+            { hpt: 18 }, // Pay Period
+            {}, // Spacer
+            { hpt: 20 }, // Header Row
         ];
-    
-        const summaryTitleIndex = worksheetData.length - 4;
-    
-        ws['!rows'] = worksheetData.map((_, index) => {
-            if (index === 0 || index === 3 || index === summaryTitleIndex) { 
-                return { hpt: 24 };
-            }
-            return { hpt: 15 };
-        });
+        // Default height for data rows
+        resultMetricsForExport.forEach(() => rowHeights.push({ hpt: 15 }));
+        // Spacers and summary rows
+        rowHeights.push({}, {}, { hpt: 20 }, { hpt: 15 }, { hpt: 15 }, { hpt: 15 }, { hpt: 15 });
+        ws['!rows'] = rowHeights;
     
         XLSX.utils.book_append_sheet(wb, ws, "Payroll Report");
     
@@ -239,7 +240,7 @@ function PayrollReportContent() {
         XLSX.writeFile(wb, fileName);
     };
 
-    const resultMetrics: Array<{
+    const resultMetricsOnScreen: Array<{
         label: string;
         getValue: (result: PayrollResult) => string | number;
         isBold?: boolean;
@@ -343,7 +344,7 @@ function PayrollReportContent() {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {resultMetrics.map((metric) => (
+                                {resultMetricsOnScreen.map((metric) => (
                                     <TableRow key={metric.label}>
                                         <TableCell className={cn("font-medium", metric.isBold && "font-bold")}>{metric.label}</TableCell>
                                         {results.map((result) => (
@@ -361,29 +362,26 @@ function PayrollReportContent() {
                 <Separator className="my-6" />
 
                  {/* Payroll Summary */}
-                <section>
+                 <section>
                     <h2 className="text-xl font-semibold mb-4">Payroll Summary</h2>
-                    <div className="overflow-x-auto border rounded-lg">
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>GP</TableHead>
-                                    <TableHead>EMPLOYEE</TableHead>
-                                    <TableHead>DED:</TableHead>
-                                    <TableHead>NET</TableHead>
-                                    <TableHead>Others</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                <TableRow>
-                                    <TableCell className="font-semibold tabular-nums">{formatCurrency(totals.grossCheckAmount)}</TableCell>
-                                    <TableCell>{summaryData.employee || '--'}</TableCell>
-                                    <TableCell>{summaryData.deductions || '--'}</TableCell>
-                                    <TableCell>{summaryData.netPay || '--'}</TableCell>
-                                    <TableCell className="font-semibold tabular-nums">{formatCurrency(totals.grossOtherAmount)}</TableCell>
-                                </TableRow>
-                            </TableBody>
-                        </Table>
+                    <div className="max-w-md space-y-2 rounded-lg border p-4">
+                        <div className="flex justify-between">
+                            <span className="text-muted-foreground">Total Gross Pay</span>
+                            <span className="font-semibold tabular-nums">{formatCurrency(totals.totalGrossPay)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                            <span className="text-muted-foreground">Total Net Pay (Checks)</span>
+                            <span className="font-semibold tabular-nums">{formatCurrency(totals.totalNetPay)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                            <span className="text-muted-foreground">Total Other Pay</span>
+                            <span className="font-semibold tabular-nums">{formatCurrency(totals.totalOtherPay)}</span>
+                        </div>
+                        <Separator className="my-2"/>
+                         <div className="flex justify-between">
+                            <span className="text-muted-foreground">Total Employees</span>
+                            <span className="font-semibold tabular-nums">{totals.totalEmployees}</span>
+                        </div>
                     </div>
                 </section>
             </div>
