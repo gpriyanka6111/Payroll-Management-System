@@ -1,15 +1,14 @@
-
 {
   "hosting": {
-    "source": ".",
+    "public": "out",
     "ignore": [
       "firebase.json",
       "**/.*",
       "**/node_modules/**"
-    ],
-    "frameworksBackend": {
-      "region": "us-central1",
-      "secrets": ["GOOGLE_GENAI_API_KEY"]
-    }
+    ]
+  },
+  "frameworksBackend": {
+    "region": "us-central1",
+    "secrets": ["GOOGLE_GENAI_API_KEY"]
   }
 }
