@@ -160,16 +160,13 @@ function PayrollReportContent() {
         const wb = XLSX.utils.book_new();
         const worksheetData: (string | number)[][] = [];
 
-        // Add Company Name and Pay Range at the top
         worksheetData.push([companyName]);
         worksheetData.push([`Pay Period: ${format(period.from, 'LLL dd, yyyy')} - ${format(period.to, 'LLL dd, yyyy')}`]);
-        worksheetData.push([]); // Spacer row
+        worksheetData.push([]); 
 
-        // 1. Header Row
         const headerRow = ['Metric', ...results.map(r => r.name)];
         worksheetData.push(headerRow);
 
-        // 2. Data Rows
         const employeeIds = results.map(r => r.employeeId);
 
         const metrics = [
@@ -193,15 +190,14 @@ function PayrollReportContent() {
                 if (result && input) {
                     rowData.push(metric.getValue(input, result));
                 } else {
-                    rowData.push(''); // Fallback for missing data
+                    rowData.push(''); 
                 }
             });
             worksheetData.push(rowData);
         });
 
-        // 3. Payroll Summary at the bottom
-        worksheetData.push([]); // Spacer row
-        worksheetData.push([]); // Spacer row
+        worksheetData.push([]); 
+        worksheetData.push([]); 
         worksheetData.push(['PAYROLL SUMMARY']);
 
         const summaryMetrics = [
@@ -215,34 +211,22 @@ function PayrollReportContent() {
             worksheetData.push([metric.label, metric.value]);
         });
         
-        // 4. Create worksheet and workbook
         const ws = XLSX.utils.aoa_to_sheet(worksheetData);
         
-        // --- NEW FORMATTING ---
-        // Set column widths for better formatting
         ws['!cols'] = [
-            { wch: 25 }, // Metric column width
-            ...results.map(() => ({ wch: 18 })) // Employee columns width
+            { wch: 25 }, 
+            ...results.map(() => ({ wch: 18 }))
         ];
 
-        // Set row heights for better readability
-        const rowHeights = worksheetData.map((_, index) => {
-             // Taller for header rows
-            if (index === 0 || index === 3) { 
-                return { hpt: 20 }; 
+        ws['!rows'] = worksheetData.map((_, index) => {
+            if (index === 0 || index === 3 || index === (worksheetData.length - summaryMetrics.length - 2)) { 
+                return { hpt: 20 };
             }
-             // Taller for the summary title
-            if (index === worksheetData.length - summaryMetrics.length - 2) {
-                 return { hpt: 20 };
-            }
-            return { hpt: 16 }; // Default row height
+            return { hpt: 16 };
         });
-        ws['!rows'] = rowHeights;
-        // --- END NEW FORMATTING ---
 
         XLSX.utils.book_append_sheet(wb, ws, "Payroll Report");
 
-        // 5. Trigger Download
         const fileName = `Payroll_Report_${format(period.from, 'yyyy-MM-dd')}_to_${format(period.to, 'yyyy-MM-dd')}.xlsx`;
         XLSX.writeFile(wb, fileName);
     };
