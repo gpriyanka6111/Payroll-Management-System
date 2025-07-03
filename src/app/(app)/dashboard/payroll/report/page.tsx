@@ -218,11 +218,27 @@ function PayrollReportContent() {
         // 4. Create worksheet and workbook
         const ws = XLSX.utils.aoa_to_sheet(worksheetData);
         
+        // --- NEW FORMATTING ---
         // Set column widths for better formatting
         ws['!cols'] = [
             { wch: 25 }, // Metric column width
             ...results.map(() => ({ wch: 18 })) // Employee columns width
         ];
+
+        // Set row heights for better readability
+        const rowHeights = worksheetData.map((_, index) => {
+             // Taller for header rows
+            if (index === 0 || index === 3) { 
+                return { hpt: 20 }; 
+            }
+             // Taller for the summary title
+            if (index === worksheetData.length - summaryMetrics.length - 2) {
+                 return { hpt: 20 };
+            }
+            return { hpt: 16 }; // Default row height
+        });
+        ws['!rows'] = rowHeights;
+        // --- END NEW FORMATTING ---
 
         XLSX.utils.book_append_sheet(wb, ws, "Payroll Report");
 
