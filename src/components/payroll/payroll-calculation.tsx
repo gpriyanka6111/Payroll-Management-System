@@ -113,6 +113,10 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
   const [showResults, setShowResults] = React.useState(false);
   const [companyName, setCompanyName] = React.useState("My Small Business");
 
+  const [summaryEmployee, setSummaryEmployee] = React.useState('');
+  const [summaryDeductions, setSummaryDeductions] = React.useState('');
+  const [summaryNetPay, setSummaryNetPay] = React.useState('');
+
 
   const isEditMode = !!payrollId;
 
@@ -167,6 +171,11 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
             };
         });
         
+        // Populate summary fields for editing
+        setSummaryEmployee(initialPayrollData.summaryEmployee || '');
+        setSummaryDeductions(initialPayrollData.summaryDeductions || '');
+        setSummaryNetPay(initialPayrollData.summaryNetPay || '');
+
         // If there are new employees since the payroll was run, add them
         const employeesInPayroll = new Set(initialPayrollData.inputs.map(i => i.employeeId));
         const newEmployees = employeesData.filter(e => !employeesInPayroll.has(e.id));
@@ -339,6 +348,9 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
             status: 'Completed',
             results: payrollResults,
             inputs: currentInputs,
+            summaryEmployee: summaryEmployee,
+            summaryDeductions: summaryDeductions,
+            summaryNetPay: summaryNetPay,
         };
 
         let finalPayrollId = payrollId;
@@ -366,6 +378,12 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
         sessionStorage.setItem('payrollPeriodData', JSON.stringify({ from, to }));
         sessionStorage.setItem('payrollInputData', JSON.stringify(currentInputs));
         sessionStorage.setItem('companyName', companyName);
+        const summaryData = {
+            employee: summaryEmployee,
+            deductions: summaryDeductions,
+            netPay: summaryNetPay,
+        };
+        sessionStorage.setItem('payrollSummaryData', JSON.stringify(summaryData));
         
         toast({
             title: `Payroll ${isEditMode ? 'Updated' : 'Approved'}`,
@@ -665,9 +683,9 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
                               <TableBody>
                                   <TableRow>
                                       <TableCell className="font-semibold tabular-nums">{formatCurrency(totals.grossCheckAmount)}</TableCell>
-                                      <TableCell><Input placeholder="Enter value..." /></TableCell>
-                                      <TableCell><Input placeholder="Enter value..." /></TableCell>
-                                      <TableCell><Input placeholder="Enter value..." /></TableCell>
+                                      <TableCell><Input placeholder="Enter value..." value={summaryEmployee} onChange={(e) => setSummaryEmployee(e.target.value)} /></TableCell>
+                                      <TableCell><Input placeholder="Enter value..." value={summaryDeductions} onChange={(e) => setSummaryDeductions(e.target.value)} /></TableCell>
+                                      <TableCell><Input placeholder="Enter value..." value={summaryNetPay} onChange={(e) => setSummaryNetPay(e.target.value)} /></TableCell>
                                       <TableCell className="font-semibold tabular-nums">{formatCurrency(totals.grossOtherAmount)}</TableCell>
                                   </TableRow>
                               </TableBody>
@@ -686,5 +704,3 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
      </>
   );
 }
-
-    

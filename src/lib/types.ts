@@ -29,4 +29,7 @@ export type Payroll = {
     // Store the data used to generate the report for historical viewing
     results: PayrollResult[];
     inputs: EmployeePayrollInput[];
+    summaryEmployee?: string;
+    summaryDeductions?: string;
+    summaryNetPay?: string;
 };

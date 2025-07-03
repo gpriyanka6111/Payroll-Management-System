@@ -46,6 +46,7 @@ function PayrollReportContent() {
     const [period, setPeriod] = React.useState<{ from: Date; to: Date } | null>(null);
     const [isLoading, setIsLoading] = React.useState(true);
     const [companyName, setCompanyName] = React.useState("My Small Business");
+    const [summaryData, setSummaryData] = React.useState<{ employee?: string; deductions?: string; netPay?: string }>({});
 
     React.useEffect(() => {
         const loadPayrollData = async () => {
@@ -72,6 +73,11 @@ function PayrollReportContent() {
                             from: new Date(fromY, fromM - 1, fromD),
                             to: new Date(toY, toM - 1, toD),
                         });
+                        setSummaryData({
+                            employee: payrollData.summaryEmployee,
+                            deductions: payrollData.summaryDeductions,
+                            netPay: payrollData.summaryNetPay,
+                        });
                     } else {
                         console.error("Payroll document not found.");
                         router.replace('/dashboard/payroll');
@@ -88,6 +94,7 @@ function PayrollReportContent() {
                 const periodData = sessionStorage.getItem('payrollPeriodData');
                 const inputData = sessionStorage.getItem('payrollInputData');
                 const companyData = sessionStorage.getItem('companyName'); // Might not exist
+                const summaryJSON = sessionStorage.getItem('payrollSummaryData');
 
                 if (resultsData && periodData && inputData) {
                     const parsedPeriod = JSON.parse(periodData);
@@ -97,12 +104,16 @@ function PayrollReportContent() {
                         from: new Date(parsedPeriod.from),
                         to: new Date(parsedPeriod.to),
                     });
+                    if (summaryJSON) {
+                        setSummaryData(JSON.parse(summaryJSON));
+                    }
                     if (companyData) setCompanyName(companyData);
                      // Clear session storage after loading
                     sessionStorage.removeItem('payrollResultsData');
                     sessionStorage.removeItem('payrollPeriodData');
                     sessionStorage.removeItem('payrollInputData');
                     sessionStorage.removeItem('companyName');
+                    sessionStorage.removeItem('payrollSummaryData');
                 } else {
                     router.replace('/dashboard/payroll/run');
                 }
@@ -151,7 +162,6 @@ function PayrollReportContent() {
     const totals = {
         grossCheckAmount: results.reduce((sum, r) => sum + r.grossCheckAmount, 0),
         grossOtherAmount: results.reduce((sum, r) => sum + r.grossOtherAmount, 0),
-        netPay: results.reduce((sum, r) => sum + r.netPay, 0),
     };
 
     const handleExportToExcel = () => {
@@ -159,15 +169,12 @@ function PayrollReportContent() {
     
         const wb = XLSX.utils.book_new();
     
-        // 1. Prepare data in array-of-arrays format
         const worksheetData: (string | number)[][] = [];
     
-        // Header section
         worksheetData.push([companyName]);
         worksheetData.push([`Pay Period: ${format(period.from, 'LLL dd, yyyy')} - ${format(period.to, 'LLL dd, yyyy')}`]);
-        worksheetData.push([]); // Blank row
+        worksheetData.push([]); 
     
-        // Main data table
         const headerRow = ['Metric', ...results.map(r => r.name)];
         worksheetData.push(headerRow);
     
@@ -195,41 +202,37 @@ function PayrollReportContent() {
             worksheetData.push(rowData);
         });
     
-        // Summary Section
         worksheetData.push([]); 
         worksheetData.push([]); 
         worksheetData.push(['PAYROLL SUMMARY']);
     
-        const summaryHeaders = ['Total Gross Pay', 'Total Net Pay', 'Total Other Pay', 'Total Employees'];
+        const summaryHeaders = ['GP', 'EMPLOYEE', 'DED:', 'NET', 'OTHERS'];
         const summaryValues = [
-            formatCurrency(totals.grossCheckAmount + totals.grossOtherAmount),
-            formatCurrency(totals.netPay),
+            formatCurrency(totals.grossCheckAmount),
+            summaryData.employee || '',
+            summaryData.deductions || '',
+            summaryData.netPay || '',
             formatCurrency(totals.grossOtherAmount),
-            results.length
         ];
         worksheetData.push(summaryHeaders);
         worksheetData.push(summaryValues);
         
-        // 2. Create worksheet from data
         const ws = XLSX.utils.aoa_to_sheet(worksheetData);
         
-        // 3. Apply formatting for column widths and row heights
         ws['!cols'] = [
-            { wch: 30 }, // Width for the 'Metric' column
-            ...results.map(() => ({ wch: 20 })) // Width for each employee column
+            { wch: 30 }, 
+            ...results.map(() => ({ wch: 20 })) 
         ];
     
-        const summaryTitleIndex = worksheetData.length - 3;
+        const summaryTitleIndex = worksheetData.length - 4;
     
         ws['!rows'] = worksheetData.map((_, index) => {
-            // Taller rows for major headers
             if (index === 0 || index === 3 || index === summaryTitleIndex) { 
-                return { hpt: 24 }; // Taller rows in points
+                return { hpt: 24 };
             }
-            return { hpt: 15 }; // Standard row height
+            return { hpt: 15 };
         });
     
-        // 4. Append worksheet to workbook and download
         XLSX.utils.book_append_sheet(wb, ws, "Payroll Report");
     
         const fileName = `Payroll_Report_${format(period.from, 'yyyy-MM-dd')}_to_${format(period.to, 'yyyy-MM-dd')}.xlsx`;
@@ -374,9 +377,9 @@ function PayrollReportContent() {
                             <TableBody>
                                 <TableRow>
                                     <TableCell className="font-semibold tabular-nums">{formatCurrency(totals.grossCheckAmount)}</TableCell>
-                                    <TableCell className="text-muted-foreground">--</TableCell>
-                                    <TableCell className="text-muted-foreground">--</TableCell>
-                                    <TableCell className="font-semibold tabular-nums">{formatCurrency(totals.netPay)}</TableCell>
+                                    <TableCell>{summaryData.employee || '--'}</TableCell>
+                                    <TableCell>{summaryData.deductions || '--'}</TableCell>
+                                    <TableCell>{summaryData.netPay || '--'}</TableCell>
                                     <TableCell className="font-semibold tabular-nums">{formatCurrency(totals.grossOtherAmount)}</TableCell>
                                 </TableRow>
                             </TableBody>
@@ -424,7 +427,3 @@ export default function PayrollReportPage() {
         </React.Suspense>
     )
 }
-
-    
-
-    
