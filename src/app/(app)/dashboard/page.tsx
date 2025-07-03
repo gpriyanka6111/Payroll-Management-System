@@ -12,6 +12,8 @@ import { collection, onSnapshot, query, orderBy, limit, doc } from 'firebase/fir
 import { db } from '@/lib/firebase';
 import type { Payroll } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Bar, BarChart, XAxis, YAxis } from "recharts";
+import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
 
 interface CompanySettings {
   payFrequency: 'bi-weekly' | 'weekly' | 'monthly' | 'semi-monthly';
@@ -115,6 +117,25 @@ export default function DashboardPage() {
 
   const isLoadingNextPayroll = isLoadingPayrolls || isLoadingSettings;
 
+  const chartData = React.useMemo(() => {
+    if (pastPayrolls.length > 0) {
+      return pastPayrolls
+        .map(p => ({
+          name: format(new Date(p.toDate.replace(/-/g, '/')), 'MMM d'),
+          Total: p.totalAmount,
+        }))
+        .reverse();
+    }
+    return [];
+  }, [pastPayrolls]);
+
+  const chartConfig = {
+    Total: {
+      label: "Total Payroll Cost",
+      color: "hsl(var(--primary))",
+    },
+  } satisfies ChartConfig;
+
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-bold">Dashboard</h1>
@@ -193,6 +214,55 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+       {/* Payroll Chart */}
+       <Card>
+         <CardHeader>
+            <CardTitle>Recent Payroll Overview</CardTitle>
+            <CardDescription>Total cost for your most recent payroll runs.</CardDescription>
+         </CardHeader>
+         <CardContent className="pl-2">
+           {isLoadingPayrolls ? (
+             <Skeleton className="h-[300px] w-full" />
+           ) : chartData.length > 0 ? (
+             <ChartContainer config={chartConfig} className="h-[300px] w-full">
+                <BarChart accessibilityLayer data={chartData} margin={{ top: 20 }}>
+                  <XAxis
+                    dataKey="name"
+                    tickLine={false}
+                    axisLine={false}
+                    tickMargin={8}
+                    fontSize={12}
+                  />
+                  <YAxis
+                    tickLine={false}
+                    axisLine={false}
+                    tickMargin={8}
+                    fontSize={12}
+                    tickFormatter={(value) =>
+                      `$${new Intl.NumberFormat('en-US', {
+                        notation: 'compact',
+                        compactDisplay: 'short',
+                      }).format(value as number)}`
+                    }
+                  />
+                  <ChartTooltip
+                    cursor={false}
+                    content={<ChartTooltipContent
+                        formatter={(value) => formatCurrency(value as number)}
+                        indicator="dot"
+                    />}
+                  />
+                  <Bar dataKey="Total" fill="var(--color-Total)" radius={4} />
+                </BarChart>
+             </ChartContainer>
+           ) : (
+             <div className="flex h-[300px] w-full items-center justify-center">
+                <p className="text-center text-muted-foreground py-4">No payroll history to display in chart.</p>
+             </div>
+           )}
+         </CardContent>
+       </Card>
 
        {/* Payroll History */}
        <Card>
