@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils';
 import type { PayrollResult, EmployeePayrollInput } from '@/components/payroll/payroll-calculation';
 import { Payslip } from '@/components/payroll/payslip';
 import { format } from 'date-fns';
-import { Printer, ArrowLeft, Users, Pencil } from 'lucide-react';
+import { Printer, ArrowLeft, Users, Pencil, FileSpreadsheet } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -17,6 +17,7 @@ import { useAuth } from '@/contexts/auth-context';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import Link from 'next/link';
+import * as XLSX from 'xlsx';
 
 const formatCurrency = (amount: unknown) => {
     const num = Number(amount);
@@ -146,6 +147,54 @@ function PayrollReportContent() {
         netPay: results.reduce((sum, r) => sum + r.netPay, 0),
     };
 
+     const handleExportToExcel = () => {
+        if (!period || !results.length) return;
+
+        const wb = XLSX.utils.book_new();
+
+        // 1. Summary Sheet
+        const summarySheetData = [
+            ["Company Name", companyName],
+            ["Report Type", "Payroll Report"],
+            ["Pay Period", `${format(period.from, 'LLL dd, y')} - ${format(period.to, 'LLL dd, y')}`],
+            [], // Spacer
+            ["Metric", "Value"],
+            ["Total Gross Pay", formatCurrency(totals.grossCheckAmount + totals.grossOtherAmount)],
+            ["Total Employees", results.length],
+        ];
+        const wsSummary = XLSX.utils.aoa_to_sheet(summarySheetData);
+        wsSummary['!cols'] = [{ wch: 20 }, { wch: 20 }];
+        XLSX.utils.book_append_sheet(wb, wsSummary, "Payroll Summary");
+
+
+        // 2. Detailed Report Sheet
+        const detailedReportData = results.map(result => {
+            return {
+                "Employee Name": result.name,
+                "Total Hours": result.totalHoursWorked,
+                "Check Hours": result.checkHours,
+                "Other Hours": result.otherHours,
+                "PTO Used": result.ptoUsed,
+                "Check Rate ($)": result.payRateCheck,
+                "Other Rate ($)": result.payRateOthers,
+                "Other Adjustment ($)": result.otherAdjustment,
+                "Gross Check Pay ($)": result.grossCheckAmount,
+                "Gross Other Pay ($)": result.grossOtherAmount,
+                "Total Gross Pay ($)": result.grossCheckAmount + result.grossOtherAmount,
+                "New PTO Balance": result.newPtoBalance
+            };
+        });
+        const wsDetailed = XLSX.utils.json_to_sheet(detailedReportData);
+        const colWidths = Object.keys(detailedReportData[0] || {}).map(key => ({ wch: Math.max(key.length, 15) }));
+        wsDetailed['!cols'] = colWidths;
+        XLSX.utils.book_append_sheet(wb, wsDetailed, "Detailed Report");
+
+
+        // 3. Trigger Download
+        const fileName = `Payroll_Report_${format(period.from, 'yyyy-MM-dd')}_to_${format(period.to, 'yyyy-MM-dd')}.xlsx`;
+        XLSX.writeFile(wb, fileName);
+    };
+
     const resultMetrics: Array<{
         label: string;
         getValue: (result: PayrollResult) => string | number;
@@ -184,6 +233,9 @@ function PayrollReportContent() {
                             </Link>
                         </Button>
                     )}
+                    <Button variant="outline" onClick={handleExportToExcel}>
+                        <FileSpreadsheet className="mr-2 h-4 w-4" /> Export
+                    </Button>
                     <Button onClick={handlePrint}>
                         <Printer className="mr-2 h-4 w-4" /> Print Report
                     </Button>
