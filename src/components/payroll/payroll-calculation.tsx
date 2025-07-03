@@ -28,7 +28,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { Textarea } from '../ui/textarea';
 import type { Employee, Payroll } from '@/lib/types';
 import { useAuth } from '@/contexts/auth-context';
-import { collection, getDocs, query, orderBy, addDoc, doc, updateDoc, writeBatch } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, addDoc, doc, updateDoc, writeBatch, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Skeleton } from '../ui/skeleton';
 
@@ -111,6 +111,8 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
   const [isApproving, setIsApproving] = React.useState(false);
   const [payrollResults, setPayrollResults] = React.useState<PayrollResult[]>([]);
   const [showResults, setShowResults] = React.useState(false);
+  const [companyName, setCompanyName] = React.useState("My Small Business");
+
 
   const isEditMode = !!payrollId;
 
@@ -136,6 +138,13 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
 
     const fetchAndSetData = async () => {
       setIsLoading(true);
+
+      const userDocRef = doc(db, 'users', user.uid);
+      const userSnap = await getDoc(userDocRef);
+      if (userSnap.exists()) {
+        setCompanyName(userSnap.data().companyName || "My Small Business");
+      }
+
       const employeesCollectionRef = collection(db, 'users', user.uid, 'employees');
       const q = query(employeesCollectionRef, orderBy('lastName', 'asc'));
       const querySnapshot = await getDocs(q);
@@ -356,8 +365,7 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
         sessionStorage.setItem('payrollResultsData', JSON.stringify(payrollResults));
         sessionStorage.setItem('payrollPeriodData', JSON.stringify({ from, to }));
         sessionStorage.setItem('payrollInputData', JSON.stringify(currentInputs));
-        // Pass the ID to the report page
-        sessionStorage.setItem('payrollId', finalPayrollId!);
+        sessionStorage.setItem('companyName', companyName);
         
         toast({
             title: `Payroll ${isEditMode ? 'Updated' : 'Approved'}`,
@@ -678,3 +686,5 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
      </>
   );
 }
+
+    

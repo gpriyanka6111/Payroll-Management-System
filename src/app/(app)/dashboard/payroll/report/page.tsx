@@ -45,16 +45,20 @@ function PayrollReportContent() {
     const [inputs, setInputs] = React.useState<EmployeePayrollInput[]>([]);
     const [period, setPeriod] = React.useState<{ from: Date; to: Date } | null>(null);
     const [isLoading, setIsLoading] = React.useState(true);
+    const [companyName, setCompanyName] = React.useState("My Small Business");
 
     React.useEffect(() => {
         const loadPayrollData = async () => {
             setIsLoading(true);
-            if (payrollId) {
-                if (!user) {
-                    // Waiting for auth context to load user
-                    return;
-                }
+            if (payrollId && user) {
                 try {
+                    // Fetch company name from user settings
+                    const userDocRef = doc(db, 'users', user.uid);
+                    const userSnap = await getDoc(userDocRef);
+                    if (userSnap.exists()) {
+                        setCompanyName(userSnap.data().companyName || "My Small Business");
+                    }
+
                     const payrollDocRef = doc(db, 'users', user.uid, 'payrolls', payrollId);
                     const payrollSnap = await getDoc(payrollDocRef);
                     if (payrollSnap.exists()) {
@@ -79,10 +83,11 @@ function PayrollReportContent() {
                     setIsLoading(false);
                 }
             } else {
-                // Fallback to sessionStorage for the "run new payroll" flow
+                // Fallback for new payroll run, data from sessionStorage
                 const resultsData = sessionStorage.getItem('payrollResultsData');
                 const periodData = sessionStorage.getItem('payrollPeriodData');
                 const inputData = sessionStorage.getItem('payrollInputData');
+                const companyData = sessionStorage.getItem('companyName'); // Might not exist
 
                 if (resultsData && periodData && inputData) {
                     const parsedPeriod = JSON.parse(periodData);
@@ -92,10 +97,12 @@ function PayrollReportContent() {
                         from: new Date(parsedPeriod.from),
                         to: new Date(parsedPeriod.to),
                     });
-                     // Clear session storage after loading to prevent stale data on back navigation
+                    if (companyData) setCompanyName(companyData);
+                     // Clear session storage after loading
                     sessionStorage.removeItem('payrollResultsData');
                     sessionStorage.removeItem('payrollPeriodData');
                     sessionStorage.removeItem('payrollInputData');
+                    sessionStorage.removeItem('companyName');
                 } else {
                     router.replace('/dashboard/payroll/run');
                 }
@@ -103,7 +110,9 @@ function PayrollReportContent() {
             }
         };
 
-        loadPayrollData();
+        if (user) {
+          loadPayrollData();
+        }
     }, [router, payrollId, user]);
     
     const handlePrint = () => {
@@ -131,8 +140,6 @@ function PayrollReportContent() {
             </div>
         )
     }
-
-    const companyName = "My Small Business"; // Placeholder
 
     const inputMetrics = [
         { key: 'totalHoursWorked', label: 'Total Hours Worked' },
@@ -166,16 +173,16 @@ function PayrollReportContent() {
         const employeeIds = results.map(r => r.employeeId);
 
         const metrics = [
-            { label: 'TOTAL HOURS WORKED', getValue: (input: EmployeePayrollInput, result: PayrollResult) => result.totalHoursWorked },
-            { label: 'CHECK HOURS', getValue: (input: EmployeePayrollInput, result: PayrollResult) => result.checkHours },
-            { label: 'OTHER HOURS', getValue: (input: EmployeePayrollInput, result: PayrollResult) => result.otherHours },
-            { label: 'PTO USED', getValue: (input: EmployeePayrollInput, result: PayrollResult) => result.ptoUsed },
-            { label: 'RATE/CHECK', getValue: (input: EmployeePayrollInput, result: PayrollResult) => result.payRateCheck },
-            { label: 'RATE/OTHERS', getValue: (input: EmployeePayrollInput, result: PayrollResult) => result.payRateOthers },
-            { label: 'OTHERS-ADJ ($)', getValue: (input: EmployeePayrollInput, result: PayrollResult) => result.otherAdjustment },
-            { label: 'GROSS CHECK AMOUNT', getValue: (input: EmployeePayrollInput, result: PayrollResult) => result.grossCheckAmount },
-            { label: 'GROSS OTHER AMOUNT', getValue: (input: EmployeePayrollInput, result: PayrollResult) => result.grossOtherAmount },
-            { label: 'NEW PTO BALANCE', getValue: (input: EmployeePayrollInput, result: PayrollResult) => result.newPtoBalance },
+            { label: 'TOTAL HOURS WORKED', getValue: (_input: EmployeePayrollInput, result: PayrollResult) => result.totalHoursWorked },
+            { label: 'CHECK HOURS', getValue: (_input: EmployeePayrollInput, result: PayrollResult) => result.checkHours },
+            { label: 'OTHER HOURS', getValue: (_input: EmployeePayrollInput, result: PayrollResult) => result.otherHours },
+            { label: 'PTO USED', getValue: (_input: EmployeePayrollInput, result: PayrollResult) => result.ptoUsed },
+            { label: 'RATE/CHECK', getValue: (_input: EmployeePayrollInput, result: PayrollResult) => result.payRateCheck },
+            { label: 'RATE/OTHERS', getValue: (_input: EmployeePayrollInput, result: PayrollResult) => result.payRateOthers },
+            { label: 'OTHERS-ADJ ($)', getValue: (_input: EmployeePayrollInput, result: PayrollResult) => result.otherAdjustment },
+            { label: 'GROSS CHECK AMOUNT', getValue: (_input: EmployeePayrollInput, result: PayrollResult) => result.grossCheckAmount },
+            { label: 'GROSS OTHER AMOUNT', getValue: (_input: EmployeePayrollInput, result: PayrollResult) => result.grossOtherAmount },
+            { label: 'NEW PTO BALANCE', getValue: (_input: EmployeePayrollInput, result: PayrollResult) => result.newPtoBalance },
         ];
         
         metrics.forEach(metric => {
@@ -412,3 +419,5 @@ export default function PayrollReportPage() {
         </React.Suspense>
     )
 }
+
+    
