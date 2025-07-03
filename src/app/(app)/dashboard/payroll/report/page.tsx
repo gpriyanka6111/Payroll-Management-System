@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils';
 import type { PayrollResult, EmployeePayrollInput } from '@/components/payroll/payroll-calculation';
 import { Payslip } from '@/components/payroll/payslip';
 import { format } from 'date-fns';
-import { Printer, ArrowLeft, Users, Pencil, FileSpreadsheet } from 'lucide-react';
+import { ArrowLeft, Users, Pencil, FileSpreadsheet } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -126,10 +126,6 @@ function PayrollReportContent() {
         }
     }, [router, payrollId, user]);
     
-    const handlePrint = () => {
-        window.print();
-    };
-    
     if (isLoading) {
         return (
              <div className="space-y-4 p-6">
@@ -185,16 +181,16 @@ function PayrollReportContent() {
     
         // Main table rows
         const resultMetricsForExport = [
-            { label: 'TOTAL HOURS WORKED', getValue: (r: PayrollResult) => formatHours(r.totalHoursWorked) },
-            { label: 'CHECK HOURS', getValue: (r: PayrollResult) => formatHours(r.checkHours) },
-            { label: 'OTHER HOURS', getValue: (r: PayrollResult) => formatHours(r.otherHours) },
-            { label: 'PTO USED', getValue: (r: PayrollResult) => formatHours(r.ptoUsed) },
+            { label: 'TOTAL HOURS WORKED', getValue: (r: PayrollResult) => formatHours(r.totalHoursWorked).toString() },
+            { label: 'CHECK HOURS', getValue: (r: PayrollResult) => formatHours(r.checkHours).toString() },
+            { label: 'OTHER HOURS', getValue: (r: PayrollResult) => formatHours(r.otherHours).toString() },
+            { label: 'PTO USED', getValue: (r: PayrollResult) => formatHours(r.ptoUsed).toString() },
             { label: 'RATE/CHECK', getValue: (r: PayrollResult) => r.payRateCheck.toFixed(2) },
             { label: 'RATE/OTHERS', getValue: (r: PayrollResult) => r.payRateOthers.toFixed(2) },
             { label: 'OTHERS-ADJ ($)', getValue: (r: PayrollResult) => r.otherAdjustment.toFixed(2) },
             { label: 'GROSS CHECK AMOUNT', getValue: (r: PayrollResult) => r.grossCheckAmount.toFixed(2) },
             { label: 'GROSS OTHER AMOUNT', getValue: (r: PayrollResult) => r.grossOtherAmount.toFixed(2) },
-            { label: 'NEW PTO BALANCE', getValue: (r: PayrollResult) => formatHours(r.newPtoBalance) },
+            { label: 'NEW PTO BALANCE', getValue: (r: PayrollResult) => formatHours(r.newPtoBalance).toString() },
         ];
         
         resultMetricsForExport.forEach(metric => {
@@ -284,9 +280,6 @@ function PayrollReportContent() {
                     )}
                     <Button variant="outline" onClick={handleExportToExcel}>
                         <FileSpreadsheet className="mr-2 h-4 w-4" /> Export
-                    </Button>
-                    <Button onClick={handlePrint}>
-                        <Printer className="mr-2 h-4 w-4" /> Print Report
                     </Button>
                 </div>
             </div>
