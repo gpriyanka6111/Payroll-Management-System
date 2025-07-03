@@ -154,79 +154,84 @@ function PayrollReportContent() {
         netPay: results.reduce((sum, r) => sum + r.netPay, 0),
     };
 
-     const handleExportToExcel = () => {
-        if (!period || !results.length || !inputs.length) return;
-
+    const handleExportToExcel = () => {
+        if (!period || !results.length) return;
+    
         const wb = XLSX.utils.book_new();
+    
+        // 1. Prepare data in array-of-arrays format
         const worksheetData: (string | number)[][] = [];
-
+    
+        // Header section
         worksheetData.push([companyName]);
         worksheetData.push([`Pay Period: ${format(period.from, 'LLL dd, yyyy')} - ${format(period.to, 'LLL dd, yyyy')}`]);
-        worksheetData.push([]); 
-
+        worksheetData.push([]); // Blank row
+    
+        // Main data table
         const headerRow = ['Metric', ...results.map(r => r.name)];
         worksheetData.push(headerRow);
-
+    
         const employeeIds = results.map(r => r.employeeId);
-
+    
         const metrics = [
-            { label: 'TOTAL HOURS WORKED', getValue: (_input: EmployeePayrollInput, result: PayrollResult) => result.totalHoursWorked },
-            { label: 'CHECK HOURS', getValue: (_input: EmployeePayrollInput, result: PayrollResult) => result.checkHours },
-            { label: 'OTHER HOURS', getValue: (_input: EmployeePayrollInput, result: PayrollResult) => result.otherHours },
-            { label: 'PTO USED', getValue: (_input: EmployeePayrollInput, result: PayrollResult) => result.ptoUsed },
-            { label: 'RATE/CHECK', getValue: (_input: EmployeePayrollInput, result: PayrollResult) => result.payRateCheck },
-            { label: 'RATE/OTHERS', getValue: (_input: EmployeePayrollInput, result: PayrollResult) => result.payRateOthers },
-            { label: 'OTHERS-ADJ ($)', getValue: (_input: EmployeePayrollInput, result: PayrollResult) => result.otherAdjustment },
-            { label: 'GROSS CHECK AMOUNT', getValue: (_input: EmployeePayrollInput, result: PayrollResult) => result.grossCheckAmount },
-            { label: 'GROSS OTHER AMOUNT', getValue: (_input: EmployeePayrollInput, result: PayrollResult) => result.grossOtherAmount },
-            { label: 'NEW PTO BALANCE', getValue: (_input: EmployeePayrollInput, result: PayrollResult) => result.newPtoBalance },
+            { label: 'TOTAL HOURS WORKED', getValue: (r: PayrollResult) => formatHours(r.totalHoursWorked) },
+            { label: 'CHECK HOURS', getValue: (r: PayrollResult) => formatHours(r.checkHours) },
+            { label: 'OTHER HOURS', getValue: (r: PayrollResult) => formatHours(r.otherHours) },
+            { label: 'PTO USED', getValue: (r: PayrollResult) => `(${formatHours(r.ptoUsed)})` },
+            { label: 'RATE/CHECK', getValue: (r: PayrollResult) => formatCurrency(r.payRateCheck) },
+            { label: 'RATE/OTHERS', getValue: (r: PayrollResult) => formatCurrency(r.payRateOthers) },
+            { label: 'OTHERS-ADJ ($)', getValue: (r: PayrollResult) => formatCurrency(r.otherAdjustment) },
+            { label: 'GROSS CHECK AMOUNT', getValue: (r: PayrollResult) => formatCurrency(r.grossCheckAmount) },
+            { label: 'GROSS OTHER AMOUNT', getValue: (r: PayrollResult) => formatCurrency(r.grossOtherAmount) },
+            { label: 'NEW PTO BALANCE', getValue: (r: PayrollResult) => `(${formatHours(r.newPtoBalance)})` },
         ];
         
         metrics.forEach(metric => {
             const rowData: (string | number)[] = [metric.label];
             employeeIds.forEach(id => {
                 const result = results.find(r => r.employeeId === id);
-                const input = inputs.find(i => i.employeeId === id);
-                if (result && input) {
-                    rowData.push(metric.getValue(input, result));
-                } else {
-                    rowData.push(''); 
-                }
+                rowData.push(result ? metric.getValue(result) : ''); 
             });
             worksheetData.push(rowData);
         });
-
+    
+        // Summary Section
         worksheetData.push([]); 
         worksheetData.push([]); 
         worksheetData.push(['PAYROLL SUMMARY']);
-
-        const summaryMetrics = [
-            { label: 'Total Gross Pay', value: totals.grossCheckAmount + totals.grossOtherAmount },
-            { label: 'Total Net Pay', value: totals.netPay },
-            { label: 'Total Other Pay', value: totals.grossOtherAmount },
-            { label: 'Total Employees', value: results.length },
+    
+        const summaryHeaders = ['Total Gross Pay', 'Total Net Pay', 'Total Other Pay', 'Total Employees'];
+        const summaryValues = [
+            formatCurrency(totals.grossCheckAmount + totals.grossOtherAmount),
+            formatCurrency(totals.netPay),
+            formatCurrency(totals.grossOtherAmount),
+            results.length
         ];
-
-        summaryMetrics.forEach(metric => {
-            worksheetData.push([metric.label, metric.value]);
-        });
+        worksheetData.push(summaryHeaders);
+        worksheetData.push(summaryValues);
         
+        // 2. Create worksheet from data
         const ws = XLSX.utils.aoa_to_sheet(worksheetData);
         
+        // 3. Apply formatting for column widths and row heights
         ws['!cols'] = [
-            { wch: 25 }, 
-            ...results.map(() => ({ wch: 18 }))
+            { wch: 30 }, // Width for the 'Metric' column
+            ...results.map(() => ({ wch: 20 })) // Width for each employee column
         ];
-
+    
+        const summaryTitleIndex = worksheetData.length - 3;
+    
         ws['!rows'] = worksheetData.map((_, index) => {
-            if (index === 0 || index === 3 || index === (worksheetData.length - summaryMetrics.length - 2)) { 
-                return { hpt: 20 };
+            // Taller rows for major headers
+            if (index === 0 || index === 3 || index === summaryTitleIndex) { 
+                return { hpt: 24 }; // Taller rows in points
             }
-            return { hpt: 16 };
+            return { hpt: 15 }; // Standard row height
         });
-
+    
+        // 4. Append worksheet to workbook and download
         XLSX.utils.book_append_sheet(wb, ws, "Payroll Report");
-
+    
         const fileName = `Payroll_Report_${format(period.from, 'yyyy-MM-dd')}_to_${format(period.to, 'yyyy-MM-dd')}.xlsx`;
         XLSX.writeFile(wb, fileName);
     };
@@ -419,5 +424,7 @@ export default function PayrollReportPage() {
         </React.Suspense>
     )
 }
+
+    
 
     
