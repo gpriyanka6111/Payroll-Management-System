@@ -213,7 +213,7 @@ function PayrollReportContent() {
         // Summary
         ws_data.push(['PAYROLL SUMMARY']);
         ws_data.push(['Total Gross Pay', totals.totalGrossPay]);
-        ws_data.push(['Total Net Pay', totals.totalNetPay]);
+        ws_data.push(['Total Net Pay (Checks)', totals.totalNetPay]);
         ws_data.push(['Total Other Pay', totals.totalOtherPay]);
         ws_data.push(['Total Employees', totals.totalEmployees]);
         
@@ -361,27 +361,30 @@ function PayrollReportContent() {
 
                 <Separator className="my-6" />
 
-                 {/* Payroll Summary */}
-                 <section>
+                {/* Payroll Summary */}
+                <section>
                     <h2 className="text-xl font-semibold mb-4">Payroll Summary</h2>
-                    <div className="max-w-md space-y-2 rounded-lg border p-4">
-                        <div className="flex justify-between">
-                            <span className="text-muted-foreground">Total Gross Pay</span>
-                            <span className="font-semibold tabular-nums">{formatCurrency(totals.totalGrossPay)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                            <span className="text-muted-foreground">Total Net Pay (Checks)</span>
-                            <span className="font-semibold tabular-nums">{formatCurrency(totals.totalNetPay)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                            <span className="text-muted-foreground">Total Other Pay</span>
-                            <span className="font-semibold tabular-nums">{formatCurrency(totals.totalOtherPay)}</span>
-                        </div>
-                        <Separator className="my-2"/>
-                         <div className="flex justify-between">
-                            <span className="text-muted-foreground">Total Employees</span>
-                            <span className="font-semibold tabular-nums">{totals.totalEmployees}</span>
-                        </div>
+                    <div className="overflow-x-auto border rounded-lg">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>GP</TableHead>
+                                    <TableHead>EMPLOYEE</TableHead>
+                                    <TableHead>DED:</TableHead>
+                                    <TableHead>NET</TableHead>
+                                    <TableHead>Others</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                <TableRow>
+                                    <TableCell className="font-semibold tabular-nums">{formatCurrency(totals.totalNetPay)}</TableCell>
+                                    <TableCell>{summaryData.employee || '-'}</TableCell>
+                                    <TableCell>{summaryData.deductions || '-'}</TableCell>
+                                    <TableCell>{summaryData.netPay || '-'}</TableCell>
+                                    <TableCell className="font-semibold tabular-nums">{formatCurrency(totals.totalOtherPay)}</TableCell>
+                                </TableRow>
+                            </TableBody>
+                        </Table>
                     </div>
                 </section>
             </div>
