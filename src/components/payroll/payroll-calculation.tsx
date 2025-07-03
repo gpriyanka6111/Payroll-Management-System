@@ -674,7 +674,6 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
                                   <TableRow>
                                       <TableHead>GP</TableHead>
                                       <TableHead>EMPLOYEE</TableHead>
-
                                       <TableHead>DED:</TableHead>
                                       <TableHead>NET</TableHead>
                                       <TableHead>Others</TableHead>
