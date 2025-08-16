@@ -65,35 +65,42 @@ export default function DashboardPage() {
   
   // Effect to fetch today's activity for ALL employees
   React.useEffect(() => {
-    if (!user) return;
+    if (!user || employees.length === 0) {
+        if (!isLoading) setTodaysGlobalEntries([]);
+        return;
+    };
 
-    const todayStart = startOfDay(new Date());
-    const todayEnd = endOfDay(new Date());
+    const fetchAllTodaysEntries = async () => {
+        const todayStart = startOfDay(new Date());
+        const todayEnd = endOfDay(new Date());
+        let allEntries: TimeEntry[] = [];
 
-    // This query looks at all `timeEntries` collections across all employees for the current user.
-    const timeEntriesQuery = query(
-        collectionGroup(db, 'timeEntries'),
-        where('userId', '==', user.uid),
-        where('timeIn', '>=', todayStart),
-        where('timeIn', '<=', todayEnd),
-        orderBy('timeIn', 'desc')
-    );
+        for (const employee of employees) {
+            try {
+                const timeEntriesRef = collection(db, 'users', user.uid, 'employees', employee.id, 'timeEntries');
+                const q = query(
+                    timeEntriesRef,
+                    where('timeIn', '>=', todayStart),
+                    where('timeIn', '<=', todayEnd)
+                );
+                const snapshot = await getDocs(q);
+                const employeeEntries = snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                } as TimeEntry));
+                allEntries = [...allEntries, ...employeeEntries];
+            } catch (error) {
+                 console.error(`Error fetching entries for ${employee.firstName}:`, error);
+            }
+        }
+        
+        allEntries.sort((a, b) => b.timeIn.toDate().getTime() - a.timeIn.toDate().getTime());
+        setTodaysGlobalEntries(allEntries);
+    }
     
-    const unsubscribe = onSnapshot(timeEntriesQuery, (snapshot) => {
-        const entriesData = snapshot.docs.map(doc => {
-            return {
-                id: doc.id,
-                ...doc.data(),
-            } as TimeEntry;
-        });
-        setTodaysGlobalEntries(entriesData);
-    }, (error) => {
-        console.error("Error fetching global time entries:", error);
-        toast({ title: "Error", description: "Could not fetch today's activity.", variant: "destructive" });
-    });
+    fetchAllTodaysEntries();
 
-    return () => unsubscribe();
-  }, [user, toast]);
+  }, [user, employees, isLoading]);
 
 
   // Effect to fetch and listen to the selected employee's active entry
