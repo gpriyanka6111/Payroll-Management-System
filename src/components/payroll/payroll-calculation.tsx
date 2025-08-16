@@ -507,7 +507,7 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
                      <TableRow>
                       <TableHead className="font-bold min-w-[200px]">Metric</TableHead>
                        {fields.map((field) => (
-                          <TableHead key={field.id} className="text-right">{field.name}</TableHead>
+                          <TableHead key={field.id} className="text-left">{field.name}</TableHead>
                        ))}
                      </TableRow>
                    </TableHeader>
@@ -516,7 +516,7 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
                        <TableRow key={metric.key}>
                            <TableCell className="font-medium">{metric.label}</TableCell>
                             {fields.map((field, index) => (
-                               <TableCell key={field.id} className="text-right p-2">
+                               <TableCell key={field.id} className="text-left p-2">
                                  <FormField
                                     control={form.control}
                                     name={`employees.${index}.${metric.key}`}
@@ -529,7 +529,7 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
                                                 placeholder="0" 
                                                 {...inputField} 
                                                 {...metric.props} 
-                                                className="h-8 w-28 text-right mx-auto"
+                                                className="h-8 w-28 text-left"
                                             />
                                         </FormControl>
                                          <FormMessage className="text-xs mt-1" />
@@ -599,160 +599,4 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
                         <AlertTitle>Error</AlertTitle>
                         <AlertDescription>
                           Please check the form for errors. Total or PTO hours may be invalid.
-                        </AlertDescription>
-                    </Alert>
-                )}
-
-              <Button type="submit" disabled={fields.length === 0 || form.formState.isSubmitting} className="w-full bg-accent text-accent-foreground hover:bg-accent/90">
-                <Calculator className="mr-2 h-4 w-4" /> Calculate Payroll
-              </Button>
-            </form>
-          </Form>
-         </CardContent>
-       </Card>
-
-       {showResults && (() => {
-          const totals = {
-              grossCheckAmount: payrollResults.reduce((sum, r) => sum + r.grossCheckAmount, 0),
-              grossOtherAmount: payrollResults.reduce((sum, r) => sum + r.grossOtherAmount, 0),
-              netPay: payrollResults.reduce((sum, r) => sum + r.netPay, 0),
-              otherAdjustment: payrollResults.reduce((sum, r) => sum + r.otherAdjustment, 0),
-          };
-
-          const metrics: Array<{
-              label: string;
-              getValue: (result: PayrollResult) => string | number;
-              isBold?: boolean;
-              isDestructive?: boolean;
-              type?: 'separator';
-          }> = [
-              { label: "Total Hours", getValue: (result) => formatHours(result.totalHoursWorked) },
-              { label: "Check Hours", getValue: (result) => formatHours(result.checkHours) },
-              { label: "Other Hours", getValue: (result) => formatHours(result.otherHours) },
-              { label: "PTO Time", getValue: (result) => `(${formatHours(result.ptoUsed)})` },
-              { type: 'separator', label: '', getValue: () => '' },
-              { label: "Rate/Check", getValue: (result) => formatCurrency(result.payRateCheck) + "/hr" },
-              { label: "Rate/Others", getValue: (result) => formatCurrency(result.payRateOthers) + "/hr" },
-              { label: "Others-ADJ $", getValue: (result) => result.otherAdjustment },
-              { type: 'separator', label: '', getValue: () => '' },
-              {
-                  label: "Gross Check Amount",
-                  getValue: (result) => formatCurrency(result.grossCheckAmount),
-                  isBold: true,
-              },
-              {
-                  label: "Gross Other Amount",
-                  getValue: (result) => formatCurrency(result.grossOtherAmount),
-                  isBold: true,
-              },
-              { type: 'separator', label: '', getValue: () => '' },
-              {
-                  label: "New PTO Balance",
-                   getValue: (result) => `(${formatHours(result.newPtoBalance)})`
-              },
-          ];
-
-           return (
-               <Card className="mt-6">
-                   <CardHeader>
-                        <CardTitle>Review Payroll Results</CardTitle>
-                        <CardDescription>
-                            Pay Period: {format(from, 'LLL dd, y')} - {format(to, 'LLL dd, y')}
-                        </CardDescription>
-                   </CardHeader>
-                   <CardContent>
-                       <Alert variant="default" className="mb-4 bg-blue-50 border-blue-200">
-                          <CheckCircle className="h-4 w-4 text-primary" />
-                          <AlertTitle className="text-primary">Calculation Complete</AlertTitle>
-                          <AlertDescription>
-                            Review the payroll details below. Click "Approve" to finalize.
-                          </AlertDescription>
-                       </Alert>
-                      <div className="overflow-x-auto">
-                       <Table className="w-auto">
-                          <TableHeader>
-                              <TableRow>
-                                 <TableHead className="font-bold min-w-[200px]">Metric</TableHead>
-                                 {payrollResults.map((result) => (
-                                     <TableHead key={result.employeeId} className="text-right">{result.name}</TableHead>
-                                 ))}
-                              </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                              {metrics.map((metric, index) => {
-                                  if (metric.type === 'separator') {
-                                      return (
-                                          <TableRow key={`sep-${index}`} className="bg-muted/20 hover:bg-muted/20">
-                                              <TableCell colSpan={payrollResults.length + 1} className="h-2 p-0"></TableCell>
-                                          </TableRow>
-                                      );
-                                  }
-                                  return (
-                                      <TableRow key={metric.label}>
-                                         <TableCell className={cn("font-medium", metric.isBold && "font-bold")}>{metric.label}</TableCell>
-                                         {payrollResults.map((result) => (
-                                            <TableCell
-                                                key={result.employeeId}
-                                                className={cn(
-                                                "text-right tabular-nums",
-                                                { "font-semibold": metric.isBold, "text-destructive": metric.isDestructive },
-                                                metric.label === "Others-ADJ $" && "p-2"
-                                                )}
-                                            >
-                                                {metric.label === "Others-ADJ $" ? (
-                                                <Input
-                                                    type="number"
-                                                    step="0.01"
-                                                    value={result.otherAdjustment}
-                                                    onChange={(e) => handleResultAdjustmentChange(result.employeeId, e.target.value)}
-                                                    className="h-8 w-28 text-right"
-                                                />
-                                                ) : (
-                                                    metric.getValue(result)
-                                                )}
-                                            </TableCell>
-                                         ))}
-                                      </TableRow>
-                                  );
-                              })}
-                          </TableBody>
-                       </Table>
-                       </div>
-
-                      <Separator className="my-6" />
-                      <h3 className="text-xl font-semibold mb-4">Payroll Summary</h3>
-                       <div className="overflow-x-auto border rounded-lg">
-                          <Table>
-                              <TableHeader>
-                                  <TableRow>
-                                      <TableHead>GP</TableHead>
-                                      <TableHead>EMPLOYEE</TableHead>
-                                      <TableHead>DED:</TableHead>
-                                      <TableHead>NET</TableHead>
-                                      <TableHead>Others</TableHead>
-                                  </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                  <TableRow>
-                                      <TableCell className="font-semibold tabular-nums">{formatCurrency(totals.grossCheckAmount)}</TableCell>
-                                      <TableCell><Input placeholder="Enter value..." value={summaryEmployee} onChange={(e) => setSummaryEmployee(e.target.value)} /></TableCell>
-                                      <TableCell><Input placeholder="Enter value..." value={summaryDeductions} onChange={(e) => setSummaryDeductions(e.target.value)} /></TableCell>
-                                      <TableCell><Input placeholder="Enter value..." value={summaryNetPay} onChange={(e) => setSummaryNetPay(e.target.value)} /></TableCell>
-                                      <TableCell className="font-semibold tabular-nums">{formatCurrency(totals.grossOtherAmount)}</TableCell>
-                                  </TableRow>
-                              </TableBody>
-                          </Table>
-                      </div>
-
-                       <div className="mt-6 flex justify-end space-x-2">
-                           <Button onClick={handleApprovePayroll} disabled={isApproving}>
-                             {isApproving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Approving...</> : (isEditMode ? <><Save className="mr-2 h-4 w-4" /> Update and View Report</> : "Approve and View Report")}
-                           </Button>
-                       </div>
-                  </CardContent>
-               </Card>
-           )
-       })()}
-     </>
-  );
-}
+                        </Aler
