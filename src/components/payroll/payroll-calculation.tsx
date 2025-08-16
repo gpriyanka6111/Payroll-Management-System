@@ -149,6 +149,7 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
        try {
         for (let i = 0; i < employees.length; i++) {
             const employee = employees[i];
+            // Corrected path to employee's time entries
             const timeEntriesRef = collection(db, 'users', user.uid, 'employees', employee.employeeId, 'timeEntries');
             const q = query(
                 timeEntriesRef,
@@ -751,4 +752,3 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
      </>
   );
 }
-

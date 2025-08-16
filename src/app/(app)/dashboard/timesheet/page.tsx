@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Calendar as CalendarIcon, ArrowLeft } from "lucide-react";
 import { format, differenceInMinutes } from "date-fns";
 import { useAuth } from '@/contexts/auth-context';
-import { collection, query, where, onSnapshot, Timestamp, orderBy } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, Timestamp, orderBy, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -17,6 +17,8 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import type { Employee } from '@/lib/types';
 
 interface TimeEntry {
     id: string;
@@ -29,6 +31,8 @@ export default function TimesheetPage() {
   const { toast } = useToast();
   const [entries, setEntries] = React.useState<TimeEntry[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
+  const [employees, setEmployees] = React.useState<Employee[]>([]);
+  const [selectedEmployeeId, setSelectedEmployeeId] = React.useState<string | null>(null);
   
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
@@ -37,11 +41,31 @@ export default function TimesheetPage() {
     to: new Date(),
   });
 
+  // Fetch employees for the dropdown
   React.useEffect(() => {
-    if (!user || !date?.from) return;
+    if (!user) return;
+    const employeesCollectionRef = collection(db, 'users', user.uid, 'employees');
+    const q = query(employeesCollectionRef, orderBy('lastName', 'asc'));
+    
+    getDocs(q).then(snapshot => {
+        const employeesData: Employee[] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
+        setEmployees(employeesData);
+    }).catch(error => {
+        console.error("Error fetching employees:", error);
+        toast({ title: "Error", description: "Could not fetch employees.", variant: "destructive" });
+    });
+  }, [user, toast]);
+
+
+  React.useEffect(() => {
+    if (!user || !date?.from || !selectedEmployeeId) {
+        setEntries([]);
+        setIsLoading(false);
+        return;
+    };
 
     setIsLoading(true);
-    const timeEntriesRef = collection(db, 'users', user.uid, 'timeEntries');
+    const timeEntriesRef = collection(db, 'users', user.uid, 'employees', selectedEmployeeId, 'timeEntries');
     const q = query(
         timeEntriesRef, 
         where('timeIn', '>=', date.from),
@@ -69,7 +93,7 @@ export default function TimesheetPage() {
     });
 
     return () => unsubscribe();
-  }, [user, date, toast]);
+  }, [user, date, toast, selectedEmployeeId]);
 
   const formatDuration = (start: Date, end: Date | null) => {
     if (!end) return 'Shift Active';
@@ -99,54 +123,66 @@ export default function TimesheetPage() {
             <ArrowLeft className="mr-2 h-4 w-4" /> Back to Dashboard
         </Link>
       </Button>
-      <h1 className="text-3xl font-bold">My Timesheet</h1>
-      <p className="text-muted-foreground">Review your logged hours for the selected period.</p>
+      <h1 className="text-3xl font-bold">Employee Timesheet</h1>
+      <p className="text-muted-foreground">Review logged hours for any employee for the selected period.</p>
       
       <Card>
         <CardHeader>
-            <div className="flex justify-between items-center">
-                <div>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div className="flex-1">
                     <CardTitle>Time Log</CardTitle>
                     <CardDescription>
                         Total hours for selected period: <span className="font-bold text-primary">{totalHours.toFixed(2)} hours</span>
                     </CardDescription>
                 </div>
-                <Popover>
-                    <PopoverTrigger asChild>
-                    <Button
-                        id="date"
-                        variant={"outline"}
-                        className={cn(
-                        "w-[300px] justify-start text-left font-normal",
-                        !date && "text-muted-foreground"
-                        )}
-                    >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {date?.from ? (
-                        date.to ? (
-                            <>
-                            {format(date.from, "LLL dd, y")} -{" "}
-                            {format(date.to, "LLL dd, y")}
-                            </>
-                        ) : (
-                            format(date.from, "LLL dd, y")
-                        )
-                        ) : (
-                        <span>Pick a date</span>
-                        )}
-                    </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="end">
-                    <Calendar
-                        initialFocus
-                        mode="range"
-                        defaultMonth={date?.from}
-                        selected={date}
-                        onSelect={setDate}
-                        numberOfMonths={2}
-                    />
-                    </PopoverContent>
-                </Popover>
+                <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
+                    <Select onValueChange={setSelectedEmployeeId} value={selectedEmployeeId || ''}>
+                        <SelectTrigger className="w-full sm:w-[200px]">
+                            <SelectValue placeholder="Select an employee..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {employees.map(emp => (
+                                <SelectItem key={emp.id} value={emp.id}>{emp.firstName} {emp.lastName}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                    <Popover>
+                        <PopoverTrigger asChild>
+                        <Button
+                            id="date"
+                            variant={"outline"}
+                            className={cn(
+                            "w-full sm:w-[300px] justify-start text-left font-normal",
+                            !date && "text-muted-foreground"
+                            )}
+                        >
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {date?.from ? (
+                            date.to ? (
+                                <>
+                                {format(date.from, "LLL dd, y")} -{" "}
+                                {format(date.to, "LLL dd, y")}
+                                </>
+                            ) : (
+                                format(date.from, "LLL dd, y")
+                            )
+                            ) : (
+                            <span>Pick a date</span>
+                            )}
+                        </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="end">
+                        <Calendar
+                            initialFocus
+                            mode="range"
+                            defaultMonth={date?.from}
+                            selected={date}
+                            onSelect={setDate}
+                            numberOfMonths={2}
+                        />
+                        </PopoverContent>
+                    </Popover>
+                </div>
             </div>
         </CardHeader>
         <CardContent>
@@ -167,7 +203,13 @@ export default function TimesheetPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {entries.length > 0 ? entries.map(entry => (
+                {!selectedEmployeeId ? (
+                    <TableRow>
+                        <TableCell colSpan={4} className="h-24 text-center">
+                            Please select an employee to view their timesheet.
+                        </TableCell>
+                    </TableRow>
+                ) : entries.length > 0 ? entries.map(entry => (
                   <TableRow key={entry.id}>
                     <TableCell className="font-medium">{format(entry.timeIn.toDate(), 'PPP')}</TableCell>
                     <TableCell>{format(entry.timeIn.toDate(), 'p')}</TableCell>
@@ -177,7 +219,7 @@ export default function TimesheetPage() {
                 )) : (
                     <TableRow>
                         <TableCell colSpan={4} className="h-24 text-center">
-                            No time entries found for the selected period.
+                            No time entries found for the selected employee and period.
                         </TableCell>
                     </TableRow>
                 )}
@@ -189,4 +231,3 @@ export default function TimesheetPage() {
     </div>
   );
 }
-
