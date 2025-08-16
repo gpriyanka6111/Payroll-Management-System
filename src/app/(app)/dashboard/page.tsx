@@ -119,6 +119,19 @@ export default function DashboardPage() {
     return `${hours}h ${minutes}m`;
   };
 
+  const formatDuration = (start: Date, end: Date | null) => {
+    if (!end) return 'Active';
+    const durationMs = end.getTime() - start.getTime();
+    if (durationMs < 0) return '0h 0m';
+
+    const totalMinutes = Math.floor(durationMs / 60000);
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+
+    return `${hours}h ${minutes}m`;
+  };
+
+
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-bold">Dashboard</h1>
@@ -184,10 +197,7 @@ export default function DashboardPage() {
                         <div className="text-sm font-semibold text-accent">ACTIVE</div>
                     ) : (
                         <div className="text-sm font-semibold text-muted-foreground">
-                            {format(
-                                entry.timeOut.toDate().getTime() - entry.timeIn.toDate().getTime() - (1000*60*60*9), // this is a hacky way to format duration, better library would be ideal
-                                'H \'hr\' m \'min\''
-                            )}
+                            {formatDuration(entry.timeIn.toDate(), entry.timeOut?.toDate())}
                         </div>
                     )}
                 </li>
