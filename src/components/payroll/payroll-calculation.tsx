@@ -17,18 +17,18 @@ import {
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Calculator, AlertTriangle, CheckCircle, MessageSquare, Loader2, Save } from 'lucide-react';
+import { Calculator, AlertTriangle, CheckCircle, MessageSquare, Loader2, Save, RefreshCw } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { cn } from '@/lib/utils';
-import { format } from 'date-fns';
+import { format, differenceInMinutes } from 'date-fns';
 import { useRouter } from 'next/navigation';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { Textarea } from '../ui/textarea';
 import type { Employee, Payroll } from '@/lib/types';
 import { useAuth } from '@/contexts/auth-context';
-import { collection, getDocs, query, orderBy, addDoc, doc, updateDoc, writeBatch, getDoc } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, addDoc, doc, updateDoc, writeBatch, getDoc, where, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Skeleton } from '../ui/skeleton';
 
@@ -108,6 +108,7 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
   const { toast } = useToast();
   const { user } = useAuth();
   const [isLoading, setIsLoading] = React.useState(true);
+  const [isFetchingHours, setIsFetchingHours] = React.useState(false);
   const [isApproving, setIsApproving] = React.useState(false);
   const [payrollResults, setPayrollResults] = React.useState<PayrollResult[]>([]);
   const [showResults, setShowResults] = React.useState(false);
@@ -133,9 +134,49 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
     name: "employees",
    });
 
-   const { setValue, watch, control, reset } = form;
+   const { setValue, watch, control, reset, getValues } = form;
 
     const watchedEmployees = watch("employees");
+
+   const fetchHoursFromTimeEntries = React.useCallback(async (employees: EmployeePayrollInput[]) => {
+       if (!user) return;
+        setIsFetchingHours(true);
+        toast({ title: "Fetching Hours", description: "Calculating worked hours from time entries..." });
+       
+        const toDateWithTime = new Date(to);
+        toDateWithTime.setHours(23, 59, 59, 999);
+
+       try {
+        for (let i = 0; i < employees.length; i++) {
+            const employee = employees[i];
+            const timeEntriesRef = collection(db, 'users', user.uid, 'employees', employee.employeeId, 'timeEntries');
+            const q = query(
+                timeEntriesRef,
+                where('timeIn', '>=', from),
+                where('timeIn', '<=', toDateWithTime)
+            );
+            const snapshot = await getDocs(q);
+            const totalMinutes = snapshot.docs.reduce((acc, doc) => {
+                const data = doc.data();
+                if (data.timeOut) {
+                    const diff = differenceInMinutes(data.timeOut.toDate(), data.timeIn.toDate());
+                    return acc + (diff > 0 ? diff : 0);
+                }
+                return acc;
+            }, 0);
+            
+            const totalHours = totalMinutes / 60;
+            setValue(`employees.${i}.totalHoursWorked`, parseFloat(totalHours.toFixed(2)), { shouldValidate: true, shouldDirty: true });
+            setValue(`employees.${i}.checkHours`, parseFloat(totalHours.toFixed(2)), { shouldValidate: true, shouldDirty: true });
+        }
+         toast({ title: "Hours Fetched", description: "Total hours have been updated.", variant: 'default' });
+       } catch (error) {
+           console.error("Error fetching hours:", error);
+           toast({ title: "Error", description: "Could not fetch hours from time entries.", variant: 'destructive' });
+       } finally {
+            setIsFetchingHours(false);
+       }
+   }, [user, from, to, setValue, toast]);
 
    React.useEffect(() => {
     if (!user) return;
@@ -165,18 +206,15 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
             const currentEmployee = employeesData.find(e => e.id === initialInput.employeeId);
             return {
                 ...initialInput,
-                // Crucially, use the LATEST ptoBalance from the DB
                 ptoBalance: currentEmployee ? currentEmployee.ptoBalance : initialInput.ptoBalance,
                 comment: currentEmployee ? currentEmployee.comment : initialInput.comment,
             };
         });
         
-        // Populate summary fields for editing
         setSummaryEmployee(initialPayrollData.summaryEmployee || '');
         setSummaryDeductions(initialPayrollData.summaryDeductions || '');
         setSummaryNetPay(initialPayrollData.summaryNetPay || '');
 
-        // If there are new employees since the payroll was run, add them
         const employeesInPayroll = new Set(initialPayrollData.inputs.map(i => i.employeeId));
         const newEmployees = employeesData.filter(e => !employeesInPayroll.has(e.id));
         newEmployees.forEach(emp => {
@@ -186,14 +224,14 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
                 payRateCheck: emp.payRateCheck,
                 payRateOthers: emp.payRateOthers ?? 0,
                 ptoBalance: emp.ptoBalance,
-                totalHoursWorked: emp.standardCheckHours ?? 0,
-                checkHours: emp.standardCheckHours ?? 0,
+                totalHoursWorked: 0,
+                checkHours: 0,
                 otherHours: 0,
                 ptoUsed: 0,
                 comment: emp.comment || '',
             });
         });
-
+        reset({ employees: formValues });
       } else {
         // Create Mode: Use fresh data for all employees
         formValues = employeesData.map(emp => ({
@@ -202,20 +240,23 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
             payRateCheck: emp.payRateCheck,
             payRateOthers: emp.payRateOthers ?? 0,
             ptoBalance: emp.ptoBalance,
-            totalHoursWorked: emp.standardCheckHours ?? 0,
-            checkHours: emp.standardCheckHours ?? 0,
+            totalHoursWorked: 0,
+            checkHours: 0,
             otherHours: 0,
             ptoUsed: 0,
             comment: emp.comment || '',
         }));
+        reset({ employees: formValues });
+        if (formValues.length > 0) {
+            fetchHoursFromTimeEntries(formValues);
+        }
       }
       
-      reset({ employees: formValues });
       setIsLoading(false);
     };
 
     fetchAndSetData();
-  }, [user, reset, isEditMode, initialPayrollData]);
+  }, [user, reset, isEditMode, initialPayrollData, fetchHoursFromTimeEntries]);
 
 
     React.useEffect(() => {
@@ -263,7 +304,6 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
       if (isEditMode && initialPayrollData) {
         const originalInput = initialPayrollData.inputs.find(i => i.employeeId === emp.employeeId);
         const originalPtoUsed = originalInput ? safeGetNumber(originalInput.ptoUsed) : 0;
-        // The balance from the DB already reflects the original deduction. We must add it back before subtracting the new value.
         const effectiveInitialBalance = initialPtoBalanceFromDb + originalPtoUsed;
         newPtoBalance = effectiveInitialBalance - ptoUsed;
       } else {
@@ -441,9 +481,17 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
   return (
      <>
        <Card>
-         <CardHeader>
-          <CardTitle className="flex items-center"><Calculator className="mr-2 h-5 w-5 text-muted-foreground"/> 2. Calculate Payroll</CardTitle>
-          <CardDescription>Enter hours and review comments for each employee for the current pay period.</CardDescription>
+         <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+                <CardTitle className="flex items-center"><Calculator className="mr-2 h-5 w-5 text-muted-foreground"/> 2. Calculate Payroll</CardTitle>
+                <CardDescription>Enter hours and review comments for each employee for the current pay period.</CardDescription>
+            </div>
+            {!isEditMode && (
+                <Button variant="outline" onClick={() => fetchHoursFromTimeEntries(getValues().employees)} disabled={isFetchingHours}>
+                   {isFetchingHours ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-2 h-4 w-4" />}
+                    Fetch Hours
+                </Button>
+            )}
         </CardHeader>
          <CardContent>
            <Form {...form}>
@@ -703,3 +751,4 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
      </>
   );
 }
+
