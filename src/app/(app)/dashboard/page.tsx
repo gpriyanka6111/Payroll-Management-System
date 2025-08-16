@@ -65,48 +65,35 @@ export default function DashboardPage() {
   
   // Effect to fetch today's activity for ALL employees
   React.useEffect(() => {
-    if (!user) return;
+    if (!user || employees.length === 0) return;
 
     const todayStart = startOfDay(new Date());
     const todayEnd = endOfDay(new Date());
 
+    const userRef = doc(db, 'users', user.uid);
+
     const timeEntriesQuery = query(
         collectionGroup(db, 'timeEntries'),
+        where('__name__', '>=', userRef.path + '/'),
+        where('__name__', '<', userRef.path + '0'),
         where('timeIn', '>=', todayStart),
         where('timeIn', '<=', todayEnd),
         orderBy('timeIn', 'desc')
     );
-
-    const unsubscribe = onSnapshot(timeEntriesQuery, async (snapshot) => {
+    
+    const unsubscribe = onSnapshot(timeEntriesQuery, (snapshot) => {
         const entriesData = snapshot.docs.map(doc => {
-            const data = doc.data();
-            const parentPath = doc.ref.parent.parent?.path; // users/{uid}/employees/{employeeId}
-             if (!parentPath?.startsWith(`users/${user.uid}/employees`)) {
-                return null; // Filter out entries not belonging to this user
-            }
-            const employeeId = doc.ref.parent.parent!.id; 
+            const employeeId = doc.ref.parent.parent!.id; // timeEntries is a subcollection of an employee
+            const employee = employees.find(e => e.id === employeeId);
             return {
                 id: doc.id,
-                ...data,
-                employeeId: employeeId
-            } as Omit<TimeEntry, 'employeeName'>;
-        }).filter(Boolean) as (Omit<TimeEntry, 'employeeName'> | null)[];
+                ...doc.data(),
+                employeeId: employeeId,
+                employeeName: employee ? `${employee.firstName} ${employee.lastName}` : 'Unknown'
+            } as TimeEntry;
+        });
 
-        // We need to enrich with employee names
-         const enrichedEntries: TimeEntry[] = await Promise.all(
-            (entriesData.filter(Boolean) as Omit<TimeEntry, 'employeeName'>[]).map(async (entry) => {
-                const employee = employees.find(e => e.id === entry.employeeId);
-                return {
-                    ...entry,
-                    employeeName: employee ? `${employee.firstName} ${employee.lastName}` : 'Unknown Employee'
-                };
-            })
-        );
-        
-        // Sort again after enrichment as Promises may resolve out of order
-        enrichedEntries.sort((a, b) => b.timeIn.toDate().getTime() - a.timeIn.toDate().getTime());
-
-        setTodaysGlobalEntries(enrichedEntries);
+        setTodaysGlobalEntries(entriesData);
     }, (error) => {
         console.error("Error fetching global time entries:", error);
         toast({ title: "Error", description: "Could not fetch today's activity.", variant: "destructive" });
@@ -135,7 +122,13 @@ export default function DashboardPage() {
     const unsubscribe = onSnapshot(q, (snapshot) => {
         if (!snapshot.empty) {
             const doc = snapshot.docs[0];
-            setActiveTimeEntry({ id: doc.id, ...doc.data() } as TimeEntry);
+            const selectedEmployee = employees.find(e => e.id === selectedEmployeeId);
+            setActiveTimeEntry({ 
+                id: doc.id, 
+                ...doc.data(),
+                employeeId: selectedEmployeeId,
+                employeeName: selectedEmployee ? `${selectedEmployee.firstName} ${selectedEmployee.lastName}` : 'Unknown'
+            } as TimeEntry);
         } else {
             setActiveTimeEntry(null);
         }
@@ -147,7 +140,7 @@ export default function DashboardPage() {
     });
 
     return () => unsubscribe();
-  }, [user, selectedEmployeeId, toast]);
+  }, [user, selectedEmployeeId, toast, employees]);
 
 
   const handleTimeIn = async () => {
