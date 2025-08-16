@@ -4,7 +4,7 @@
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import { SidebarProvider, Sidebar, SidebarHeader, SidebarContent, SidebarFooter, SidebarTrigger, SidebarInset, SidebarMenu, SidebarMenuItem, SidebarMenuButton } from '@/components/ui/sidebar';
-import { Home, Users, Calculator, Settings, LogOut, CalendarClock, Timesheet } from 'lucide-react';
+import { Home, Users, Calculator, Settings, LogOut, CalendarClock, ClipboardList } from 'lucide-react';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/auth-context';
@@ -165,7 +165,7 @@ export default function DashboardLayout({
              <SidebarMenuItem>
                 <SidebarMenuButton asChild tooltip="Timesheet">
                     <Link href="/dashboard/timesheet">
-                    <Timesheet />
+                    <ClipboardList />
                     <span>Timesheet</span>
                     </Link>
                 </SidebarMenuButton>
