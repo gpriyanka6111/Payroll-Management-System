@@ -31,6 +31,7 @@ import { useAuth } from '@/contexts/auth-context';
 import { collection, getDocs, query, orderBy, addDoc, doc, updateDoc, writeBatch, getDoc, where, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Skeleton } from '../ui/skeleton';
+import { Label } from '../ui/label';
 
 const COMPANY_STANDARD_BIWEEKLY_HOURS = 100;
 
@@ -653,21 +654,21 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
              <div className="space-y-4">
                 <h3 className="text-lg font-medium">Payroll Summary</h3>
                 <div className="grid grid-cols-1 gap-6 md:grid-cols-4">
-                    <FormItem>
-                       <FormLabel>GP: <span className="font-bold">{formatCurrency(payrollResults.reduce((s, r) => s + r.grossCheckAmount, 0))}</span></FormLabel>
-                    </FormItem>
-                    <FormItem>
-                       <FormLabel>Employee</FormLabel>
-                       <FormControl><Input value={summaryEmployee} onChange={(e) => setSummaryEmployee(e.target.value)} /></FormControl>
-                    </FormItem>
-                     <FormItem>
-                       <FormLabel>DED:</FormLabel>
-                       <FormControl><Input value={summaryDeductions} onChange={(e) => setSummaryDeductions(e.target.value)} /></FormControl>
-                    </FormItem>
-                     <FormItem>
-                       <FormLabel>NET</FormLabel>
-                       <FormControl><Input value={summaryNetPay} onChange={(e) => setSummaryNetPay(e.target.value)} /></FormControl>
-                    </FormItem>
+                    <div className="space-y-2">
+                       <Label>GP: <span className="font-bold">{formatCurrency(payrollResults.reduce((s, r) => s + r.grossCheckAmount, 0))}</span></Label>
+                    </div>
+                    <div className="space-y-2">
+                       <Label>Employee</Label>
+                       <Input value={summaryEmployee} onChange={(e) => setSummaryEmployee(e.target.value)} />
+                    </div>
+                     <div className="space-y-2">
+                       <Label>DED:</Label>
+                       <Input value={summaryDeductions} onChange={(e) => setSummaryDeductions(e.target.value)} />
+                    </div>
+                     <div className="space-y-2">
+                       <Label>NET</Label>
+                       <Input value={summaryNetPay} onChange={(e) => setSummaryNetPay(e.target.value)} />
+                    </div>
                 </div>
              </div>
 
