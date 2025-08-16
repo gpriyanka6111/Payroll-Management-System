@@ -4,10 +4,10 @@
 import * as React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Clock, LogIn, LogOut, CheckCircle } from "lucide-react";
-import { format, differenceInHours, differenceInMinutes } from "date-fns";
+import { Clock, LogIn, LogOut, CheckCircle, Users } from "lucide-react";
+import { format, differenceInHours, differenceInMinutes, startOfDay, endOfDay } from "date-fns";
 import { useAuth } from '@/contexts/auth-context';
-import { collection, addDoc, query, where, onSnapshot, serverTimestamp, doc, updateDoc, Timestamp, getDocs, limit, orderBy } from 'firebase/firestore';
+import { collection, addDoc, query, where, onSnapshot, serverTimestamp, doc, updateDoc, Timestamp, getDocs, limit, orderBy, collectionGroup } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -18,6 +18,8 @@ interface TimeEntry {
     id: string;
     timeIn: Timestamp;
     timeOut: Timestamp | null;
+    employeeId: string;
+    employeeName: string;
 }
 
 export default function DashboardPage() {
@@ -32,7 +34,7 @@ export default function DashboardPage() {
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   
   const [activeTimeEntry, setActiveTimeEntry] = React.useState<TimeEntry | null>(null);
-  const [todaysEntries, setTodaysEntries] = React.useState<TimeEntry[]>([]);
+  const [todaysGlobalEntries, setTodaysGlobalEntries] = React.useState<TimeEntry[]>([]);
   const [isTimeLogLoading, setIsTimeLogLoading] = React.useState(false);
 
   // Effect for the live clock
@@ -60,39 +62,87 @@ export default function DashboardPage() {
 
     return () => unsubscribe();
   }, [user, toast]);
+  
+  // Effect to fetch today's activity for ALL employees
+  React.useEffect(() => {
+    if (!user) return;
 
-  // Effect to fetch and listen to time entries for the selected employee
+    const todayStart = startOfDay(new Date());
+    const todayEnd = endOfDay(new Date());
+
+    const timeEntriesQuery = query(
+        collectionGroup(db, 'timeEntries'),
+        where('timeIn', '>=', todayStart),
+        where('timeIn', '<=', todayEnd),
+        orderBy('timeIn', 'desc')
+    );
+
+    const unsubscribe = onSnapshot(timeEntriesQuery, async (snapshot) => {
+        const entriesData = snapshot.docs.map(doc => {
+            const data = doc.data();
+            const parentPath = doc.ref.parent.parent?.path; // users/{uid}/employees/{employeeId}
+             if (!parentPath?.startsWith(`users/${user.uid}/employees`)) {
+                return null; // Filter out entries not belonging to this user
+            }
+            const employeeId = doc.ref.parent.parent!.id; 
+            return {
+                id: doc.id,
+                ...data,
+                employeeId: employeeId
+            } as Omit<TimeEntry, 'employeeName'>;
+        }).filter(Boolean) as (Omit<TimeEntry, 'employeeName'> | null)[];
+
+        // We need to enrich with employee names
+         const enrichedEntries: TimeEntry[] = await Promise.all(
+            (entriesData.filter(Boolean) as Omit<TimeEntry, 'employeeName'>[]).map(async (entry) => {
+                const employee = employees.find(e => e.id === entry.employeeId);
+                return {
+                    ...entry,
+                    employeeName: employee ? `${employee.firstName} ${employee.lastName}` : 'Unknown Employee'
+                };
+            })
+        );
+        
+        // Sort again after enrichment as Promises may resolve out of order
+        enrichedEntries.sort((a, b) => b.timeIn.toDate().getTime() - a.timeIn.toDate().getTime());
+
+        setTodaysGlobalEntries(enrichedEntries);
+    }, (error) => {
+        console.error("Error fetching global time entries:", error);
+        toast({ title: "Error", description: "Could not fetch today's activity.", variant: "destructive" });
+    });
+
+    return () => unsubscribe();
+  }, [user, toast, employees]);
+
+
+  // Effect to fetch and listen to the selected employee's active entry
   React.useEffect(() => {
     if (!user || !selectedEmployeeId) {
       setActiveTimeEntry(null);
-      setTodaysEntries([]);
       return;
     }
 
     setIsTimeLogLoading(true);
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
 
     const timeEntriesRef = collection(db, 'users', user.uid, 'employees', selectedEmployeeId, 'timeEntries');
     const q = query(
         timeEntriesRef, 
-        where('timeIn', '>=', todayStart),
-        orderBy('timeIn', 'desc')
+        where('timeOut', '==', null),
+        limit(1)
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-        const entries: TimeEntry[] = snapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-        } as TimeEntry));
-
-        setTodaysEntries(entries);
-        const activeEntry = entries.find(e => e.timeOut === null) || null;
-        setActiveTimeEntry(activeEntry);
+        if (!snapshot.empty) {
+            const doc = snapshot.docs[0];
+            setActiveTimeEntry({ id: doc.id, ...doc.data() } as TimeEntry);
+        } else {
+            setActiveTimeEntry(null);
+        }
         setIsTimeLogLoading(false);
     }, (error) => {
-        console.error("Error fetching time entries:", error);
-        toast({ title: "Error", description: "Could not fetch time clock data.", variant: "destructive" });
+        console.error("Error fetching active time entry:", error);
+        toast({ title: "Error", description: "Could not fetch employee status.", variant: "destructive" });
         setIsTimeLogLoading(false);
     });
 
@@ -218,25 +268,18 @@ export default function DashboardPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Today's Activity for Selected Employee</CardTitle>
-          <CardDescription>A log of clock-in and clock-out events for today.</CardDescription>
+          <CardTitle className="flex items-center"><Users className="mr-2 h-5 w-5"/> Today's Activity (All Employees)</CardTitle>
+          <CardDescription>A log of all clock-in and clock-out events for today.</CardDescription>
         </CardHeader>
         <CardContent>
-          {!selectedEmployeeId ? (
-             <p className="text-center text-muted-foreground py-4">Select an employee to see their activity.</p>
-          ) : isTimeLogLoading ? (
-             <div className="space-y-2">
-                <Skeleton className="h-12 w-full" />
-                <Skeleton className="h-12 w-full" />
-             </div>
-          ) : todaysEntries.length > 0 ? (
+          {todaysGlobalEntries.length > 0 ? (
             <ul className="space-y-3">
-              {todaysEntries.map(entry => (
+              {todaysGlobalEntries.map(entry => (
                 <li key={entry.id} className="flex justify-between items-center p-3 border rounded-md bg-muted/20">
                     <div className="flex items-center gap-3">
                         <CheckCircle className="h-5 w-5 text-primary" />
                         <div>
-                            <p className="font-medium">Shift Entry</p>
+                            <p className="font-medium">{entry.employeeName}</p>
                             <p className="text-sm text-muted-foreground">
                                 In: <span className="font-semibold">{format(entry.timeIn.toDate(), 'p')}</span>
                                 {entry.timeOut && ` — Out: `}
@@ -255,7 +298,7 @@ export default function DashboardPage() {
               ))}
             </ul>
           ) : (
-            <p className="text-center text-muted-foreground py-4">No activity recorded yet today for this employee.</p>
+            <p className="text-center text-muted-foreground py-4">No activity recorded yet today for any employee.</p>
           )}
         </CardContent>
       </Card>
