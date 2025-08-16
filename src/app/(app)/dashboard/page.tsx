@@ -4,238 +4,200 @@
 import * as React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Users, Calculator, ArrowRight, UserPlus, Pencil } from "lucide-react";
-import Link from "next/link";
-import { format, addDays } from "date-fns";
+import { Clock, LogIn, LogOut, CheckCircle } from "lucide-react";
+import { format, differenceInHours } from "date-fns";
 import { useAuth } from '@/contexts/auth-context';
-import { collection, onSnapshot, query, orderBy, limit, doc } from 'firebase/firestore';
+import { collection, addDoc, query, where, onSnapshot, serverTimestamp, doc, updateDoc, Timestamp, getDocs, limit, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { Payroll } from '@/lib/types';
+import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 
-
-interface CompanySettings {
-  payFrequency: 'bi-weekly' | 'weekly' | 'monthly' | 'semi-monthly';
+interface TimeEntry {
+    id: string;
+    timeIn: Timestamp;
+    timeOut: Timestamp | null;
 }
 
 export default function DashboardPage() {
   const { user } = useAuth();
-  const [totalEmployees, setTotalEmployees] = React.useState(0);
-  const [pastPayrolls, setPastPayrolls] = React.useState<Payroll[]>([]);
-  const [companySettings, setCompanySettings] = React.useState<CompanySettings | null>(null);
-  const [nextPayrollDate, setNextPayrollDate] = React.useState<string | null>(null);
+  const { toast } = useToast();
+  const [currentTime, setCurrentTime] = React.useState(new Date());
+  const [isLoading, setIsLoading] = React.useState(true);
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
   
-  const [isLoadingEmployees, setIsLoadingEmployees] = React.useState(true);
-  const [isLoadingPayrolls, setIsLoadingPayrolls] = React.useState(true);
-  const [isLoadingSettings, setIsLoadingSettings] = React.useState(true);
+  const [activeTimeEntry, setActiveTimeEntry] = React.useState<TimeEntry | null>(null);
+  const [todaysEntries, setTodaysEntries] = React.useState<TimeEntry[]>([]);
 
+  const employeeId = user?.uid; // For now, we assume the user's UID is their employee ID
+
+  // Effect for the live clock
   React.useEffect(() => {
-    if (user) {
-      // Listener for employees count
-      const employeesCollectionRef = collection(db, 'users', user.uid, 'employees');
-      const employeesQuery = query(employeesCollectionRef);
-      const unsubscribeEmployees = onSnapshot(employeesQuery, (snapshot) => {
-        setTotalEmployees(snapshot.size);
-        setIsLoadingEmployees(false);
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Effect to fetch and listen to time entries for today
+  React.useEffect(() => {
+    if (!employeeId) return;
+
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+
+    const timeEntriesRef = collection(db, 'users', employeeId, 'timeEntries');
+    const q = query(
+        timeEntriesRef, 
+        where('timeIn', '>=', todayStart),
+        orderBy('timeIn', 'desc')
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+        const entries: TimeEntry[] = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        } as TimeEntry));
+
+        setTodaysEntries(entries);
+        const activeEntry = entries.find(e => e.timeOut === null) || null;
+        setActiveTimeEntry(activeEntry);
+        setIsLoading(false);
+    }, (error) => {
+        console.error("Error fetching time entries:", error);
+        toast({ title: "Error", description: "Could not fetch time clock data.", variant: "destructive" });
+        setIsLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [employeeId, toast]);
+
+
+  const handleTimeIn = async () => {
+    if (!employeeId) return;
+    setIsSubmitting(true);
+    try {
+      const timeEntriesRef = collection(db, 'users', employeeId, 'timeEntries');
+      await addDoc(timeEntriesRef, {
+        timeIn: serverTimestamp(),
+        timeOut: null,
       });
-
-      // Listener for payroll history
-      const payrollsCollectionRef = collection(db, 'users', user.uid, 'payrolls');
-      const payrollsQuery = query(payrollsCollectionRef, orderBy('toDate', 'desc'), limit(5)); // Get latest 5
-      const unsubscribePayrolls = onSnapshot(payrollsQuery, (snapshot) => {
-        const payrollsData = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        } as Payroll));
-        setPastPayrolls(payrollsData);
-        setIsLoadingPayrolls(false);
-      }, () => setIsLoadingPayrolls(false));
-      
-      // Listener for company settings
-      const userDocRef = doc(db, 'users', user.uid);
-      const unsubscribeSettings = onSnapshot(userDocRef, (docSnap) => {
-          if (docSnap.exists()) {
-              setCompanySettings(docSnap.data() as CompanySettings);
-          }
-          setIsLoadingSettings(false);
-      }, () => setIsLoadingSettings(false));
-
-
-      return () => {
-        unsubscribeEmployees();
-        unsubscribePayrolls();
-        unsubscribeSettings();
-      };
+      toast({
+        title: "Clocked In!",
+        description: `Your shift has started at ${format(new Date(), 'p')}.`,
+      });
+    } catch (error) {
+      console.error("Error clocking in:", error);
+      toast({ title: "Error", description: "Failed to clock in.", variant: "destructive" });
+    } finally {
+      setIsSubmitting(false);
     }
-  }, [user]);
-
-  React.useEffect(() => {
-    if (isLoadingPayrolls || isLoadingSettings) return;
-
-    if (pastPayrolls.length > 0 && companySettings) {
-      const lastPayroll = pastPayrolls[0]; // It's sorted desc
-      const lastPayDateString = lastPayroll.toDate;
-      const [year, month, day] = lastPayDateString.split('-').map(Number);
-      // JS Date month is 0-indexed, so subtract 1
-      const lastPayDate = new Date(year, month - 1, day);
-
-      let nextDate: Date;
-      // This can be expanded if more frequencies are added
-      switch (companySettings.payFrequency) {
-        case 'bi-weekly':
-          nextDate = addDays(lastPayDate, 14);
-          break;
-        case 'weekly':
-          nextDate = addDays(lastPayDate, 7);
-          break;
-        case 'monthly':
-            // This is a simplification; real monthly logic is more complex
-            nextDate = addDays(lastPayDate, 30); 
-            break;
-        default:
-          // Default to a sensible value if frequency is unknown
-          nextDate = addDays(lastPayDate, 14);
-      }
-      setNextPayrollDate(format(nextDate, 'MMMM d, yyyy'));
-    } else {
-        // No past payrolls, so we can't calculate.
-        setNextPayrollDate(null);
-    }
-  }, [pastPayrolls, companySettings, isLoadingPayrolls, isLoadingSettings]);
-
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
   };
 
-   const formatDate = (dateString: string) => {
-    const [year, month, day] = dateString.split('-').map(Number);
-    const date = new Date(year, month - 1, day);
-    return format(date, "LLL d, yyyy");
+  const handleTimeOut = async () => {
+    if (!employeeId || !activeTimeEntry) return;
+    setIsSubmitting(true);
+    try {
+      const entryDocRef = doc(db, 'users', employeeId, 'timeEntries', activeTimeEntry.id);
+      await updateDoc(entryDocRef, {
+        timeOut: serverTimestamp(),
+      });
+      toast({
+        title: "Clocked Out!",
+        description: `Your shift has ended. Have a great day!`,
+        variant: "destructive",
+      });
+    } catch (error) {
+      console.error("Error clocking out:", error);
+      toast({ title: "Error", description: "Failed to clock out.", variant: "destructive" });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
-
-  const isLoadingNextPayroll = isLoadingPayrolls || isLoadingSettings;
+  
+  const getElapsedTime = () => {
+    if (!activeTimeEntry) return '0h 0m';
+    const hours = differenceInHours(new Date(), activeTimeEntry.timeIn.toDate());
+    const minutes = Math.floor((new Date().getTime() - activeTimeEntry.timeIn.toDate().getTime()) / 60000) % 60;
+    return `${hours}h ${minutes}m`;
+  };
 
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-bold">Dashboard</h1>
-      <p className="text-muted-foreground">Welcome back! Here's a quick overview of your payroll status.</p>
-
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Total Employees
-            </CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            {isLoadingEmployees ? (
-                <div className="text-2xl font-bold">-</div>
-            ) : (
-                <div className="text-2xl font-bold">{totalEmployees}</div>
-            )}
-            <p className="text-xs text-muted-foreground">
-              Live data from your database.
-            </p>
-             <Button variant="link" size="sm" className="p-0 h-auto mt-2" asChild>
-               <Link href="/dashboard/employees">
-                View Employees <ArrowRight className="ml-1 h-3 w-3" />
-               </Link>
+      <p className="text-muted-foreground">Welcome! Please clock in and out for your shifts.</p>
+      
+      <Card className="max-w-md mx-auto">
+        <CardHeader className="text-center">
+          <CardTitle className="text-5xl font-bold tracking-tighter">{format(currentTime, 'p')}</CardTitle>
+          <CardDescription>{format(currentTime, 'eeee, MMMM d, yyyy')}</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {isLoading ? (
+            <Skeleton className="h-24 w-full" />
+          ) : activeTimeEntry ? (
+            <div className="text-center p-4 bg-accent/20 border-accent border rounded-lg">
+                <p className="font-semibold text-accent-foreground">You are currently clocked in.</p>
+                <p className="text-sm text-muted-foreground">Shift started at: {format(activeTimeEntry.timeIn.toDate(), 'p')}</p>
+                 <p className="text-sm text-muted-foreground">Elapsed time: {getElapsedTime()}</p>
+            </div>
+          ) : (
+            <div className="text-center p-4 bg-muted/50 rounded-lg">
+                <p className="font-semibold text-muted-foreground">You are currently clocked out.</p>
+            </div>
+          )}
+          <div className="grid grid-cols-2 gap-4">
+            <Button size="lg" onClick={handleTimeIn} disabled={!!activeTimeEntry || isSubmitting || isLoading}>
+              <LogIn className="mr-2 h-5 w-5" /> Time In
             </Button>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Next Payroll Run
-            </CardTitle>
-             <Calculator className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            {isLoadingNextPayroll ? (
-                <Skeleton className="h-8 w-40" />
-            ) : nextPayrollDate ? (
-                <div className="text-2xl font-bold">{nextPayrollDate}</div>
-            ) : (
-                 <div className="text-lg font-semibold text-muted-foreground pt-1">Run first payroll</div>
-            )}
-            <p className="text-xs text-muted-foreground">
-                {companySettings?.payFrequency 
-                    ? `${companySettings.payFrequency.charAt(0).toUpperCase() + companySettings.payFrequency.slice(1)} schedule`
-                    : 'Schedule not set'
-                }
-            </p>
-             <Button variant="link" size="sm" className="p-0 h-auto mt-2" asChild>
-               <Link href="/dashboard/payroll/run">
-                Run Payroll <ArrowRight className="ml-1 h-3 w-3" />
-               </Link>
+            <Button size="lg" variant="destructive" onClick={handleTimeOut} disabled={!activeTimeEntry || isSubmitting || isLoading}>
+              <LogOut className="mr-2 h-5 w-5" /> Time Out
             </Button>
-          </CardContent>
-        </Card>
+          </div>
+        </CardContent>
+      </Card>
 
-         <Card className="md:col-span-2 lg:col-span-1">
-          <CardHeader>
-            <CardTitle>Quick Actions</CardTitle>
-             <CardDescription>Get started quickly with common tasks.</CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col space-y-2">
-             <Button variant="outline" asChild>
-               <Link href="/dashboard/employees/add">
-                <UserPlus className="mr-2 h-4 w-4" /> Add New Employee
-               </Link>
-            </Button>
-             <Button variant="default" asChild>
-               <Link href="/dashboard/payroll/run">
-                <Calculator className="mr-2 h-4 w-4" /> Run New Payroll
-               </Link>
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-
-       {/* Payroll History */}
-       <Card>
-         <CardHeader>
-            <CardTitle>Payroll History</CardTitle>
-            <CardDescription>A summary of your most recent payroll runs.</CardDescription>
-         </CardHeader>
-         <CardContent>
-           {isLoadingPayrolls ? (
-             <div className="space-y-3">
-                <Skeleton className="h-16 w-full" />
-                <Skeleton className="h-16 w-full" />
+      <Card>
+        <CardHeader>
+          <CardTitle>Today's Activity</CardTitle>
+          <CardDescription>A log of your clock-in and clock-out events for today.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+             <div className="space-y-2">
+                <Skeleton className="h-12 w-full" />
+                <Skeleton className="h-12 w-full" />
              </div>
-           ) : pastPayrolls.length > 0 ? (
-              <ul className="space-y-3">
-                {pastPayrolls.map((payroll) => (
-                  <li key={payroll.id} className="flex justify-between items-center p-3 border rounded-md hover:bg-muted/50 transition-colors">
-                    <div>
-                      <p className="font-medium">Payroll for {formatDate(payroll.fromDate)} - {formatDate(payroll.toDate)}</p>
-                      <p className="text-sm text-muted-foreground">Status: {payroll.status}</p>
+          ) : todaysEntries.length > 0 ? (
+            <ul className="space-y-3">
+              {todaysEntries.map(entry => (
+                <li key={entry.id} className="flex justify-between items-center p-3 border rounded-md bg-muted/20">
+                    <div className="flex items-center gap-3">
+                        <CheckCircle className="h-5 w-5 text-primary" />
+                        <div>
+                            <p className="font-medium">Shift Entry</p>
+                            <p className="text-sm text-muted-foreground">
+                                In: <span className="font-semibold">{format(entry.timeIn.toDate(), 'p')}</span>
+                                {entry.timeOut && ` — Out: `}
+                                {entry.timeOut && <span className="font-semibold">{format(entry.timeOut.toDate(), 'p')}</span>}
+                            </p>
+                        </div>
                     </div>
-                    <div className="text-right flex items-center space-x-2">
-                      <p className="font-semibold">{formatCurrency(payroll.totalAmount)}</p>
-                      <div className="flex items-center">
-                        <Button variant="ghost" size="icon" asChild>
-                            <Link href={`/dashboard/payroll/run?id=${payroll.id}`} aria-label="Edit Payroll">
-                                <Pencil className="h-4 w-4" />
-                            </Link>
-                        </Button>
-                       <Button variant="link" size="sm" className="p-0 h-auto text-xs" asChild>
-                        <Link href={`/dashboard/payroll/report?id=${payroll.id}`}>View Details</Link>
-                       </Button>
-                      </div>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-           ) : (
-             <p className="text-center text-muted-foreground py-4">No payroll history to display.</p>
-           )}
-         </CardContent>
-       </Card>
+                    {entry.timeOut === null ? (
+                        <div className="text-sm font-semibold text-accent">ACTIVE</div>
+                    ) : (
+                        <div className="text-sm font-semibold text-muted-foreground">
+                            {format(
+                                entry.timeOut.toDate().getTime() - entry.timeIn.toDate().getTime() - (1000*60*60*9), // this is a hacky way to format duration, better library would be ideal
+                                'H \'hr\' m \'min\''
+                            )}
+                        </div>
+                    )}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-center text-muted-foreground py-4">No activity recorded yet today.</p>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -83,6 +83,7 @@ export function SignupForm() {
             companyName: values.companyName,
             payFrequency: values.payFrequency,
             standardBiWeeklyHours: values.standardBiWeeklyHours,
+            role: 'manager', // The first user to sign up is always the manager
             createdAt: new Date(),
         });
         
