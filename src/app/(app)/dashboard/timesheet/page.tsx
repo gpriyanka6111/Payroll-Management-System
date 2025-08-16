@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Calendar as CalendarIcon, ArrowLeft } from "lucide-react";
-import { format, differenceInMinutes, startOfDay, isSameDay } from "date-fns";
+import { format, differenceInMinutes, startOfDay, isSameDay, subDays } from "date-fns";
 import { useAuth } from '@/contexts/auth-context';
 import { collection, query, where, getDocs, Timestamp, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -52,10 +52,9 @@ export default function TimesheetPage() {
   const [timesheetData, setTimesheetData] = React.useState<TimesheetData>({ dates: [], employees: [], entries: {} });
   const [isLoading, setIsLoading] = React.useState(true);
   
-  const thirtyDaysAgo = new Date();
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  const fourteenDaysAgo = subDays(new Date(), 13);
   const [date, setDate] = React.useState<DateRange | undefined>({
-    from: thirtyDaysAgo,
+    from: fourteenDaysAgo,
     to: new Date(),
   });
 
@@ -264,7 +263,7 @@ export default function TimesheetPage() {
                                                         {summary && summary.totalHours > 0 ? (
                                                             <Tooltip>
                                                                 <TooltipTrigger asChild>
-                                                                    <span className="font-semibold cursor-pointer hover:text-primary">{summary.totalHours.toFixed(2)}</span>
+                                                                    <span className="font-semibold cursor-pointer text-primary hover:underline">{summary.totalHours.toFixed(2)}</span>
                                                                 </TooltipTrigger>
                                                                 <TooltipContent>
                                                                     <div className="p-2">
@@ -304,4 +303,3 @@ export default function TimesheetPage() {
     </div>
   );
 }
-
