@@ -4,15 +4,12 @@
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import { SidebarProvider, Sidebar, SidebarHeader, SidebarContent, SidebarFooter, SidebarTrigger, SidebarInset, SidebarMenu, SidebarMenuItem, SidebarMenuButton } from '@/components/ui/sidebar';
-import { Home, Users, Calculator, Settings, LogOut, CalendarClock, BookUser } from 'lucide-react';
+import { Home, Users, Calculator, Settings, LogOut, CalendarClock } from 'lucide-react';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/auth-context';
-import { auth, db } from '@/lib/firebase';
+import { auth } from '@/lib/firebase';
 import { signOut } from 'firebase/auth';
-import { doc, onSnapshot } from 'firebase/firestore';
-
-type UserRole = 'manager' | 'employee';
 
 export default function DashboardLayout({
   children,
@@ -22,7 +19,6 @@ export default function DashboardLayout({
   const router = useRouter();
   const { toast } = useToast();
   const { user, loading } = useAuth();
-  const [userRole, setUserRole] = React.useState<UserRole>('employee');
 
   React.useEffect(() => {
     if (!loading && !user) {
@@ -30,19 +26,6 @@ export default function DashboardLayout({
     }
   }, [user, loading, router]);
   
-  React.useEffect(() => {
-    if (user) {
-      const userDocRef = doc(db, 'users', user.uid);
-      const unsubscribe = onSnapshot(userDocRef, (docSnap) => {
-        if (docSnap.exists()) {
-          const data = docSnap.data();
-          setUserRole(data.role || 'employee');
-        }
-      });
-      return () => unsubscribe();
-    }
-  }, [user]);
-
   const handleLogout = async () => {
     if (!auth) return;
     try {
@@ -91,56 +74,38 @@ export default function DashboardLayout({
               </SidebarMenuButton>
             </SidebarMenuItem>
             
-            {userRole === 'manager' && (
-              <>
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild tooltip="Employees">
-                    <Link href="/dashboard/employees">
-                      <Users />
-                      <span>Employees</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild tooltip="Payroll">
-                    <Link href="/dashboard/payroll">
-                      <Calculator />
-                      <span>Payroll</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild tooltip="PTO Tracker">
-                    <Link href="/dashboard/pto">
-                      <CalendarClock />
-                      <span>PTO Tracker</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              </>
-            )}
-
-             {userRole === 'employee' && (
-               <SidebarMenuItem>
-                <SidebarMenuButton asChild tooltip="My Timesheet">
-                    <Link href="/dashboard/timesheet">
-                    <BookUser />
-                    <span>My Timesheet</span>
-                    </Link>
-                </SidebarMenuButton>
-               </SidebarMenuItem>
-            )}
-
-            {userRole === 'manager' && (
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild tooltip="Settings">
-                    <Link href="/dashboard/settings">
-                    <Settings />
-                    <span>Settings</span>
-                    </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            )}
+            <SidebarMenuItem>
+              <SidebarMenuButton asChild tooltip="Employees">
+                <Link href="/dashboard/employees">
+                  <Users />
+                  <span>Employees</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SidebarMenuButton asChild tooltip="Payroll">
+                <Link href="/dashboard/payroll">
+                  <Calculator />
+                  <span>Payroll</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SidebarMenuButton asChild tooltip="PTO Tracker">
+                <Link href="/dashboard/pto">
+                  <CalendarClock />
+                  <span>PTO Tracker</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SidebarMenuButton asChild tooltip="Settings">
+                  <Link href="/dashboard/settings">
+                  <Settings />
+                  <span>Settings</span>
+                  </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
           </SidebarMenu>
         </SidebarContent>
         <SidebarFooter>
