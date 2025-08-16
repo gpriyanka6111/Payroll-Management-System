@@ -8,8 +8,89 @@ import { Home, Users, Calculator, Settings, LogOut, CalendarClock } from 'lucide
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/auth-context';
-import { auth } from '@/lib/firebase';
+import { auth, db } from '@/lib/firebase';
 import { signOut } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { AlertTriangle, Loader2 } from 'lucide-react';
+
+function PinDialog({ open, onOpenChange, onPinVerified, destinationPath }: { open: boolean, onOpenChange: (open: boolean) => void, onPinVerified: () => void, destinationPath: string }) {
+    const [pin, setPin] = React.useState('');
+    const [error, setError] = React.useState('');
+    const [isLoading, setIsLoading] = React.useState(false);
+    const { user } = useAuth();
+    const router = useRouter();
+
+    const handleVerifyPin = async () => {
+        if (!user) {
+            setError('You must be logged in.');
+            return;
+        }
+        setIsLoading(true);
+        setError('');
+        try {
+            const userDocRef = doc(db, 'users', user.uid);
+            const docSnap = await getDoc(userDocRef);
+            if (docSnap.exists() && docSnap.data().securityPin === pin) {
+                onPinVerified();
+                router.push(destinationPath);
+            } else if (docSnap.exists() && !docSnap.data().securityPin) {
+                 onPinVerified();
+                 router.push(destinationPath);
+            }
+            else {
+                setError('Invalid PIN. Please try again.');
+            }
+        } catch (err) {
+            setError('An error occurred while verifying the PIN.');
+        } finally {
+            setIsLoading(false);
+            setPin('');
+        }
+    };
+
+    const handlePinChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const value = e.target.value.replace(/\D/g, ''); // Only allow digits
+        setPin(value);
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                    <DialogTitle>Enter Security PIN</DialogTitle>
+                    <DialogDescription>
+                        Please enter your 4-digit PIN to access this page.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                     {error && (
+                        <Alert variant="destructive">
+                            <AlertTriangle className="h-4 w-4" />
+                            <AlertTitle>Error</AlertTitle>
+                            <AlertDescription>{error}</AlertDescription>
+                        </Alert>
+                    )}
+                    <Input
+                        type="password"
+                        maxLength={4}
+                        placeholder="••••"
+                        value={pin}
+                        onChange={handlePinChange}
+                        className="text-center text-2xl tracking-[1rem]"
+                    />
+                    <Button onClick={handleVerifyPin} className="w-full" disabled={isLoading || pin.length !== 4}>
+                        {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : "Verify PIN"}
+                    </Button>
+                </div>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
 
 export default function DashboardLayout({
   children,
@@ -19,6 +100,9 @@ export default function DashboardLayout({
   const router = useRouter();
   const { toast } = useToast();
   const { user, loading } = useAuth();
+
+  const [pinDialogOpen, setPinDialogOpen] = React.useState(false);
+  const [destinationPath, setDestinationPath] = React.useState('');
 
   React.useEffect(() => {
     if (!loading && !user) {
@@ -43,6 +127,11 @@ export default function DashboardLayout({
             variant: "destructive"
         });
     }
+  };
+
+  const handleProtectedLinkClick = (path: string) => {
+    setDestinationPath(path);
+    setPinDialogOpen(true);
   };
 
   if (loading || !user) {
@@ -75,27 +164,21 @@ export default function DashboardLayout({
             </SidebarMenuItem>
             
             <SidebarMenuItem>
-              <SidebarMenuButton asChild tooltip="Employees">
-                <Link href="/dashboard/employees">
+              <SidebarMenuButton tooltip="Employees" onClick={() => handleProtectedLinkClick('/dashboard/employees')}>
                   <Users />
                   <span>Employees</span>
-                </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
             <SidebarMenuItem>
-              <SidebarMenuButton asChild tooltip="Payroll">
-                <Link href="/dashboard/payroll">
+              <SidebarMenuButton tooltip="Payroll" onClick={() => handleProtectedLinkClick('/dashboard/payroll')}>
                   <Calculator />
                   <span>Payroll</span>
-                </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
             <SidebarMenuItem>
-              <SidebarMenuButton asChild tooltip="PTO Tracker">
-                <Link href="/dashboard/pto">
+              <SidebarMenuButton tooltip="PTO Tracker" onClick={() => handleProtectedLinkClick('/dashboard/pto')}>
                   <CalendarClock />
                   <span>PTO Tracker</span>
-                </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
             <SidebarMenuItem>
@@ -124,6 +207,12 @@ export default function DashboardLayout({
           {children}
         </div>
       </SidebarInset>
+      <PinDialog 
+        open={pinDialogOpen} 
+        onOpenChange={setPinDialogOpen}
+        onPinVerified={() => setPinDialogOpen(false)}
+        destinationPath={destinationPath}
+      />
     </SidebarProvider>
   );
 }

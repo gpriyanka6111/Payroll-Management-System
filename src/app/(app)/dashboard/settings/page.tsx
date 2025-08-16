@@ -14,7 +14,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Settings as SettingsIcon, Building, Clock, UserCircle, ArrowLeft, Loader2 } from "lucide-react";
+import { Settings as SettingsIcon, Building, Clock, UserCircle, ArrowLeft, Loader2, Shield } from "lucide-react";
 import Link from 'next/link';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -26,6 +26,7 @@ const settingsSchema = z.object({
   payFrequency: z.enum(['weekly', 'bi-weekly', 'semi-monthly', 'monthly']),
   standardBiWeeklyHours: z.coerce.number().positive({ message: "Standard hours must be a positive number." }),
   storeClosingTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Invalid time format. Use HH:MM (24-hour).").optional(),
+  securityPin: z.string().length(4, "PIN must be 4 digits.").regex(/^\d{4}$/, "PIN must only contain numbers.").optional().or(z.literal('')),
 });
 
 type SettingsFormValues = z.infer<typeof settingsSchema>;
@@ -43,6 +44,7 @@ export default function SettingsPage() {
       payFrequency: 'bi-weekly',
       standardBiWeeklyHours: 80,
       storeClosingTime: '17:00', // Default to 5 PM
+      securityPin: '',
     },
   });
 
@@ -58,6 +60,7 @@ export default function SettingsPage() {
             payFrequency: data.payFrequency || 'bi-weekly',
             standardBiWeeklyHours: data.standardBiWeeklyHours || 80,
             storeClosingTime: data.storeClosingTime || '17:00',
+            securityPin: data.securityPin || '',
           });
         }
         setIsLoading(false);
@@ -267,6 +270,31 @@ export default function SettingsPage() {
                                 <Input id="email" type="email" value={user?.email || 'Loading...'} disabled />
                             </div>
                             <Button variant="outline" disabled className="w-full">Change Password</Button>
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardHeader>
+                        <CardTitle className="flex items-center"><Shield className="mr-2 h-5 w-5 text-muted-foreground"/> Security</CardTitle>
+                        <CardDescription>Protect sensitive areas with a PIN.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                             <FormField
+                                control={form.control}
+                                name="securityPin"
+                                render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>4-Digit Security PIN</FormLabel>
+                                    <FormControl>
+                                    <Input type="password" placeholder="••••" maxLength={4} {...field} value={field.value ?? ''}/>
+                                    </FormControl>
+                                    <FormDescription>
+                                        Leave blank to disable PIN protection.
+                                    </FormDescription>
+                                    <FormMessage />
+                                </FormItem>
+                                )}
+                            />
                         </CardContent>
                     </Card>
                 </div>
