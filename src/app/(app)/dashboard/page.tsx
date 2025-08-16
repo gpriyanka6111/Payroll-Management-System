@@ -195,14 +195,14 @@ export default function DashboardPage() {
   };
   
   const getElapsedTime = () => {
-    if (!activeTimeEntry) return '0h 0m';
+    if (!activeTimeEntry || !activeTimeEntry.timeIn) return '0h 0m';
     const hours = differenceInHours(new Date(), activeTimeEntry.timeIn.toDate());
     const minutes = Math.floor((new Date().getTime() - activeTimeEntry.timeIn.toDate().getTime()) / 60000) % 60;
     return `${hours}h ${minutes}m`;
   };
 
-  const formatDuration = (start: Date, end: Date | null) => {
-    if (!end) return 'Active';
+  const formatDuration = (start: Date | null, end: Date | null) => {
+    if (!start || !end) return 'Active';
     const totalMinutes = differenceInMinutes(end, start);
     if (totalMinutes < 0) return '0h 0m';
 
@@ -246,8 +246,12 @@ export default function DashboardPage() {
             ) : activeTimeEntry ? (
                 <div className="text-center p-4 bg-accent/20 border-accent border rounded-lg">
                     <p className="font-semibold text-accent-foreground">Currently clocked in.</p>
-                    <p className="text-sm text-muted-foreground">Shift started at: {format(activeTimeEntry.timeIn.toDate(), 'p')}</p>
-                    <p className="text-sm text-muted-foreground">Elapsed time: {getElapsedTime()}</p>
+                    {activeTimeEntry.timeIn && (
+                       <>
+                        <p className="text-sm text-muted-foreground">Shift started at: {format(activeTimeEntry.timeIn.toDate(), 'p')}</p>
+                        <p className="text-sm text-muted-foreground">Elapsed time: {getElapsedTime()}</p>
+                       </>
+                    )}
                 </div>
             ) : (
                 <div className="text-center p-4 bg-muted/50 rounded-lg">
@@ -281,7 +285,7 @@ export default function DashboardPage() {
                         <div>
                             <p className="font-medium">{entry.employeeName}</p>
                             <p className="text-sm text-muted-foreground">
-                                In: <span className="font-semibold">{format(entry.timeIn.toDate(), 'p')}</span>
+                                In: <span className="font-semibold">{entry.timeIn ? format(entry.timeIn.toDate(), 'p') : '...'}</span>
                                 {entry.timeOut && ` — Out: `}
                                 {entry.timeOut && <span className="font-semibold">{format(entry.timeOut.toDate(), 'p')}</span>}
                             </p>
@@ -291,7 +295,7 @@ export default function DashboardPage() {
                         <div className="text-sm font-semibold text-accent">ACTIVE</div>
                     ) : (
                         <div className="text-sm font-semibold text-muted-foreground">
-                            {formatDuration(entry.timeIn.toDate(), entry.timeOut?.toDate())}
+                            {formatDuration(entry.timeIn?.toDate(), entry.timeOut?.toDate())}
                         </div>
                     )}
                 </li>
