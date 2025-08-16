@@ -4,8 +4,8 @@
 import * as React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Clock, LogIn, LogOut, CheckCircle, Users } from "lucide-react";
-import { format, differenceInHours, differenceInMinutes, startOfDay, endOfDay, isBefore, startOfToday } from "date-fns";
+import { Clock, LogIn, LogOut, CheckCircle, Users, Calendar as CalendarIcon } from "lucide-react";
+import { format, differenceInHours, differenceInMinutes, startOfDay, endOfDay, isBefore, startOfToday, subDays } from "date-fns";
 import { useAuth } from '@/contexts/auth-context';
 import { collection, addDoc, query, where, onSnapshot, serverTimestamp, doc, updateDoc, Timestamp, getDocs, limit, orderBy, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -13,6 +13,10 @@ import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { Employee } from '@/lib/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { DateRange } from 'react-day-picker';
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { cn } from '@/lib/utils';
 
 interface TimeEntry {
     id: string;
@@ -36,6 +40,12 @@ export default function DashboardPage() {
   const [activeTimeEntry, setActiveTimeEntry] = React.useState<TimeEntry | null>(null);
   const [todaysGlobalEntries, setTodaysGlobalEntries] = React.useState<TimeEntry[]>([]);
   const [isTimeLogLoading, setIsTimeLogLoading] = React.useState(false);
+  
+  const fourteenDaysAgo = subDays(new Date(), 13);
+  const [date, setDate] = React.useState<DateRange | undefined>({
+    from: fourteenDaysAgo,
+    to: new Date(),
+  });
 
   // Effect for the live clock
   React.useEffect(() => {
@@ -240,8 +250,48 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold">Time Clock Kiosk</h1>
-      <p className="text-muted-foreground">Select an employee to clock them in or out for their shifts.</p>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+            <h1 className="text-3xl font-bold">Time Clock Kiosk</h1>
+            <p className="text-muted-foreground">Select an employee to clock them in or out for their shifts.</p>
+        </div>
+        <Popover>
+            <PopoverTrigger asChild>
+            <Button
+                id="date"
+                variant={"outline"}
+                className={cn(
+                "w-full sm:w-[300px] justify-start text-left font-normal",
+                !date && "text-muted-foreground"
+                )}
+            >
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {date?.from ? (
+                date.to ? (
+                    <>
+                    {format(date.from, "LLL dd, y")} -{" "}
+                    {format(date.to, "LLL dd, y")}
+                    </>
+                ) : (
+                    format(date.from, "LLL dd, y")
+                )
+                ) : (
+                <span>Pick a date</span>
+                )}
+            </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="end">
+            <Calendar
+                initialFocus
+                mode="range"
+                defaultMonth={date?.from}
+                selected={date}
+                onSelect={setDate}
+                numberOfMonths={2}
+            />
+            </PopoverContent>
+        </Popover>
+      </div>
       
       <Card className="max-w-md mx-auto">
         <CardHeader className="text-center">
@@ -334,3 +384,5 @@ export default function DashboardPage() {
     </div>
   );
 }
+
+    
