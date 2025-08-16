@@ -3,10 +3,10 @@
 
 import * as React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Calendar as CalendarIcon, ArrowLeft } from "lucide-react";
-import { format, differenceInMinutes, startOfDay, isSameDay, subDays } from "date-fns";
+import { format, differenceInMinutes, startOfDay, isSameDay, subDays, eachDayOfInterval } from "date-fns";
 import { useAuth } from '@/contexts/auth-context';
 import { collection, query, where, getDocs, Timestamp, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -44,12 +44,13 @@ interface TimesheetData {
     dates: Date[];
     employees: { id: string; name: string }[];
     entries: Record<string, Record<string, DailySummary | undefined>>; // [dateString][employeeId]
+    totals: Record<string, number>; // [employeeId] -> totalHours
 }
 
 export default function TimesheetPage() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [timesheetData, setTimesheetData] = React.useState<TimesheetData>({ dates: [], employees: [], entries: {} });
+  const [timesheetData, setTimesheetData] = React.useState<TimesheetData>({ dates: [], employees: [], entries: {}, totals: {} });
   const [isLoading, setIsLoading] = React.useState(true);
   
   const fourteenDaysAgo = subDays(new Date(), 13);
@@ -59,8 +60,8 @@ export default function TimesheetPage() {
   });
 
   React.useEffect(() => {
-    if (!user || !date?.from) {
-        setTimesheetData({ dates: [], employees: [], entries: {} });
+    if (!user || !date?.from || !date?.to) {
+        setTimesheetData({ dates: [], employees: [], entries: {}, totals: {} });
         setIsLoading(false);
         return;
     };
@@ -73,10 +74,12 @@ export default function TimesheetPage() {
             const employeesQuery = query(employeesCollectionRef, orderBy('lastName', 'asc'));
             const employeeSnapshot = await getDocs(employeesQuery);
             const employeesData: Employee[] = employeeSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
+            const uniqueEmployees = employeesData.map(emp => ({ id: emp.id, name: `${emp.firstName} ${emp.lastName}` }));
+
 
             // 2. Fetch time entries for each employee within the date range
             const allSummaries: DailySummary[] = [];
-            const toDateEnd = date.to ? new Date(date.to) : new Date();
+            const toDateEnd = new Date(date.to);
             toDateEnd.setHours(23, 59, 59, 999);
 
             for (const employee of employeesData) {
@@ -118,28 +121,33 @@ export default function TimesheetPage() {
             }
             
             // 5. Transform data for pivot table
-            const uniqueDates = [...new Set(allSummaries.map(s => s.date.getTime()))]
-                .map(time => new Date(time))
-                .sort((a, b) => b.getTime() - a.getTime());
+            const allDatesInRange = eachDayOfInterval({
+                start: date.from,
+                end: date.to,
+            }).sort((a, b) => b.getTime() - a.getTime());
 
-            const uniqueEmployees = Array.from(new Map(allSummaries.map(s => [s.employeeId, { id: s.employeeId, name: s.employeeName }])).values())
-                 .sort((a, b) => a.name.localeCompare(b.name));
 
             const entriesMap: Record<string, Record<string, DailySummary | undefined>> = {};
+            const employeeTotals: Record<string, number> = {};
+            uniqueEmployees.forEach(emp => employeeTotals[emp.id] = 0);
 
-            uniqueDates.forEach(d => {
+            allDatesInRange.forEach(d => {
                 const dateKey = format(d, 'yyyy-MM-dd');
                 entriesMap[dateKey] = {};
                 uniqueEmployees.forEach(emp => {
                     const summary = allSummaries.find(s => s.employeeId === emp.id && isSameDay(s.date, d));
                     entriesMap[dateKey][emp.id] = summary;
+                    if (summary) {
+                        employeeTotals[emp.id] += summary.totalHours;
+                    }
                 });
             });
 
             setTimesheetData({
-                dates: uniqueDates,
+                dates: allDatesInRange,
                 employees: uniqueEmployees,
                 entries: entriesMap,
+                totals: employeeTotals,
             });
 
         } catch (error) {
@@ -164,12 +172,8 @@ export default function TimesheetPage() {
   };
 
   const totalHoursForAll = React.useMemo(() => {
-     return Object.values(timesheetData.entries).reduce((acc, dateEntry) => {
-         return acc + Object.values(dateEntry).reduce((dayAcc, summary) => {
-             return dayAcc + (summary?.totalHours || 0);
-         }, 0);
-     }, 0);
-  }, [timesheetData]);
+     return Object.values(timesheetData.totals).reduce((acc, total) => acc + total, 0);
+  }, [timesheetData.totals]);
 
   return (
     <div className="space-y-6">
@@ -238,13 +242,13 @@ export default function TimesheetPage() {
                 <Skeleton className="h-12 w-full" />
              </div>
            ) : (
-            timesheetData.dates.length > 0 ? (
+            timesheetData.employees.length > 0 ? (
                 <TooltipProvider>
                     <div className="overflow-x-auto">
                         <Table>
                             <TableHeader>
                                 <TableRow>
-                                    <TableHead className="sticky left-0 bg-card">Date</TableHead>
+                                    <TableHead className="sticky left-0 bg-card z-10">Date</TableHead>
                                     {timesheetData.employees.map(emp => (
                                         <TableHead key={emp.id} className="text-right">{emp.name}</TableHead>
                                     ))}
@@ -255,7 +259,7 @@ export default function TimesheetPage() {
                                     const dateKey = format(d, 'yyyy-MM-dd');
                                     return (
                                         <TableRow key={dateKey}>
-                                            <TableCell className="font-medium sticky left-0 bg-card">{format(d, 'PPP')}</TableCell>
+                                            <TableCell className="font-medium sticky left-0 bg-card z-10">{format(d, 'PPP')}</TableCell>
                                             {timesheetData.employees.map(emp => {
                                                 const summary = timesheetData.entries[dateKey]?.[emp.id];
                                                 return (
@@ -289,12 +293,22 @@ export default function TimesheetPage() {
                                     )
                                 })}
                             </TableBody>
+                             <TableFooter>
+                                <TableRow>
+                                    <TableHead className="sticky left-0 bg-card z-10">Total Hours</TableHead>
+                                     {timesheetData.employees.map(emp => (
+                                        <TableHead key={`total-${emp.id}`} className="text-right font-bold text-primary tabular-nums">
+                                            {timesheetData.totals[emp.id]?.toFixed(2) ?? '0.00'}
+                                        </TableHead>
+                                    ))}
+                                </TableRow>
+                            </TableFooter>
                         </Table>
                     </div>
                 </TooltipProvider>
             ) : (
                 <div className="text-center py-10 text-muted-foreground">
-                    No time entries found for any employee in the selected period.
+                    No employees found. Please add an employee first.
                 </div>
             )
            )}
@@ -303,3 +317,4 @@ export default function TimesheetPage() {
     </div>
   );
 }
+
