@@ -5,7 +5,7 @@ import * as React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Calendar as CalendarIcon, ArrowLeft } from "lucide-react";
+import { Calendar as CalendarIcon, ArrowLeft, Users } from "lucide-react";
 import { format, differenceInMinutes, startOfDay, isSameDay, subDays, eachDayOfInterval } from "date-fns";
 import { useAuth } from '@/contexts/auth-context';
 import { collection, query, where, getDocs, Timestamp, orderBy } from 'firebase/firestore';
@@ -24,6 +24,13 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog"
 
 
 interface TimeEntry {
@@ -47,6 +54,56 @@ interface TimesheetData {
     totals: Record<string, number>; // [employeeId] -> totalHours
 }
 
+function DailyActivityDialog({ isOpen, onClose, date, summaries }: { isOpen: boolean, onClose: () => void, date: Date | null, summaries: DailySummary[] }) {
+    if (!date) return null;
+
+    return (
+        <Dialog open={isOpen} onOpenChange={onClose}>
+            <DialogContent className="sm:max-w-2xl">
+                <DialogHeader>
+                    <DialogTitle className="flex items-center"><Users className="mr-2 h-5 w-5" /> Daily Activity Summary</DialogTitle>
+                    <DialogDescription>
+                        A detailed log of all employee activity for {format(date, 'PPP')}.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="max-h-[60vh] overflow-y-auto">
+                    {summaries.length > 0 ? (
+                        <ul className="space-y-4 py-4">
+                            {summaries.map(summary => (
+                                <li key={summary.employeeId} className="border-b pb-4 last:border-b-0">
+                                    <h4 className="font-semibold">{summary.employeeName}</h4>
+                                    <p className="text-sm text-muted-foreground mb-2">Total Hours: <span className="font-bold text-primary">{summary.totalHours.toFixed(2)}</span></p>
+                                    <ul className="space-y-1 pl-4">
+                                        {summary.entries.map(entry => (
+                                            <li key={entry.id} className="text-xs list-disc list-inside">
+                                                {format(entry.timeIn.toDate(), 'p')} - {entry.timeOut ? format(entry.timeOut.toDate(), 'p') : '...'}
+                                                <span className="ml-2 text-muted-foreground">({formatDuration(entry.timeIn.toDate(), entry.timeOut?.toDate() ?? null)})</span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </li>
+                            ))}
+                        </ul>
+                    ) : (
+                        <p className="text-center text-muted-foreground py-10">No activity was recorded for this day.</p>
+                    )}
+                </div>
+            </DialogContent>
+        </Dialog>
+    )
+}
+
+// Moved outside the component to avoid re-declaration on every render
+const formatDuration = (start: Date, end: Date | null) => {
+    if (!end) return 'Active';
+    const totalMinutes = differenceInMinutes(end, start);
+    if (totalMinutes < 0) return '0h 0m';
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    return `${hours}h ${minutes}m`;
+};
+
+
 export default function TimesheetPage() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -58,6 +115,9 @@ export default function TimesheetPage() {
     from: fourteenDaysAgo,
     to: new Date(),
   });
+
+  const [isDetailsDialogOpen, setIsDetailsDialogOpen] = React.useState(false);
+  const [selectedDateDetails, setSelectedDateDetails] = React.useState<{ date: Date | null; summaries: DailySummary[] }>({ date: null, summaries: [] });
 
   React.useEffect(() => {
     if (!user || !date?.from || !date?.to) {
@@ -124,7 +184,7 @@ export default function TimesheetPage() {
             const allDatesInRange = eachDayOfInterval({
                 start: date.from,
                 end: date.to,
-            }).sort((a, b) => b.getTime() - a.getTime());
+            }).sort((a, b) => a.getTime() - b.getTime()); // Sort ascending: oldest first
 
 
             const entriesMap: Record<string, Record<string, DailySummary | undefined>> = {};
@@ -162,13 +222,14 @@ export default function TimesheetPage() {
 
   }, [user, date, toast]);
 
-  const formatDuration = (start: Date, end: Date | null) => {
-    if (!end) return 'Active';
-    const totalMinutes = differenceInMinutes(end, start);
-    if (totalMinutes < 0) return '0h 0m';
-    const hours = Math.floor(totalMinutes / 60);
-    const minutes = totalMinutes % 60;
-    return `${hours}h ${minutes}m`;
+  const handleDateClick = (d: Date) => {
+    const dateKey = format(d, 'yyyy-MM-dd');
+    const dailySummaries = timesheetData.employees
+        .map(emp => timesheetData.entries[dateKey]?.[emp.id])
+        .filter((summary): summary is DailySummary => !!summary && summary.totalHours > 0);
+    
+    setSelectedDateDetails({ date: d, summaries: dailySummaries });
+    setIsDetailsDialogOpen(true);
   };
 
   const totalHoursForAll = React.useMemo(() => {
@@ -183,7 +244,7 @@ export default function TimesheetPage() {
         </Link>
       </Button>
       <h1 className="text-3xl font-bold">Consolidated Timesheet</h1>
-      <p className="text-muted-foreground">Review total logged hours for all employees. Click on an hour value to see detailed entries.</p>
+      <p className="text-muted-foreground">Review total logged hours for all employees. Click on a date for a daily summary, or an hour value for detailed entries.</p>
       
       <Card>
         <CardHeader>
@@ -248,7 +309,7 @@ export default function TimesheetPage() {
                         <Table>
                             <TableHeader>
                                 <TableRow>
-                                    <TableHead className="sticky left-0 bg-card z-10">Date</TableHead>
+                                    <TableHead className="sticky left-0 bg-card z-10 min-w-[150px]">Date</TableHead>
                                     {timesheetData.employees.map(emp => (
                                         <TableHead key={emp.id} className="text-right">{emp.name}</TableHead>
                                     ))}
@@ -259,7 +320,11 @@ export default function TimesheetPage() {
                                     const dateKey = format(d, 'yyyy-MM-dd');
                                     return (
                                         <TableRow key={dateKey}>
-                                            <TableCell className="font-medium sticky left-0 bg-card z-10">{format(d, 'PPP')}</TableCell>
+                                            <TableCell className="font-medium sticky left-0 bg-card z-10">
+                                                <Button variant="link" className="p-0 h-auto" onClick={() => handleDateClick(d)}>
+                                                    {format(d, 'PPP')}
+                                                </Button>
+                                            </TableCell>
                                             {timesheetData.employees.map(emp => {
                                                 const summary = timesheetData.entries[dateKey]?.[emp.id];
                                                 return (
@@ -314,7 +379,14 @@ export default function TimesheetPage() {
            )}
         </CardContent>
       </Card>
+
+        <DailyActivityDialog
+            isOpen={isDetailsDialogOpen}
+            onClose={() => setIsDetailsDialogOpen(false)}
+            date={selectedDateDetails.date}
+            summaries={selectedDateDetails.summaries}
+        />
+
     </div>
   );
 }
-
