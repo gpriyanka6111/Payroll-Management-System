@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Settings as SettingsIcon, Building, Clock, UserCircle, ArrowLeft, Loader2 } from "lucide-react";
 import Link from 'next/link';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Skeleton } from '@/components/ui/skeleton';
 
 // Zod schema for form validation
@@ -25,6 +25,7 @@ const settingsSchema = z.object({
   companyName: z.string().min(1, "Company name cannot be empty."),
   payFrequency: z.enum(['weekly', 'bi-weekly', 'semi-monthly', 'monthly']),
   standardBiWeeklyHours: z.coerce.number().positive({ message: "Standard hours must be a positive number." }),
+  storeClosingTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Invalid time format. Use HH:MM (24-hour).").optional(),
 });
 
 type SettingsFormValues = z.infer<typeof settingsSchema>;
@@ -41,6 +42,7 @@ export default function SettingsPage() {
       companyName: '',
       payFrequency: 'bi-weekly',
       standardBiWeeklyHours: 80,
+      storeClosingTime: '17:00', // Default to 5 PM
     },
   });
 
@@ -55,6 +57,7 @@ export default function SettingsPage() {
             companyName: data.companyName || '',
             payFrequency: data.payFrequency || 'bi-weekly',
             standardBiWeeklyHours: data.standardBiWeeklyHours || 80,
+            storeClosingTime: data.storeClosingTime || '17:00',
           });
         }
         setIsLoading(false);
@@ -226,6 +229,22 @@ export default function SettingsPage() {
                                     <FormControl>
                                     <Input type="number" placeholder="e.g., 80" {...field} />
                                     </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                                )}
+                            />
+                            <FormField
+                                control={form.control}
+                                name="storeClosingTime"
+                                render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Store Closing Time</FormLabel>
+                                    <FormControl>
+                                    <Input type="text" placeholder="HH:MM (e.g., 17:00)" {...field} />
+                                    </FormControl>
+                                     <FormDescription>
+                                        Used to auto-clock out employees who forget. Use 24-hour format.
+                                    </FormDescription>
                                     <FormMessage />
                                 </FormItem>
                                 )}

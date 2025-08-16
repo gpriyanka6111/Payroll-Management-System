@@ -5,9 +5,9 @@ import * as React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Clock, LogIn, LogOut, CheckCircle, Users } from "lucide-react";
-import { format, differenceInHours, differenceInMinutes, startOfDay, endOfDay } from "date-fns";
+import { format, differenceInHours, differenceInMinutes, startOfDay, endOfDay, isBefore, startOfToday } from "date-fns";
 import { useAuth } from '@/contexts/auth-context';
-import { collection, addDoc, query, where, onSnapshot, serverTimestamp, doc, updateDoc, Timestamp, getDocs, limit, orderBy, collectionGroup } from 'firebase/firestore';
+import { collection, addDoc, query, where, onSnapshot, serverTimestamp, doc, updateDoc, Timestamp, getDocs, limit, orderBy, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -53,10 +53,6 @@ export default function DashboardPage() {
     const unsubscribe = onSnapshot(q, (snapshot) => {
         const employeesData: Employee[] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
         setEmployees(employeesData);
-        if (employeesData.length > 0 && !selectedEmployeeId) {
-            // Pre-select the first employee if none is selected
-            // setSelectedEmployeeId(employeesData[0].id);
-        }
         setIsLoading(false);
     }, (error) => {
         console.error("Error fetching employees:", error);
@@ -80,7 +76,6 @@ export default function DashboardPage() {
       const todayEnd = endOfDay(new Date());
       let allEntries: TimeEntry[] = [];
 
-      // Use Promise.all to fetch entries concurrently for better performance
       await Promise.all(employees.map(async (employee) => {
         try {
           const timeEntriesRef = collection(db, 'users', user.uid, 'employees', employee.id, 'timeEntries');
@@ -106,8 +101,6 @@ export default function DashboardPage() {
     };
     
     fetchAllTodaysEntries();
-    // This effect depends on employees list and activeTimeEntry.
-    // When activeTimeEntry changes (a clock-in/out), this re-fetches the list.
   }, [user, employees, activeTimeEntry]);
 
 
@@ -162,7 +155,6 @@ export default function DashboardPage() {
       await addDoc(timeEntriesRef, {
         timeIn: serverTimestamp(),
         timeOut: null,
-        userId: user.uid, // Add userId for potential future queries
         employeeId: selectedEmployeeId,
         employeeName: `${selectedEmployee.firstName} ${selectedEmployee.lastName}`,
       });
@@ -183,21 +175,43 @@ export default function DashboardPage() {
     if (!user || !selectedEmployeeId || !activeTimeEntry) return;
     setIsSubmitting(true);
     try {
-      const entryDocRef = doc(db, 'users', user.uid, 'employees', selectedEmployeeId, 'timeEntries', activeTimeEntry.id);
-      await updateDoc(entryDocRef, {
-        timeOut: serverTimestamp(),
-      });
-      const selectedEmployee = employees.find(e => e.id === selectedEmployeeId);
-      toast({
-        title: "Clocked Out!",
-        description: `${selectedEmployee?.firstName} ${selectedEmployee?.lastName}'s shift has ended.`,
-        variant: "destructive",
-      });
+        const entryDocRef = doc(db, 'users', user.uid, 'employees', selectedEmployeeId, 'timeEntries', activeTimeEntry.id);
+        
+        let timeOutValue: Date | Timestamp = serverTimestamp() as Timestamp;
+        let toastDescription = `${activeTimeEntry.employeeName}'s shift has ended.`;
+
+        // Check if the clock-in was on a previous day
+        if (isBefore(activeTimeEntry.timeIn.toDate(), startOfToday())) {
+            const userSettingsRef = doc(db, 'users', user.uid);
+            const userSettingsSnap = await getDoc(userSettingsRef);
+            let closingTime = '17:00'; // Default closing time
+            if (userSettingsSnap.exists()) {
+                closingTime = userSettingsSnap.data().storeClosingTime || '17:00';
+            }
+
+            const [hours, minutes] = closingTime.split(':').map(Number);
+            const clockOutDate = activeTimeEntry.timeIn.toDate();
+            clockOutDate.setHours(hours, minutes, 0, 0);
+
+            timeOutValue = clockOutDate;
+            toastDescription = `${activeTimeEntry.employeeName} was automatically clocked out for a previous shift at ${format(clockOutDate, 'p')}.`;
+        }
+
+        await updateDoc(entryDocRef, {
+            timeOut: timeOutValue,
+        });
+
+        toast({
+            title: "Clocked Out!",
+            description: toastDescription,
+            variant: "destructive",
+        });
+
     } catch (error) {
-      console.error("Error clocking out:", error);
-      toast({ title: "Error", description: "Failed to clock out.", variant: "destructive" });
+        console.error("Error clocking out:", error);
+        toast({ title: "Error", description: "Failed to clock out.", variant: "destructive" });
     } finally {
-      setIsSubmitting(false);
+        setIsSubmitting(false);
     }
   };
   
