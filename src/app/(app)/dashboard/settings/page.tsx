@@ -7,7 +7,7 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { useAuth } from '@/contexts/auth-context';
 import { db } from '@/lib/firebase';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, setDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -81,7 +81,8 @@ export default function SettingsPage() {
     setIsSaving(true);
     const userDocRef = doc(db, 'users', user.uid);
     try {
-      await updateDoc(userDocRef, values);
+      // Use setDoc with merge: true to create the document if it doesn't exist, or update it if it does.
+      await setDoc(userDocRef, values, { merge: true });
       toast({
         title: "Settings Saved",
         description: "Your company settings have been updated.",
