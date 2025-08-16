@@ -96,7 +96,11 @@ export default function DashboardPage() {
         }
       }));
       
-      allEntries.sort((a, b) => b.timeIn.toDate().getTime() - a.timeIn.toDate().getTime());
+      allEntries.sort((a, b) => {
+        const timeA = a.timeIn?.toDate()?.getTime() || 0;
+        const timeB = b.timeIn?.toDate()?.getTime() || 0;
+        return timeB - timeA;
+      });
       setTodaysGlobalEntries(allEntries);
     };
     
