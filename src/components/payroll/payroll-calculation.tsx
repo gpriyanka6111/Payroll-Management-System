@@ -138,8 +138,8 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
 
     const watchedEmployees = watch("employees");
 
-   const fetchHoursFromTimeEntries = React.useCallback(async (employees: EmployeePayrollInput[]) => {
-       if (!user) return;
+   const fetchHoursFromTimeEntries = React.useCallback(async (employeesToFetch: EmployeePayrollInput[]) => {
+       if (!user || !employeesToFetch || employeesToFetch.length === 0) return;
         setIsFetchingHours(true);
         toast({ title: "Fetching Hours", description: "Calculating worked hours from time entries..." });
        
@@ -147,9 +147,8 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
         toDateWithTime.setHours(23, 59, 59, 999);
 
        try {
-        for (let i = 0; i < employees.length; i++) {
-            const employee = employees[i];
-            // Corrected path to employee's time entries
+        for (let i = 0; i < employeesToFetch.length; i++) {
+            const employee = employeesToFetch[i];
             const timeEntriesRef = collection(db, 'users', user.uid, 'employees', employee.employeeId, 'timeEntries');
             const q = query(
                 timeEntriesRef,
@@ -185,79 +184,84 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
     const fetchAndSetData = async () => {
       setIsLoading(true);
 
-      const userDocRef = doc(db, 'users', user.uid);
-      const userSnap = await getDoc(userDocRef);
-      if (userSnap.exists()) {
-        setCompanyName(userSnap.data().companyName || "My Small Business");
-      }
-
-      const employeesCollectionRef = collection(db, 'users', user.uid, 'employees');
-      const q = query(employeesCollectionRef, orderBy('lastName', 'asc'));
-      const querySnapshot = await getDocs(q);
-      const employeesData: Employee[] = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      } as Employee));
-
-      let formValues: EmployeePayrollInput[];
-
-      if (isEditMode && initialPayrollData) {
-        // Edit Mode: Map initial data to the most recent employee data
-        formValues = initialPayrollData.inputs.map(initialInput => {
-            const currentEmployee = employeesData.find(e => e.id === initialInput.employeeId);
-            return {
-                ...initialInput,
-                ptoBalance: currentEmployee ? currentEmployee.ptoBalance : initialInput.ptoBalance,
-                comment: currentEmployee ? currentEmployee.comment : initialInput.comment,
-            };
-        });
-        
-        setSummaryEmployee(initialPayrollData.summaryEmployee || '');
-        setSummaryDeductions(initialPayrollData.summaryDeductions || '');
-        setSummaryNetPay(initialPayrollData.summaryNetPay || '');
-
-        const employeesInPayroll = new Set(initialPayrollData.inputs.map(i => i.employeeId));
-        const newEmployees = employeesData.filter(e => !employeesInPayroll.has(e.id));
-        newEmployees.forEach(emp => {
-            formValues.push({
-                employeeId: emp.id,
-                name: `${emp.firstName} ${emp.lastName}`,
-                payRateCheck: emp.payRateCheck,
-                payRateOthers: emp.payRateOthers ?? 0,
-                ptoBalance: emp.ptoBalance,
-                totalHoursWorked: 0,
-                checkHours: 0,
-                otherHours: 0,
-                ptoUsed: 0,
-                comment: emp.comment || '',
-            });
-        });
-        reset({ employees: formValues });
-      } else {
-        // Create Mode: Use fresh data for all employees
-        formValues = employeesData.map(emp => ({
-            employeeId: emp.id,
-            name: `${emp.firstName} ${emp.lastName}`,
-            payRateCheck: emp.payRateCheck,
-            payRateOthers: emp.payRateOthers ?? 0,
-            ptoBalance: emp.ptoBalance,
-            totalHoursWorked: 0,
-            checkHours: 0,
-            otherHours: 0,
-            ptoUsed: 0,
-            comment: emp.comment || '',
-        }));
-        reset({ employees: formValues });
-        if (formValues.length > 0) {
-            fetchHoursFromTimeEntries(formValues);
+      try {
+        const userDocRef = doc(db, 'users', user.uid);
+        const userSnap = await getDoc(userDocRef);
+        if (userSnap.exists()) {
+          setCompanyName(userSnap.data().companyName || "My Small Business");
         }
+
+        const employeesCollectionRef = collection(db, 'users', user.uid, 'employees');
+        const q = query(employeesCollectionRef, orderBy('lastName', 'asc'));
+        const querySnapshot = await getDocs(q);
+        const employeesData: Employee[] = querySnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        } as Employee));
+
+        let formValues: EmployeePayrollInput[];
+
+        if (isEditMode && initialPayrollData) {
+          formValues = initialPayrollData.inputs.map(initialInput => {
+              const currentEmployee = employeesData.find(e => e.id === initialInput.employeeId);
+              return {
+                  ...initialInput,
+                  ptoBalance: currentEmployee ? currentEmployee.ptoBalance : initialInput.ptoBalance,
+                  comment: currentEmployee ? currentEmployee.comment : initialInput.comment,
+              };
+          });
+          
+          setSummaryEmployee(initialPayrollData.summaryEmployee || '');
+          setSummaryDeductions(initialPayrollData.summaryDeductions || '');
+          setSummaryNetPay(initialPayrollData.summaryNetPay || '');
+
+          const employeesInPayroll = new Set(initialPayrollData.inputs.map(i => i.employeeId));
+          const newEmployees = employeesData.filter(e => !employeesInPayroll.has(e.id));
+          newEmployees.forEach(emp => {
+              formValues.push({
+                  employeeId: emp.id,
+                  name: `${emp.firstName} ${emp.lastName}`,
+                  payRateCheck: emp.payRateCheck,
+                  payRateOthers: emp.payRateOthers ?? 0,
+                  ptoBalance: emp.ptoBalance,
+                  totalHoursWorked: 0,
+                  checkHours: 0,
+                  otherHours: 0,
+                  ptoUsed: 0,
+                  comment: emp.comment || '',
+              });
+          });
+          reset({ employees: formValues });
+
+        } else {
+          formValues = employeesData.map(emp => ({
+              employeeId: emp.id,
+              name: `${emp.firstName} ${emp.lastName}`,
+              payRateCheck: emp.payRateCheck,
+              payRateOthers: emp.payRateOthers ?? 0,
+              ptoBalance: emp.ptoBalance,
+              totalHoursWorked: 0,
+              checkHours: 0,
+              otherHours: 0,
+              ptoUsed: 0,
+              comment: emp.comment || '',
+          }));
+          reset({ employees: formValues });
+          if (formValues.length > 0) {
+              await fetchHoursFromTimeEntries(formValues);
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching payroll data:", error);
+        toast({ title: "Error", description: "Failed to load initial payroll data.", variant: 'destructive' });
+      } finally {
+        setIsLoading(false);
       }
-      
-      setIsLoading(false);
     };
 
     fetchAndSetData();
-  }, [user, reset, isEditMode, initialPayrollData, fetchHoursFromTimeEntries]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, payrollId, initialPayrollData, from, to]);
 
 
     React.useEffect(() => {
