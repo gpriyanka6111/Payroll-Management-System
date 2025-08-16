@@ -53,6 +53,10 @@ export default function DashboardPage() {
     const unsubscribe = onSnapshot(q, (snapshot) => {
         const employeesData: Employee[] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
         setEmployees(employeesData);
+        if (employeesData.length > 0 && !selectedEmployeeId) {
+            // Pre-select the first employee if none is selected
+            // setSelectedEmployeeId(employeesData[0].id);
+        }
         setIsLoading(false);
     }, (error) => {
         console.error("Error fetching employees:", error);
@@ -63,44 +67,48 @@ export default function DashboardPage() {
     return () => unsubscribe();
   }, [user, toast]);
   
-  // Effect to fetch today's activity for ALL employees
+
+  // Effect to fetch today's activity for ALL employees, re-runs when activeTimeEntry changes
   React.useEffect(() => {
     if (!user || employees.length === 0) {
-        if (!isLoading) setTodaysGlobalEntries([]);
-        return;
-    };
+      setTodaysGlobalEntries([]);
+      return;
+    }
 
     const fetchAllTodaysEntries = async () => {
-        const todayStart = startOfDay(new Date());
-        const todayEnd = endOfDay(new Date());
-        let allEntries: TimeEntry[] = [];
+      const todayStart = startOfDay(new Date());
+      const todayEnd = endOfDay(new Date());
+      let allEntries: TimeEntry[] = [];
 
-        for (const employee of employees) {
-            try {
-                const timeEntriesRef = collection(db, 'users', user.uid, 'employees', employee.id, 'timeEntries');
-                const q = query(
-                    timeEntriesRef,
-                    where('timeIn', '>=', todayStart),
-                    where('timeIn', '<=', todayEnd)
-                );
-                const snapshot = await getDocs(q);
-                const employeeEntries = snapshot.docs.map(doc => ({
-                    id: doc.id,
-                    ...doc.data()
-                } as TimeEntry));
-                allEntries = [...allEntries, ...employeeEntries];
-            } catch (error) {
-                 console.error(`Error fetching entries for ${employee.firstName}:`, error);
-            }
+      // Use Promise.all to fetch entries concurrently for better performance
+      await Promise.all(employees.map(async (employee) => {
+        try {
+          const timeEntriesRef = collection(db, 'users', user.uid, 'employees', employee.id, 'timeEntries');
+          const q = query(
+            timeEntriesRef,
+            where('timeIn', '>=', todayStart),
+            where('timeIn', '<=', todayEnd),
+            orderBy('timeIn', 'desc')
+          );
+          const snapshot = await getDocs(q);
+          const employeeEntries = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          } as TimeEntry));
+          allEntries.push(...employeeEntries);
+        } catch (error) {
+          console.error(`Error fetching entries for ${employee.firstName}:`, error);
         }
-        
-        allEntries.sort((a, b) => b.timeIn.toDate().getTime() - a.timeIn.toDate().getTime());
-        setTodaysGlobalEntries(allEntries);
-    }
+      }));
+      
+      allEntries.sort((a, b) => b.timeIn.toDate().getTime() - a.timeIn.toDate().getTime());
+      setTodaysGlobalEntries(allEntries);
+    };
     
     fetchAllTodaysEntries();
-
-  }, [user, employees, isLoading]);
+    // This effect depends on employees list and activeTimeEntry.
+    // When activeTimeEntry changes (a clock-in/out), this re-fetches the list.
+  }, [user, employees, activeTimeEntry]);
 
 
   // Effect to fetch and listen to the selected employee's active entry
@@ -154,7 +162,7 @@ export default function DashboardPage() {
       await addDoc(timeEntriesRef, {
         timeIn: serverTimestamp(),
         timeOut: null,
-        userId: user.uid, // Add userId for collectionGroup query
+        userId: user.uid, // Add userId for potential future queries
         employeeId: selectedEmployeeId,
         employeeName: `${selectedEmployee.firstName} ${selectedEmployee.lastName}`,
       });
