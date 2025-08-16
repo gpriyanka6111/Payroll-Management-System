@@ -65,17 +65,15 @@ export default function DashboardPage() {
   
   // Effect to fetch today's activity for ALL employees
   React.useEffect(() => {
-    if (!user || employees.length === 0) return;
+    if (!user) return;
 
     const todayStart = startOfDay(new Date());
     const todayEnd = endOfDay(new Date());
 
-    const userRef = doc(db, 'users', user.uid);
-
+    // This query looks at all `timeEntries` collections across all employees for the current user.
     const timeEntriesQuery = query(
         collectionGroup(db, 'timeEntries'),
-        where('__name__', '>=', userRef.path + '/'),
-        where('__name__', '<', userRef.path + '0'),
+        where('userId', '==', user.uid),
         where('timeIn', '>=', todayStart),
         where('timeIn', '<=', todayEnd),
         orderBy('timeIn', 'desc')
@@ -83,16 +81,11 @@ export default function DashboardPage() {
     
     const unsubscribe = onSnapshot(timeEntriesQuery, (snapshot) => {
         const entriesData = snapshot.docs.map(doc => {
-            const employeeId = doc.ref.parent.parent!.id; // timeEntries is a subcollection of an employee
-            const employee = employees.find(e => e.id === employeeId);
             return {
                 id: doc.id,
                 ...doc.data(),
-                employeeId: employeeId,
-                employeeName: employee ? `${employee.firstName} ${employee.lastName}` : 'Unknown'
             } as TimeEntry;
         });
-
         setTodaysGlobalEntries(entriesData);
     }, (error) => {
         console.error("Error fetching global time entries:", error);
@@ -100,7 +93,7 @@ export default function DashboardPage() {
     });
 
     return () => unsubscribe();
-  }, [user, toast, employees]);
+  }, [user, toast]);
 
 
   // Effect to fetch and listen to the selected employee's active entry
@@ -147,12 +140,18 @@ export default function DashboardPage() {
     if (!user || !selectedEmployeeId) return;
     setIsSubmitting(true);
     try {
+      const selectedEmployee = employees.find(e => e.id === selectedEmployeeId);
+      if (!selectedEmployee) return;
+
       const timeEntriesRef = collection(db, 'users', user.uid, 'employees', selectedEmployeeId, 'timeEntries');
       await addDoc(timeEntriesRef, {
         timeIn: serverTimestamp(),
         timeOut: null,
+        userId: user.uid, // Add userId for collectionGroup query
+        employeeId: selectedEmployeeId,
+        employeeName: `${selectedEmployee.firstName} ${selectedEmployee.lastName}`,
       });
-      const selectedEmployee = employees.find(e => e.id === selectedEmployeeId);
+      
       toast({
         title: "Clocked In!",
         description: `${selectedEmployee?.firstName} ${selectedEmployee?.lastName}'s shift has started at ${format(new Date(), 'p')}.`,
