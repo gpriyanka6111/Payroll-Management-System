@@ -505,7 +505,7 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
                <Table>
                    <TableHeader>
                      <TableRow>
-                      <TableHead className="font-bold min-w-[200px]">Metric</TableHead>
+                       <TableHead className="font-bold min-w-[200px]">Metric</TableHead>
                        {fields.map((field) => (
                           <TableHead key={field.id} className="text-left">{field.name}</TableHead>
                        ))}
@@ -543,7 +543,7 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
                      <TableRow className="bg-muted/20 hover:bg-muted/20">
                         <TableCell className="font-medium">Available PTO</TableCell>
                         {fields.map((field, index) => (
-                            <TableCell key={field.id} className="text-center text-sm text-muted-foreground tabular-nums">
+                            <TableCell key={field.id} className="text-left pl-4 text-sm text-muted-foreground tabular-nums">
                                 ({formatHours(watchedEmployees[index]?.ptoBalance)})
                             </TableCell>
                         ))}
@@ -551,7 +551,7 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
                      <TableRow>
                         <TableCell className="font-medium">Comments</TableCell>
                          {fields.map((field, index) => (
-                            <TableCell key={field.id} className="text-center">
+                            <TableCell key={field.id} className="text-left">
                                <Popover>
                                     <PopoverTrigger asChild>
                                         <Button variant="outline" size="sm">
@@ -599,4 +599,88 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
                         <AlertTitle>Error</AlertTitle>
                         <AlertDescription>
                           Please check the form for errors. Total or PTO hours may be invalid.
-                        </Aler
+                        </AlertDescription>
+                    </Alert>
+                )}
+               <div className="flex justify-end pt-4">
+                 <Button type="submit">Calculate Payroll</Button>
+               </div>
+            </form>
+           </Form>
+         </CardContent>
+       </Card>
+
+       {showResults && (
+         <Card>
+           <CardHeader>
+             <CardTitle className="flex items-center"><CheckCircle className="mr-2 h-5 w-5 text-accent"/> 3. Review & Approve</CardTitle>
+             <CardDescription>Review the calculated results. Make adjustments if needed, then approve to finalize.</CardDescription>
+           </CardHeader>
+           <CardContent>
+            <div className="overflow-x-auto">
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead className="font-bold min-w-[200px]">Metric</TableHead>
+                            {payrollResults.map((result) => (
+                                <TableHead key={result.employeeId} className="text-left">{result.name}</TableHead>
+                            ))}
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        <TableRow><TableCell colSpan={payrollResults.length + 1} className="p-2 bg-muted/20 font-semibold text-muted-foreground">Hours</TableCell></TableRow>
+                        <TableRow><TableCell>Total Hours Worked</TableCell>{payrollResults.map(r => <TableCell key={r.employeeId} className="text-left tabular-nums">{formatHours(r.totalHoursWorked)}</TableCell>)}</TableRow>
+                        <TableRow><TableCell>Check Hours</TableCell>{payrollResults.map(r => <TableCell key={r.employeeId} className="text-left tabular-nums">{formatHours(r.checkHours)}</TableCell>)}</TableRow>
+                        <TableRow><TableCell>Other Hours</TableCell>{payrollResults.map(r => <TableCell key={r.employeeId} className="text-left tabular-nums">{formatHours(r.otherHours)}</TableCell>)}</TableRow>
+                        <TableRow><TableCell>PTO Used</TableCell>{payrollResults.map(r => <TableCell key={r.employeeId} className="text-left tabular-nums">{formatHours(r.ptoUsed)}</TableCell>)}</TableRow>
+
+                        <TableRow><TableCell colSpan={payrollResults.length + 1} className="p-2 bg-muted/20 font-semibold text-muted-foreground">Pay</TableCell></TableRow>
+                        <TableRow><TableCell>Rate/Check</TableCell>{payrollResults.map(r => <TableCell key={r.employeeId} className="text-left tabular-nums">{formatCurrency(r.payRateCheck)}</TableCell>)}</TableRow>
+                        <TableRow><TableCell>Rate/Others</TableCell>{payrollResults.map(r => <TableCell key={r.employeeId} className="text-left tabular-nums">{formatCurrency(r.payRateOthers)}</TableCell>)}</TableRow>
+                        <TableRow><TableCell>Others-ADJ $</TableCell>{payrollResults.map(r => <TableCell key={r.employeeId} className="text-left"><Input type="number" step="0.01" className="h-8 w-28" value={r.otherAdjustment} onChange={(e) => handleResultAdjustmentChange(r.employeeId, e.target.value)} /></TableCell>)}</TableRow>
+                        <TableRow><TableCell className="font-semibold">Gross Check Amount</TableCell>{payrollResults.map(r => <TableCell key={r.employeeId} className="font-semibold text-left tabular-nums">{formatCurrency(r.grossCheckAmount)}</TableCell>)}</TableRow>
+                        <TableRow><TableCell className="font-semibold">Gross Other Amount</TableCell>{payrollResults.map(r => <TableCell key={r.employeeId} className="font-semibold text-left tabular-nums">{formatCurrency(r.grossOtherAmount)}</TableCell>)}</TableRow>
+                        <TableRow><TableCell className="font-semibold">Net Pay</TableCell>{payrollResults.map(r => <TableCell key={r.employeeId} className="font-semibold text-left tabular-nums">{formatCurrency(r.netPay)}</TableCell>)}</TableRow>
+                        
+                        <TableRow><TableCell colSpan={payrollResults.length + 1} className="p-2 bg-muted/20 font-semibold text-muted-foreground">PTO Balance</TableCell></TableRow>
+                        <TableRow><TableCell>New PTO Balance</TableCell>{payrollResults.map(r => <TableCell key={r.employeeId} className="text-left tabular-nums">({formatHours(r.newPtoBalance)})</TableCell>)}</TableRow>
+                    </TableBody>
+                </Table>
+            </div>
+             
+             <Separator className="my-6" />
+
+             <div className="space-y-4">
+                <h3 className="text-lg font-medium">Payroll Summary</h3>
+                <div className="grid grid-cols-1 gap-6 md:grid-cols-4">
+                    <FormItem>
+                       <FormLabel>GP: <span className="font-bold">{formatCurrency(payrollResults.reduce((s, r) => s + r.grossCheckAmount, 0))}</span></FormLabel>
+                    </FormItem>
+                    <FormItem>
+                       <FormLabel>Employee</FormLabel>
+                       <FormControl><Input value={summaryEmployee} onChange={(e) => setSummaryEmployee(e.target.value)} /></FormControl>
+                    </FormItem>
+                     <FormItem>
+                       <FormLabel>DED:</FormLabel>
+                       <FormControl><Input value={summaryDeductions} onChange={(e) => setSummaryDeductions(e.target.value)} /></FormControl>
+                    </FormItem>
+                     <FormItem>
+                       <FormLabel>NET</FormLabel>
+                       <FormControl><Input value={summaryNetPay} onChange={(e) => setSummaryNetPay(e.target.value)} /></FormControl>
+                    </FormItem>
+                </div>
+             </div>
+
+
+             <div className="flex justify-end pt-6">
+                <Button size="lg" className="bg-accent text-accent-foreground hover:bg-accent/90" onClick={handleApprovePayroll} disabled={isApproving}>
+                    {isApproving ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Save className="mr-2 h-4 w-4" />}
+                    {isApproving ? 'Saving...' : (isEditMode ? 'Update & Finalize' : 'Approve & Finalize')}
+                </Button>
+             </div>
+           </CardContent>
+         </Card>
+       )}
+     </>
+   );
+}
