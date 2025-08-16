@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Calendar as CalendarIcon, ArrowLeft } from "lucide-react";
-import { format, differenceInMinutes, startOfDay } from "date-fns";
+import { format, differenceInMinutes, startOfDay, isSameDay } from "date-fns";
 import { useAuth } from '@/contexts/auth-context';
 import { collection, query, where, getDocs, Timestamp, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -18,7 +18,13 @@ import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import type { Employee } from '@/lib/types';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+
 
 interface TimeEntry {
     id: string;
@@ -34,10 +40,16 @@ interface DailySummary {
     entries: TimeEntry[];
 }
 
+interface TimesheetData {
+    dates: Date[];
+    employees: { id: string; name: string }[];
+    entries: Record<string, Record<string, DailySummary | undefined>>; // [dateString][employeeId]
+}
+
 export default function TimesheetPage() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [dailySummaries, setDailySummaries] = React.useState<DailySummary[]>([]);
+  const [timesheetData, setTimesheetData] = React.useState<TimesheetData>({ dates: [], employees: [], entries: {} });
   const [isLoading, setIsLoading] = React.useState(true);
   
   const thirtyDaysAgo = new Date();
@@ -49,7 +61,7 @@ export default function TimesheetPage() {
 
   React.useEffect(() => {
     if (!user || !date?.from) {
-        setDailySummaries([]);
+        setTimesheetData({ dates: [], employees: [], entries: {} });
         setIsLoading(false);
         return;
     };
@@ -106,14 +118,30 @@ export default function TimesheetPage() {
                 });
             }
             
-            // 5. Sort final summary list by date (most recent first), then by employee name
-            allSummaries.sort((a, b) => {
-                const dateDiff = b.date.getTime() - a.date.getTime();
-                if (dateDiff !== 0) return dateDiff;
-                return a.employeeName.localeCompare(b.employeeName);
+            // 5. Transform data for pivot table
+            const uniqueDates = [...new Set(allSummaries.map(s => s.date.getTime()))]
+                .map(time => new Date(time))
+                .sort((a, b) => b.getTime() - a.getTime());
+
+            const uniqueEmployees = Array.from(new Map(allSummaries.map(s => [s.employeeId, { id: s.employeeId, name: s.employeeName }])).values())
+                 .sort((a, b) => a.name.localeCompare(b.name));
+
+            const entriesMap: Record<string, Record<string, DailySummary | undefined>> = {};
+
+            uniqueDates.forEach(d => {
+                const dateKey = format(d, 'yyyy-MM-dd');
+                entriesMap[dateKey] = {};
+                uniqueEmployees.forEach(emp => {
+                    const summary = allSummaries.find(s => s.employeeId === emp.id && isSameDay(s.date, d));
+                    entriesMap[dateKey][emp.id] = summary;
+                });
             });
 
-            setDailySummaries(allSummaries);
+            setTimesheetData({
+                dates: uniqueDates,
+                employees: uniqueEmployees,
+                entries: entriesMap,
+            });
 
         } catch (error) {
             console.error("Error fetching timesheets:", error);
@@ -137,8 +165,12 @@ export default function TimesheetPage() {
   };
 
   const totalHoursForAll = React.useMemo(() => {
-    return dailySummaries.reduce((acc, summary) => acc + summary.totalHours, 0);
-  }, [dailySummaries]);
+     return Object.values(timesheetData.entries).reduce((acc, dateEntry) => {
+         return acc + Object.values(dateEntry).reduce((dayAcc, summary) => {
+             return dayAcc + (summary?.totalHours || 0);
+         }, 0);
+     }, 0);
+  }, [timesheetData]);
 
   return (
     <div className="space-y-6">
@@ -148,7 +180,7 @@ export default function TimesheetPage() {
         </Link>
       </Button>
       <h1 className="text-3xl font-bold">Consolidated Timesheet</h1>
-      <p className="text-muted-foreground">Review total logged hours for all employees. Click a row to see detailed entries.</p>
+      <p className="text-muted-foreground">Review total logged hours for all employees. Click on an hour value to see detailed entries.</p>
       
       <Card>
         <CardHeader>
@@ -207,47 +239,60 @@ export default function TimesheetPage() {
                 <Skeleton className="h-12 w-full" />
              </div>
            ) : (
-            dailySummaries.length > 0 ? (
-                 <Accordion type="single" collapsible className="w-full">
-                    <div className="border-b font-medium text-muted-foreground">
-                        <div className="flex px-4 py-3">
-                            <div className="w-1/3">Employee</div>
-                            <div className="w-1/3">Date</div>
-                            <div className="w-1/3 text-right">Total Hours</div>
-                        </div>
+            timesheetData.dates.length > 0 ? (
+                <TooltipProvider>
+                    <div className="overflow-x-auto">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead className="sticky left-0 bg-card">Date</TableHead>
+                                    {timesheetData.employees.map(emp => (
+                                        <TableHead key={emp.id} className="text-right">{emp.name}</TableHead>
+                                    ))}
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {timesheetData.dates.map(d => {
+                                    const dateKey = format(d, 'yyyy-MM-dd');
+                                    return (
+                                        <TableRow key={dateKey}>
+                                            <TableCell className="font-medium sticky left-0 bg-card">{format(d, 'PPP')}</TableCell>
+                                            {timesheetData.employees.map(emp => {
+                                                const summary = timesheetData.entries[dateKey]?.[emp.id];
+                                                return (
+                                                    <TableCell key={emp.id} className="text-right tabular-nums">
+                                                        {summary && summary.totalHours > 0 ? (
+                                                            <Tooltip>
+                                                                <TooltipTrigger asChild>
+                                                                    <span className="font-semibold cursor-pointer hover:text-primary">{summary.totalHours.toFixed(2)}</span>
+                                                                </TooltipTrigger>
+                                                                <TooltipContent>
+                                                                    <div className="p-2">
+                                                                        <h4 className="font-bold mb-2">Time Entries</h4>
+                                                                        <ul className="space-y-1">
+                                                                            {summary.entries.map(entry => (
+                                                                                <li key={entry.id} className="text-xs">
+                                                                                   {format(entry.timeIn.toDate(), 'p')} - {entry.timeOut ? format(entry.timeOut.toDate(), 'p') : '...'}
+                                                                                   <span className="ml-2 text-muted-foreground">({formatDuration(entry.timeIn.toDate(), entry.timeOut?.toDate() ?? null)})</span>
+                                                                                </li>
+                                                                            ))}
+                                                                        </ul>
+                                                                    </div>
+                                                                </TooltipContent>
+                                                            </Tooltip>
+                                                        ) : (
+                                                            <span className="text-muted-foreground">-</span>
+                                                        )}
+                                                    </TableCell>
+                                                )
+                                            })}
+                                        </TableRow>
+                                    )
+                                })}
+                            </TableBody>
+                        </Table>
                     </div>
-                    {dailySummaries.map((summary, index) => (
-                         <AccordionItem value={`item-${index}`} key={`${summary.employeeId}-${summary.date}`}>
-                            <AccordionTrigger className="hover:no-underline hover:bg-muted/50 px-4 py-3 rounded-md">
-                                <div className="w-1/3 text-left font-medium">{summary.employeeName}</div>
-                                <div className="w-1/3 text-left">{format(summary.date, 'PPP')}</div>
-                                <div className="w-1/3 text-right font-semibold tabular-nums">{summary.totalHours.toFixed(2)} hrs</div>
-                            </AccordionTrigger>
-                            <AccordionContent>
-                                <div className="px-4 py-2 bg-muted/20 border-t">
-                                    <Table>
-                                        <TableHeader>
-                                            <TableRow>
-                                                <TableHead>Time In</TableHead>
-                                                <TableHead>Time Out</TableHead>
-                                                <TableHead className="text-right">Duration</TableHead>
-                                            </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                            {summary.entries.map(entry => (
-                                                <TableRow key={entry.id}>
-                                                    <TableCell>{format(entry.timeIn.toDate(), 'p')}</TableCell>
-                                                    <TableCell>{entry.timeOut ? format(entry.timeOut.toDate(), 'p') : '---'}</TableCell>
-                                                    <TableCell className="text-right font-mono">{formatDuration(entry.timeIn.toDate(), entry.timeOut?.toDate() ?? null)}</TableCell>
-                                                </TableRow>
-                                            ))}
-                                        </TableBody>
-                                    </Table>
-                                </div>
-                            </AccordionContent>
-                        </AccordionItem>
-                    ))}
-                 </Accordion>
+                </TooltipProvider>
             ) : (
                 <div className="text-center py-10 text-muted-foreground">
                     No time entries found for any employee in the selected period.
@@ -259,3 +304,4 @@ export default function TimesheetPage() {
     </div>
   );
 }
+
