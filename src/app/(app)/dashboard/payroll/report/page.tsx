@@ -250,7 +250,7 @@ function PayrollReportContent() {
 
         // Summary
         ws_data.push(['PAYROLL SUMMARY']);
-        ws_data.push(['GP', 'EMPLOYEE', 'DED:', 'NET', 'OTHERS']);
+        ws_data.push(['GP', 'EMPLOYEE', 'DED', 'NET', 'OTHERS']);
         ws_data.push([
             totals.totalNetPay.toFixed(2),
             summaryData.employee || '',
@@ -409,9 +409,9 @@ function PayrollReportContent() {
                                 <TableRow>
                                     <TableHead>GP</TableHead>
                                     <TableHead>EMPLOYEE</TableHead>
-                                    <TableHead>DED:</TableHead>
+                                    <TableHead>DED</TableHead>
                                     <TableHead>NET</TableHead>
-                                    <TableHead>Others</TableHead>
+                                    <TableHead>OTHERS</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -469,3 +469,5 @@ export default function PayrollReportPage() {
         </React.Suspense>
     )
 }
+
+    
