@@ -8,13 +8,13 @@ import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import type { PayrollResult, EmployeePayrollInput } from '@/components/payroll/payroll-calculation';
 import { Payslip } from '@/components/payroll/payslip';
-import { format } from 'date-fns';
+import { format, startOfYear } from 'date-fns';
 import { ArrowLeft, Users, Pencil, FileSpreadsheet } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useAuth } from '@/contexts/auth-context';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, getDocs, query, where, orderBy, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import Link from 'next/link';
 import * as XLSX from 'xlsx';
@@ -35,6 +35,12 @@ const formatHours = (hours: unknown): string => {
     return num.toFixed(2);
 };
 
+interface YtdData {
+    [employeeId: string]: {
+        grossPay: number;
+    };
+}
+
 function PayrollReportContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -47,13 +53,22 @@ function PayrollReportContent() {
     const [isLoading, setIsLoading] = React.useState(true);
     const [companyName, setCompanyName] = React.useState("My Small Business");
     const [summaryData, setSummaryData] = React.useState<{ employee?: string; deductions?: string; netPay?: string }>({});
+    const [ytdData, setYtdData] = React.useState<YtdData>({});
+
 
     React.useEffect(() => {
         const loadPayrollData = async () => {
             setIsLoading(true);
-            if (payrollId && user) {
-                try {
-                    // Fetch company name from user settings
+            if (!user) {
+                 setIsLoading(false);
+                 return;
+            };
+
+            let currentPayrollData: any;
+            let fromDate: Date;
+
+            if (payrollId) {
+                 try {
                     const userDocRef = doc(db, 'users', user.uid);
                     const userSnap = await getDoc(userDocRef);
                     if (userSnap.exists()) {
@@ -62,63 +77,90 @@ function PayrollReportContent() {
 
                     const payrollDocRef = doc(db, 'users', user.uid, 'payrolls', payrollId);
                     const payrollSnap = await getDoc(payrollDocRef);
-                    if (payrollSnap.exists()) {
-                        const payrollData = payrollSnap.data();
-                        const [fromY, fromM, fromD] = payrollData.fromDate.split('-').map(Number);
-                        const [toY, toM, toD] = payrollData.toDate.split('-').map(Number);
 
-                        setResults(payrollData.results);
-                        setInputs(payrollData.inputs);
-                        setPeriod({
-                            from: new Date(fromY, fromM - 1, fromD),
-                            to: new Date(toY, toM - 1, toD),
-                        });
+                    if (payrollSnap.exists()) {
+                        currentPayrollData = payrollSnap.data();
+                        const [fromY, fromM, fromD] = currentPayrollData.fromDate.split('-').map(Number);
+                        const [toY, toM, toD] = currentPayrollData.toDate.split('-').map(Number);
+                        fromDate = new Date(fromY, fromM - 1, fromD);
+
+                        setResults(currentPayrollData.results);
+                        setInputs(currentPayrollData.inputs);
+                        setPeriod({ from: fromDate, to: new Date(toY, toM - 1, toD) });
                         setSummaryData({
-                            employee: payrollData.summaryEmployee,
-                            deductions: payrollData.summaryDeductions,
-                            netPay: payrollData.summaryNetPay,
+                            employee: currentPayrollData.summaryEmployee,
+                            deductions: currentPayrollData.summaryDeductions,
+                            netPay: currentPayrollData.summaryNetPay,
                         });
                     } else {
-                        console.error("Payroll document not found.");
-                        router.replace('/dashboard/payroll');
+                        throw new Error("Payroll document not found.");
                     }
                 } catch (error) {
                     console.error("Error fetching payroll data:", error);
                     router.replace('/dashboard/payroll');
-                } finally {
-                    setIsLoading(false);
+                    return;
                 }
             } else {
-                // Fallback for new payroll run, data from sessionStorage
-                const resultsData = sessionStorage.getItem('payrollResultsData');
-                const periodData = sessionStorage.getItem('payrollPeriodData');
-                const inputData = sessionStorage.getItem('payrollInputData');
-                const companyData = sessionStorage.getItem('companyName'); // Might not exist
-                const summaryJSON = sessionStorage.getItem('payrollSummaryData');
+                 const resultsData = sessionStorage.getItem('payrollResultsData');
+                 const periodData = sessionStorage.getItem('payrollPeriodData');
+                 const inputData = sessionStorage.getItem('payrollInputData');
+                 const companyData = sessionStorage.getItem('companyName');
+                 const summaryJSON = sessionStorage.getItem('payrollSummaryData');
 
-                if (resultsData && periodData && inputData) {
+                 if (resultsData && periodData && inputData) {
                     const parsedPeriod = JSON.parse(periodData);
-                    setResults(JSON.parse(resultsData));
-                    setInputs(JSON.parse(inputData));
-                    setPeriod({
-                        from: new Date(parsedPeriod.from),
-                        to: new Date(parsedPeriod.to),
-                    });
-                    if (summaryJSON) {
-                        setSummaryData(JSON.parse(summaryJSON));
+                    fromDate = new Date(parsedPeriod.from);
+                    currentPayrollData = {
+                        results: JSON.parse(resultsData),
+                        inputs: JSON.parse(inputData),
                     }
+                    setResults(currentPayrollData.results);
+                    setInputs(currentPayrollData.inputs);
+                    setPeriod({ from: fromDate, to: new Date(parsedPeriod.to) });
+                    if (summaryJSON) setSummaryData(JSON.parse(summaryJSON));
                     if (companyData) setCompanyName(companyData);
-                     // Clear session storage after loading
+                    
+                    // Clear session storage after loading
                     sessionStorage.removeItem('payrollResultsData');
                     sessionStorage.removeItem('payrollPeriodData');
                     sessionStorage.removeItem('payrollInputData');
                     sessionStorage.removeItem('companyName');
                     sessionStorage.removeItem('payrollSummaryData');
-                } else {
-                    router.replace('/dashboard/payroll/run');
-                }
-                 setIsLoading(false);
+                 } else {
+                     router.replace('/dashboard/payroll/run');
+                     return;
+                 }
             }
+            
+            // Calculate YTD data
+            const yearStart = startOfYear(fromDate);
+            const payrollsCollectionRef = collection(db, 'users', user.uid, 'payrolls');
+            const q = query(
+                payrollsCollectionRef,
+                where('toDate', '>=', format(yearStart, 'yyyy-MM-dd')),
+                where('toDate', '<', currentPayrollData.fromDate),
+                orderBy('toDate', 'asc')
+            );
+
+            const previousPayrollsSnapshot = await getDocs(q);
+            const ytdTotals: YtdData = {};
+
+            currentPayrollData.results.forEach((res: PayrollResult) => {
+                ytdTotals[res.employeeId] = { grossPay: 0 };
+            });
+
+            previousPayrollsSnapshot.forEach(doc => {
+                const payroll = doc.data();
+                payroll.results.forEach((result: PayrollResult) => {
+                    if (ytdTotals[result.employeeId]) {
+                         const gross = result.grossCheckAmount + result.grossOtherAmount;
+                         ytdTotals[result.employeeId].grossPay += gross;
+                    }
+                });
+            });
+
+            setYtdData(ytdTotals);
+            setIsLoading(false);
         };
 
         if (user) {
@@ -402,6 +444,7 @@ function PayrollReportContent() {
                     {results.map(result => {
                         const input = inputs.find(i => i.employeeId === result.employeeId);
                         if (!input) return null;
+                        const ytd = ytdData[result.employeeId] || { grossPay: 0 };
                         return (
                              <Payslip
                                 key={result.employeeId}
@@ -409,6 +452,7 @@ function PayrollReportContent() {
                                 payPeriod={period}
                                 result={result}
                                 input={input}
+                                ytdGrossPay={ytd.grossPay}
                             />
                         )
                     })}

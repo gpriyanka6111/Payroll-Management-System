@@ -13,6 +13,7 @@ interface PayslipProps {
     payPeriod: { from: Date; to: Date };
     result: PayrollResult;
     input: EmployeePayrollInput;
+    ytdGrossPay: number;
 }
 
 const formatCurrency = (amount: number) => {
@@ -29,7 +30,7 @@ const formatHours = (hours: number): string => {
     return hours.toFixed(2);
 };
 
-export function Payslip({ companyName, payPeriod, result, input }: PayslipProps) {
+export function Payslip({ companyName, payPeriod, result, input, ytdGrossPay }: PayslipProps) {
     const earnings = [
         { description: 'Regular Pay', hours: result.checkHours, rate: result.payRateCheck, total: result.checkHours * result.payRateCheck },
         { description: 'PTO Pay', hours: result.ptoUsed, rate: result.payRateCheck, total: result.ptoUsed * result.payRateCheck },
@@ -37,7 +38,8 @@ export function Payslip({ companyName, payPeriod, result, input }: PayslipProps)
         { description: 'Other Adjustments', hours: '-', rate: '-', total: result.otherAdjustment },
     ].filter(item => item.total !== 0 || item.description === 'Other Adjustments' && item.total !== 0);
     
-    const grossPay = result.grossCheckAmount + result.grossOtherAmount;
+    const currentGrossPay = result.grossCheckAmount + result.grossOtherAmount;
+    const totalYtdGross = ytdGrossPay + currentGrossPay;
 
     return (
         <Card className="payslip-card shadow-md break-inside-avoid border border-border print:shadow-none print:border-gray-300">
@@ -86,20 +88,23 @@ export function Payslip({ companyName, payPeriod, result, input }: PayslipProps)
                         <TableHeader>
                             <TableRow>
                                 <TableHead>Description</TableHead>
-                                <TableHead className="text-right">Hours</TableHead>
-                                <TableHead className="text-right">Rate</TableHead>
-                                <TableHead className="text-right">Total</TableHead>
+                                <TableHead className="text-right">Current</TableHead>
+                                <TableHead className="text-right">YTD</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {earnings.map((item, index) => (
                                 <TableRow key={index}>
                                     <TableCell>{item.description}</TableCell>
-                                    <TableCell className="text-right tabular-nums">{typeof item.hours === 'number' ? formatHours(item.hours) : item.hours}</TableCell>
-                                    <TableCell className="text-right tabular-nums">{typeof item.rate === 'number' ? formatCurrency(item.rate) : item.rate}</TableCell>
                                     <TableCell className="text-right tabular-nums">{formatCurrency(item.total)}</TableCell>
+                                    <TableCell className="text-right tabular-nums">-</TableCell>
                                 </TableRow>
                             ))}
+                             <TableRow className="font-semibold">
+                                <TableCell>Gross Pay</TableCell>
+                                <TableCell className="text-right tabular-nums">{formatCurrency(currentGrossPay)}</TableCell>
+                                <TableCell className="text-right tabular-nums">{formatCurrency(totalYtdGross)}</TableCell>
+                            </TableRow>
                         </TableBody>
                     </Table>
                 </div>
@@ -108,10 +113,6 @@ export function Payslip({ companyName, payPeriod, result, input }: PayslipProps)
 
                  <div className="space-y-2">
                     <div className="flex justify-between">
-                        <span className="text-muted-foreground">Gross Pay</span>
-                        <span className="font-semibold tabular-nums">{formatCurrency(grossPay)}</span>
-                    </div>
-                     <div className="flex justify-between">
                         <span className="text-muted-foreground">Deductions</span>
                         <span className="font-semibold tabular-nums">{formatCurrency(0)}</span>
                     </div>
@@ -121,7 +122,7 @@ export function Payslip({ companyName, payPeriod, result, input }: PayslipProps)
             <CardFooter>
                  <div className="flex justify-between w-full p-3 bg-muted/50 rounded-lg">
                     <span className="text-lg font-bold">Net Pay</span>
-                    <span className="text-lg font-bold tabular-nums">{formatCurrency(grossPay)}</span>
+                    <span className="text-lg font-bold tabular-nums">{formatCurrency(currentGrossPay)}</span>
                  </div>
             </CardFooter>
         </Card>
