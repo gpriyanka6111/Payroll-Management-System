@@ -8,10 +8,11 @@ export type Employee = {
   email?: string;
   mobileNumber?: string;
   ssn?: string;
-  payMethod: 'Hourly';
-  payRateCheck: number;
-  payRateOthers?: number;
-  standardCheckHours?: number;
+  payMethod: 'Hourly' | 'Salaried';
+  payRateCheck: number; // Used for hourly rate
+  payRateOthers?: number; // Used for hourly rate
+  biWeeklySalary?: number; // Used for salaried
+  standardCheckHours?: number; // Used for hourly rate
   ptoBalance: number;
   comment?: string;
 };

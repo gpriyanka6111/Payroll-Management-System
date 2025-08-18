@@ -38,15 +38,17 @@ const COMPANY_STANDARD_BIWEEKLY_HOURS = 100;
 const employeePayrollInputSchema = z.object({
   employeeId: z.string(),
   name: z.string(),
-  payRateCheck: z.number(),
+  payMethod: z.enum(['Hourly', 'Salaried']),
+  payRateCheck: z.number().optional(),
   payRateOthers: z.coerce.number().min(0).optional(),
+  biWeeklySalary: z.number().optional(),
   totalHoursWorked: z.coerce.number().min(0, { message: 'Hours must be non-negative.' }).default(0),
   checkHours: z.coerce.number().min(0, { message: 'Hours must be non-negative.' }).default(0),
   otherHours: z.coerce.number().min(0).default(0),
   ptoUsed: z.coerce.number().min(0, { message: 'PTO hours must be non-negative.' }).default(0),
   ptoBalance: z.number().optional(),
   comment: z.string().optional(),
-}).refine(data => data.checkHours <= data.totalHoursWorked, {
+}).refine(data => data.payMethod === 'Salaried' || data.checkHours <= data.totalHoursWorked, {
     message: "Check hours cannot exceed total hours.",
     path: ["checkHours"],
 }).refine(
@@ -56,7 +58,7 @@ const employeePayrollInputSchema = z.object({
     path: ["ptoUsed"],
   }
 ).refine(
-  (data) => data.totalHoursWorked <= COMPANY_STANDARD_BIWEEKLY_HOURS,
+  (data) => data.payMethod === 'Salaried' || data.totalHoursWorked <= COMPANY_STANDARD_BIWEEKLY_HOURS,
   {
     message: `Hours cannot exceed company standard of ${COMPANY_STANDARD_BIWEEKLY_HOURS}.`,
     path: ["totalHoursWorked"],
@@ -76,12 +78,14 @@ type PayrollFormValues = z.infer<typeof payrollFormSchema>;
 export type PayrollResult = {
   employeeId: string;
   name: string;
+  payMethod: 'Hourly' | 'Salaried';
   totalHoursWorked: number;
   checkHours: number;
   otherHours: number;
   ptoUsed: number;
   payRateCheck: number;
   payRateOthers: number;
+  biWeeklySalary: number;
   otherAdjustment: number;
   grossCheckAmount: number;
   grossOtherAmount: number;
@@ -150,6 +154,8 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
        try {
         for (let i = 0; i < employeesToFetch.length; i++) {
             const employee = employeesToFetch[i];
+            if (employee.payMethod === 'Salaried') continue; // Skip salaried employees
+
             const timeEntriesRef = collection(db, 'users', user.uid, 'employees', employee.employeeId, 'timeEntries');
             const q = query(
                 timeEntriesRef,
@@ -170,7 +176,7 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
             setValue(`employees.${i}.totalHoursWorked`, parseFloat(totalHours.toFixed(2)), { shouldValidate: true, shouldDirty: true });
             setValue(`employees.${i}.checkHours`, parseFloat(totalHours.toFixed(2)), { shouldValidate: true, shouldDirty: true });
         }
-         toast({ title: "Hours Fetched", description: "Total hours have been updated.", variant: 'default' });
+         toast({ title: "Hours Fetched", description: "Total hours for hourly employees have been updated.", variant: 'default' });
        } catch (error) {
            console.error("Error fetching hours:", error);
            toast({ title: "Error", description: "Could not fetch hours from time entries.", variant: 'destructive' });
@@ -222,8 +228,10 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
               formValues.push({
                   employeeId: emp.id,
                   name: `${emp.firstName} ${emp.lastName}`,
+                  payMethod: emp.payMethod,
                   payRateCheck: emp.payRateCheck,
                   payRateOthers: emp.payRateOthers ?? 0,
+                  biWeeklySalary: emp.biWeeklySalary ?? 0,
                   ptoBalance: emp.ptoBalance,
                   totalHoursWorked: 0,
                   checkHours: 0,
@@ -238,8 +246,10 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
           formValues = employeesData.map(emp => ({
               employeeId: emp.id,
               name: `${emp.firstName} ${emp.lastName}`,
+              payMethod: emp.payMethod,
               payRateCheck: emp.payRateCheck,
               payRateOthers: emp.payRateOthers ?? 0,
+              biWeeklySalary: emp.biWeeklySalary ?? 0,
               ptoBalance: emp.ptoBalance,
               totalHoursWorked: 0,
               checkHours: 0,
@@ -272,7 +282,7 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
                 if (match) {
                     const index = parseInt(match[1], 10);
                     const employee = value.employees?.[index];
-                    if (employee) {
+                    if (employee && employee.payMethod === 'Hourly') {
                         const totalHours = Number(employee.totalHoursWorked) || 0;
                         const checkHours = Number(employee.checkHours) || 0;
                         const calculatedOtherHours = Math.max(0, totalHours - checkHours);
@@ -295,16 +305,8 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
 
   function calculatePayroll(values: PayrollFormValues): PayrollResult[] {
     return values.employees.map((emp) => {
-      const totalHoursWorked = safeGetNumber(emp.totalHoursWorked);
-      const checkHours = safeGetNumber(emp.checkHours);
-      const otherHours = safeGetNumber(emp.otherHours);
       const ptoUsed = safeGetNumber(emp.ptoUsed);
-      const payRateCheck = safeGetNumber(emp.payRateCheck);
-      const payRateOthers = safeGetNumber(emp.payRateOthers) ?? 0;
-      const otherAdjustment = 0; // No adjustment from input form
-      
       const initialPtoBalanceFromDb = safeGetNumber(emp.ptoBalance);
-      
       let newPtoBalance;
 
       if (isEditMode && initialPayrollData) {
@@ -316,30 +318,62 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
         newPtoBalance = initialPtoBalanceFromDb - ptoUsed;
       }
 
-      const regularPay = payRateCheck * checkHours;
-      const ptoPay = payRateCheck * ptoUsed;
-      const grossCheckAmount = regularPay + ptoPay;
+      let result: Omit<PayrollResult, 'newPtoBalance'>;
 
-      const otherPay = payRateOthers * otherHours;
-      const grossOtherAmount = otherPay + otherAdjustment;
+      if (emp.payMethod === 'Salaried') {
+        const biWeeklySalary = safeGetNumber(emp.biWeeklySalary);
+        result = {
+          employeeId: emp.employeeId,
+          name: emp.name,
+          payMethod: emp.payMethod,
+          totalHoursWorked: 0,
+          checkHours: 0,
+          otherHours: 0,
+          ptoUsed,
+          payRateCheck: 0,
+          payRateOthers: 0,
+          biWeeklySalary: biWeeklySalary,
+          otherAdjustment: 0,
+          grossCheckAmount: biWeeklySalary, // Salaried pay is fixed
+          grossOtherAmount: 0,
+          netPay: biWeeklySalary,
+        };
+      } else { // Hourly
+        const totalHoursWorked = safeGetNumber(emp.totalHoursWorked);
+        const checkHours = safeGetNumber(emp.checkHours);
+        const otherHours = safeGetNumber(emp.otherHours);
+        const payRateCheck = safeGetNumber(emp.payRateCheck);
+        const payRateOthers = safeGetNumber(emp.payRateOthers) ?? 0;
+        const otherAdjustment = 0;
 
-      const netPay = grossCheckAmount; 
+        const regularPay = payRateCheck * checkHours;
+        const ptoPay = payRateCheck * ptoUsed;
+        const grossCheckAmount = regularPay + ptoPay;
 
-      return {
-        employeeId: emp.employeeId,
-        name: emp.name,
-        totalHoursWorked,
-        checkHours,
-        otherHours,
-        ptoUsed,
-        payRateCheck,
-        payRateOthers,
-        otherAdjustment,
-        grossCheckAmount,
-        grossOtherAmount,
-        netPay,
-        newPtoBalance,
-      };
+        const otherPay = payRateOthers * otherHours;
+        const grossOtherAmount = otherPay + otherAdjustment;
+
+        const netPay = grossCheckAmount; 
+
+        result = {
+          employeeId: emp.employeeId,
+          name: emp.name,
+          payMethod: emp.payMethod,
+          totalHoursWorked,
+          checkHours,
+          otherHours,
+          ptoUsed,
+          payRateCheck,
+          payRateOthers,
+          biWeeklySalary: 0,
+          otherAdjustment,
+          grossCheckAmount,
+          grossOtherAmount,
+          netPay,
+        };
+      }
+      
+      return { ...result, newPtoBalance };
     });
   }
 
@@ -361,7 +395,7 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
 
     setPayrollResults(prevResults => 
         prevResults.map(result => {
-            if (result.employeeId === employeeId) {
+            if (result.employeeId === employeeId && result.payMethod === 'Hourly') {
                 const adjustment = isNaN(newAdjustment) ? 0 : newAdjustment;
                 const otherPay = result.payRateOthers * result.otherHours;
                 const newGrossOtherAmount = otherPay + adjustment;
@@ -516,29 +550,33 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
                     {inputMetrics.map((metric) => (
                        <TableRow key={metric.key}>
                            <TableCell className="font-medium">{metric.label}</TableCell>
-                            {fields.map((field, index) => (
-                               <TableCell key={field.id} className="text-left p-2">
-                                 <FormField
-                                    control={form.control}
-                                    name={`employees.${index}.${metric.key}`}
-                                    render={({ field: inputField }) => (
-                                      <FormItem>
-                                        <FormLabel className="sr-only">{metric.label} for {field.name}</FormLabel>
-                                        <FormControl>
-                                            <Input 
-                                                type="number" 
-                                                placeholder="0" 
-                                                {...inputField} 
-                                                {...metric.props} 
-                                                className="h-8 w-28 text-left"
-                                            />
-                                        </FormControl>
-                                         <FormMessage className="text-xs mt-1" />
-                                      </FormItem>
-                                    )}
-                                  />
-                               </TableCell>
-                            ))}
+                            {fields.map((field, index) => {
+                                const isSalaried = watchedEmployees[index]?.payMethod === 'Salaried';
+                                return (
+                                <TableCell key={field.id} className="text-left p-2">
+                                    <FormField
+                                        control={form.control}
+                                        name={`employees.${index}.${metric.key}`}
+                                        render={({ field: inputField }) => (
+                                        <FormItem>
+                                            <FormLabel className="sr-only">{metric.label} for {field.name}</FormLabel>
+                                            <FormControl>
+                                                <Input 
+                                                    type="number" 
+                                                    placeholder="0" 
+                                                    {...inputField} 
+                                                    {...metric.props} 
+                                                    className={cn("h-8 w-28 text-left", isSalaried && "bg-muted/50")}
+                                                    disabled={isSalaried}
+                                                />
+                                            </FormControl>
+                                            <FormMessage className="text-xs mt-1" />
+                                        </FormItem>
+                                        )}
+                                    />
+                                </TableCell>
+                                )
+                            })}
                       </TableRow>
                     ))}
                      <TableRow className="bg-muted/20 hover:bg-muted/20">
@@ -630,15 +668,16 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
                     </TableHeader>
                     <TableBody>
                         <TableRow><TableCell colSpan={payrollResults.length + 1} className="p-2 bg-muted/20 font-semibold text-muted-foreground">Hours</TableCell></TableRow>
-                        <TableRow><TableCell>Total Hours Worked</TableCell>{payrollResults.map(r => <TableCell key={r.employeeId} className="text-left tabular-nums">{formatHours(r.totalHoursWorked)}</TableCell>)}</TableRow>
-                        <TableRow><TableCell>Check Hours</TableCell>{payrollResults.map(r => <TableCell key={r.employeeId} className="text-left tabular-nums">{formatHours(r.checkHours)}</TableCell>)}</TableRow>
-                        <TableRow><TableCell>Other Hours</TableCell>{payrollResults.map(r => <TableCell key={r.employeeId} className="text-left tabular-nums">{formatHours(r.otherHours)}</TableCell>)}</TableRow>
+                        <TableRow><TableCell>Total Hours Worked</TableCell>{payrollResults.map(r => <TableCell key={r.employeeId} className="text-left tabular-nums">{r.payMethod === 'Hourly' ? formatHours(r.totalHoursWorked) : 'N/A'}</TableCell>)}</TableRow>
+                        <TableRow><TableCell>Check Hours</TableCell>{payrollResults.map(r => <TableCell key={r.employeeId} className="text-left tabular-nums">{r.payMethod === 'Hourly' ? formatHours(r.checkHours) : 'N/A'}</TableCell>)}</TableRow>
+                        <TableRow><TableCell>Other Hours</TableCell>{payrollResults.map(r => <TableCell key={r.employeeId} className="text-left tabular-nums">{r.payMethod === 'Hourly' ? formatHours(r.otherHours) : 'N/A'}</TableCell>)}</TableRow>
                         <TableRow><TableCell>PTO Used</TableCell>{payrollResults.map(r => <TableCell key={r.employeeId} className="text-left tabular-nums">{formatHours(r.ptoUsed)}</TableCell>)}</TableRow>
 
                         <TableRow><TableCell colSpan={payrollResults.length + 1} className="p-2 bg-muted/20 font-semibold text-muted-foreground">Pay</TableCell></TableRow>
-                        <TableRow><TableCell>Rate/Check</TableCell>{payrollResults.map(r => <TableCell key={r.employeeId} className="text-left tabular-nums">{formatCurrency(r.payRateCheck)}</TableCell>)}</TableRow>
-                        <TableRow><TableCell>Rate/Others</TableCell>{payrollResults.map(r => <TableCell key={r.employeeId} className="text-left tabular-nums">{formatCurrency(r.payRateOthers)}</TableCell>)}</TableRow>
-                        <TableRow><TableCell>Others-ADJ $</TableCell>{payrollResults.map(r => <TableCell key={r.employeeId} className="text-left"><Input type="number" step="0.01" className="h-8 w-28" value={r.otherAdjustment} onChange={(e) => handleResultAdjustmentChange(r.employeeId, e.target.value)} /></TableCell>)}</TableRow>
+                        <TableRow><TableCell>Rate/Check</TableCell>{payrollResults.map(r => <TableCell key={r.employeeId} className="text-left tabular-nums">{r.payMethod === 'Hourly' ? formatCurrency(r.payRateCheck) : 'N/A'}</TableCell>)}</TableRow>
+                        <TableRow><TableCell>Rate/Others</TableCell>{payrollResults.map(r => <TableCell key={r.employeeId} className="text-left tabular-nums">{r.payMethod === 'Hourly' ? formatCurrency(r.payRateOthers) : 'N/A'}</TableCell>)}</TableRow>
+                        <TableRow><TableCell>Bi-weekly Salary</TableCell>{payrollResults.map(r => <TableCell key={r.employeeId} className="text-left tabular-nums">{r.payMethod === 'Salaried' ? formatCurrency(r.biWeeklySalary) : 'N/A'}</TableCell>)}</TableRow>
+                        <TableRow><TableCell>Others-ADJ $</TableCell>{payrollResults.map(r => <TableCell key={r.employeeId} className="text-left"><Input type="number" step="0.01" className="h-8 w-28" value={r.otherAdjustment} onChange={(e) => handleResultAdjustmentChange(r.employeeId, e.target.value)} disabled={r.payMethod === 'Salaried'} /></TableCell>)}</TableRow>
                         <TableRow><TableCell className="font-semibold">Gross Check Amount</TableCell>{payrollResults.map(r => <TableCell key={r.employeeId} className="font-semibold text-left tabular-nums">{formatCurrency(r.grossCheckAmount)}</TableCell>)}</TableRow>
                         <TableRow><TableCell className="font-semibold">Gross Other Amount</TableCell>{payrollResults.map(r => <TableCell key={r.employeeId} className="font-semibold text-left tabular-nums">{formatCurrency(r.grossOtherAmount)}</TableCell>)}</TableRow>
                         <TableRow><TableCell className="font-semibold">Net Pay</TableCell>{payrollResults.map(r => <TableCell key={r.employeeId} className="font-semibold text-left tabular-nums">{formatCurrency(r.netPay)}</TableCell>)}</TableRow>
@@ -670,7 +709,7 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
                        <Input value={summaryNetPay} onChange={(e) => setSummaryNetPay(e.target.value)} />
                     </div>
                     <div className="space-y-2">
-                       <Label>OTHERS $: <span className="font-bold">{formatCurrency(payrollResults.reduce((s, r) => s + r.grossOtherAmount, 0))}</span></Label>
+                       <Label>OTHERS: <span className="font-bold">{formatCurrency(payrollResults.reduce((s, r) => s + r.grossOtherAmount, 0))}</span></Label>
                     </div>
                 </div>
              </div>
@@ -688,5 +727,3 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
      </>
    );
 }
-
-    

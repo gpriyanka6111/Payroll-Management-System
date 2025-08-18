@@ -72,8 +72,7 @@ export function EmployeeTable({ employees, onUpdate, onDelete }: EmployeeTablePr
             <TableHead><Shield className="inline-block h-4 w-4 mr-1"/>SSN</TableHead>
             <TableHead>Comment</TableHead>
             <TableHead><Clock className="inline-block h-4 w-4 mr-1"/>Pay Method</TableHead>
-            <TableHead><DollarSign className="inline-block h-4 w-4 mr-1"/>Rate/Check</TableHead>
-            <TableHead><DollarSign className="inline-block h-4 w-4 mr-1"/>Rate/Others</TableHead>
+            <TableHead><DollarSign className="inline-block h-4 w-4 mr-1"/>Rate / Salary</TableHead>
             <TableHead><Clock className="inline-block h-4 w-4 mr-1"/>Std. Check Hrs</TableHead>
             <TableHead><CalendarDays className="inline-block h-4 w-4 mr-1"/>PTO Balance</TableHead>
             <TableHead className="text-right">Actions</TableHead>
@@ -101,13 +100,16 @@ export function EmployeeTable({ employees, onUpdate, onDelete }: EmployeeTablePr
                  )}
               </TableCell>
               <TableCell>
-                  <Badge variant='secondary'>
+                  <Badge variant={employee.payMethod === 'Hourly' ? 'secondary' : 'default'}>
                       {employee.payMethod}
                   </Badge>
               </TableCell>
-              <TableCell>{formatCurrency(employee.payRateCheck)}/hr</TableCell>
-              <TableCell>{formatCurrency(employee.payRateOthers)}/hr</TableCell>
-              <TableCell>{formatHours(employee.standardCheckHours)}</TableCell>
+              <TableCell>
+                  {employee.payMethod === 'Hourly' ? 
+                     `${formatCurrency(employee.payRateCheck)}/hr` : 
+                     `${formatCurrency(employee.biWeeklySalary)}/bw`}
+              </TableCell>
+              <TableCell>{employee.payMethod === 'Hourly' ? formatHours(employee.standardCheckHours) : 'N/A'}</TableCell>
               <TableCell>{formatHours(employee.ptoBalance)}</TableCell>
               <TableCell className="text-right space-x-2">
                 <Button variant="ghost" size="icon" aria-label="Edit employee" onClick={() => setEmployeeToEdit(employee)}>
@@ -121,7 +123,7 @@ export function EmployeeTable({ employees, onUpdate, onDelete }: EmployeeTablePr
           ))}
           {employees.length === 0 && (
             <TableRow>
-              <TableCell colSpan={11} className="h-24 text-center text-muted-foreground">
+              <TableCell colSpan={10} className="h-24 text-center text-muted-foreground">
                 No employees found. Add your first employee!
               </TableCell>
             </TableRow>

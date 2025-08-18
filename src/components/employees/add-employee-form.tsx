@@ -24,36 +24,38 @@ import { useRouter } from 'next/navigation';
 import { collection, addDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
-const Hourly = "Hourly" as const;
-
-
-const employeeSchema = z.object({
+const baseEmployeeSchema = z.object({
   firstName: z.string().min(2, { message: 'First name must be at least 2 characters.' }).regex(/^[a-zA-Z' -]+$/, { message: "Name can only contain letters, spaces, hyphens, and apostrophes." }),
   lastName: z.string().min(2, { message: 'Last name must be at least 2 characters.' }).regex(/^[a-zA-Z' -]+$/, { message: "Name can only contain letters, spaces, hyphens, and apostrophes." }),
   ssn: z.string().regex(/^\d{3}-\d{2}-\d{4}$/, { message: "SSN must be in XXX-XX-XXXX format." }).optional().or(z.literal('')),
   email: z.string().email({ message: 'Invalid email address.' }).optional().or(z.literal('')),
   mobileNumber: z.string().regex(/^\(\d{3}\) \d{3}-\d{4}$/, { message: "Number must be in (XXX) XXX-XXXX format." }).optional().or(z.literal('')),
-  payMethod: z.literal(Hourly).default(Hourly),
-  payRateCheck: z.coerce.number().positive({ message: 'Pay rate must be a positive number.' }),
-  payRateOthers: z.coerce.number().min(0, { message: 'Pay rate cannot be negative' }).optional(),
-  standardCheckHours: z.coerce.number().min(0, { message: 'Standard hours cannot be negative.' }).optional(),
   ptoBalance: z.coerce.number().min(0, { message: 'PTO balance cannot be negative.' }).default(0),
   comment: z.string().optional(),
 });
 
-const refinedEmployeeSchema = employeeSchema.refine(
-  (data) =>
-     data.payMethod === Hourly
-        ? data.standardCheckHours !== undefined && data.standardCheckHours > 0
-        : true,
-  {
-    message: 'Standard check hours per pay period are required for Hourly pay method.',
-    path: ['standardCheckHours'],
-  }
-);
+const hourlyEmployeeSchema = baseEmployeeSchema.extend({
+    payMethod: z.literal('Hourly'),
+    payRateCheck: z.coerce.number().positive({ message: 'Pay rate must be a positive number.' }),
+    payRateOthers: z.coerce.number().min(0, { message: 'Pay rate cannot be negative' }).optional(),
+    standardCheckHours: z.coerce.number().positive({ message: 'Standard hours must be positive.' }),
+    biWeeklySalary: z.coerce.number().optional(),
+});
 
+const salariedEmployeeSchema = baseEmployeeSchema.extend({
+    payMethod: z.literal('Salaried'),
+    biWeeklySalary: z.coerce.number().positive({ message: 'Bi-weekly salary must be a positive number.' }),
+    payRateCheck: z.coerce.number().optional(),
+    payRateOthers: z.coerce.number().optional(),
+    standardCheckHours: z.coerce.number().optional(),
+});
 
-type EmployeeFormValues = z.infer<typeof refinedEmployeeSchema>;
+const employeeSchema = z.discriminatedUnion("payMethod", [
+    hourlyEmployeeSchema,
+    salariedEmployeeSchema,
+]);
+
+type EmployeeFormValues = z.infer<typeof employeeSchema>;
 
 export function AddEmployeeForm() {
   const { toast } = useToast();
@@ -62,14 +64,14 @@ export function AddEmployeeForm() {
   const [isSubmitting, setIsSubmitting] = React.useState(false);
 
   const form = useForm<EmployeeFormValues>({
-    resolver: zodResolver(refinedEmployeeSchema),
+    resolver: zodResolver(employeeSchema),
     defaultValues: {
       firstName: '',
       lastName: '',
       ssn: '',
       email: '',
       mobileNumber: '',
-      payMethod: Hourly,
+      payMethod: 'Hourly',
       payRateCheck: 0,
       payRateOthers: 0,
       standardCheckHours: 40,
@@ -240,9 +242,8 @@ export function AddEmployeeForm() {
             </FormItem>
           )}
         />
-
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
-            <FormField
+        
+        <FormField
             control={form.control}
             name="payMethod"
             render={({ field }) => (
@@ -255,73 +256,66 @@ export function AddEmployeeForm() {
                     </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                    <SelectItem value={Hourly} >Hourly</SelectItem>
+                    <SelectItem value='Hourly' >Hourly</SelectItem>
+                    <SelectItem value='Salaried' >Salaried</SelectItem>
                     </SelectContent>
                 </Select>
                 <FormMessage />
                 </FormItem>
             )}
             />
-            <FormField
-            control={form.control}
-            name="payRateCheck"
-            render={({ field }) => (
-                <FormItem>
-                <FormLabel>Hourly Rate Check ($) *</FormLabel>
-                <FormControl>
-                    <Input type="number" step="0.01" min="0" placeholder="e.g., 25.50" {...field} disabled={isSubmitting} />
-                </FormControl>
-                <FormMessage />
-                </FormItem>
-            )}
-            />
-             <FormField
-            control={form.control}
-            name="payRateOthers"
-            render={({ field }) => (
-                <FormItem>
-                <FormLabel>Hourly Rate Others ($)</FormLabel>
-                <FormControl>
-                    <Input type="number" step="0.01" min="0" placeholder="e.g., 15.00" {...field} disabled={isSubmitting}/>
-                </FormControl>
-                <FormMessage />
-                </FormItem>
-            )}
-            />
-         </div>
-
-
-         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-            <FormField
-            control={form.control}
-            name="standardCheckHours"
-            render={({ field }) => {
-                    const isHourly = payMethod === Hourly;
-                    return (
+        
+        {payMethod === 'Hourly' && (
+             <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
+                <FormField control={form.control} name="payRateCheck" render={({ field }) => (
                     <FormItem>
-                        <FormLabel>Standard Check Hours / Pay Period {isHourly ? '*' : ''}</FormLabel>
-                        <FormControl>
-                            <Input type="number" step="0.1" min="0" placeholder="e.g., 40" {...field} value={field.value ?? ''} disabled={!isHourly || isSubmitting} />
-                        </FormControl>
+                        <FormLabel>Hourly Rate Check ($) *</FormLabel>
+                        <FormControl><Input type="number" step="0.01" min="0" placeholder="e.g., 25.50" {...field} disabled={isSubmitting} /></FormControl>
                         <FormMessage />
-                    </FormItem>
-            )}}
-            />
-             <FormField
-                control={form.control}
-                name="ptoBalance"
-                render={({ field }) => (
+                    </FormItem>)}
+                />
+                <FormField control={form.control} name="payRateOthers" render={({ field }) => (
                     <FormItem>
-                    <FormLabel>Initial PTO Balance (hours)</FormLabel>
-                    <FormControl>
-                        <Input type="number" step="0.1" min="0" placeholder="e.g., 40" {...field} disabled={isSubmitting} />
-                    </FormControl>
-                    <FormMessage />
-                    </FormItem>
-                )}
-            />
-         </div>
+                        <FormLabel>Hourly Rate Others ($)</FormLabel>
+                        <FormControl><Input type="number" step="0.01" min="0" placeholder="e.g., 15.00" {...field} disabled={isSubmitting} /></FormControl>
+                        <FormMessage />
+                    </FormItem>)}
+                />
+                 <FormField control={form.control} name="standardCheckHours" render={({ field }) => (
+                     <FormItem>
+                        <FormLabel>Standard Check Hours *</FormLabel>
+                        <FormControl><Input type="number" step="0.1" min="0" placeholder="e.g., 40" {...field} disabled={isSubmitting} /></FormControl>
+                        <FormMessage />
+                    </FormItem>)}
+                />
+             </div>
+        )}
 
+        {payMethod === 'Salaried' && (
+            <FormField control={form.control} name="biWeeklySalary" render={({ field }) => (
+                <FormItem>
+                    <FormLabel>Bi-weekly Salary ($) *</FormLabel>
+                    <FormControl><Input type="number" step="0.01" min="0" placeholder="e.g., 2000.00" {...field} disabled={isSubmitting} /></FormControl>
+                    <FormMessage />
+                </FormItem>)}
+            />
+        )}
+
+
+        <FormField
+            control={form.control}
+            name="ptoBalance"
+            render={({ field }) => (
+                <FormItem>
+                <FormLabel>Initial PTO Balance (hours)</FormLabel>
+                <FormControl>
+                    <Input type="number" step="0.1" min="0" placeholder="e.g., 40" {...field} disabled={isSubmitting} />
+                </FormControl>
+                <FormMessage />
+                </FormItem>
+            )}
+        />
+       
         <FormField
             control={form.control}
             name="comment"
