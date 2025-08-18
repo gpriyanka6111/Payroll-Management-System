@@ -653,7 +653,7 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
 
              <div className="space-y-4">
                 <h3 className="text-lg font-medium">Payroll Summary</h3>
-                <div className="grid grid-cols-1 gap-6 md:grid-cols-4">
+                <div className="grid grid-cols-1 gap-6 md:grid-cols-5">
                     <div className="space-y-2">
                        <Label>GP: <span className="font-bold">{formatCurrency(payrollResults.reduce((s, r) => s + r.grossCheckAmount, 0))}</span></Label>
                     </div>
@@ -668,6 +668,9 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
                      <div className="space-y-2">
                        <Label>NET</Label>
                        <Input value={summaryNetPay} onChange={(e) => setSummaryNetPay(e.target.value)} />
+                    </div>
+                    <div className="space-y-2">
+                       <Label>Others $: <span className="font-bold">{formatCurrency(payrollResults.reduce((s, r) => s + r.grossOtherAmount, 0))}</span></Label>
                     </div>
                 </div>
              </div>
