@@ -28,7 +28,7 @@ import { auth, db } from '@/lib/firebase';
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
 
 const timeRegex = /^(0?[1-9]|1[0-2]):[0-5][0-9]$/;
-const timeFormatMessage = "Use HH:MM format (e.g., 05:00).";
+const timeFormatMessage = "Use HH:MM format (e.g., 09:00 or 05:00).";
 
 const signupSchema = z.object({
   email: z.string().email({ message: 'Invalid email address.' }),
@@ -40,10 +40,16 @@ const signupSchema = z.object({
   companyName: z.string().min(1, { message: "Company name is required." }),
   payFrequency: z.string().default('bi-weekly'),
   standardBiWeeklyHours: z.coerce.number().positive({ message: "Standard hours must be positive." }),
+  openingTimeWeekdays: z.string().regex(timeRegex, { message: timeFormatMessage }),
+  openingTimeWeekdaysAmPm: z.enum(['AM', 'PM']),
   closingTimeWeekdays: z.string().regex(timeRegex, { message: timeFormatMessage }),
   closingTimeWeekdaysAmPm: z.enum(['AM', 'PM']),
+  openingTimeSaturday: z.string().regex(timeRegex, { message: timeFormatMessage }),
+  openingTimeSaturdayAmPm: z.enum(['AM', 'PM']),
   closingTimeSaturday: z.string().regex(timeRegex, { message: timeFormatMessage }),
   closingTimeSaturdayAmPm: z.enum(['AM', 'PM']),
+  openingTimeSunday: z.string().regex(timeRegex, { message: timeFormatMessage }),
+  openingTimeSundayAmPm: z.enum(['AM', 'PM']),
   closingTimeSunday: z.string().regex(timeRegex, { message: timeFormatMessage }),
   closingTimeSundayAmPm: z.enum(['AM', 'PM']),
 }).refine((data) => data.password === data.confirmPassword, {
@@ -68,10 +74,16 @@ export function SignupForm() {
       companyName: '',
       payFrequency: 'bi-weekly',
       standardBiWeeklyHours: 80,
+      openingTimeWeekdays: '09:00',
+      openingTimeWeekdaysAmPm: 'AM',
       closingTimeWeekdays: '05:00',
       closingTimeWeekdaysAmPm: 'PM',
-      closingTimeSaturday: '05:00',
+      openingTimeSaturday: '10:00',
+      openingTimeSaturdayAmPm: 'AM',
+      closingTimeSaturday: '03:00',
       closingTimeSaturdayAmPm: 'PM',
+      openingTimeSunday: '12:00',
+      openingTimeSundayAmPm: 'PM',
       closingTimeSunday: '05:00',
       closingTimeSundayAmPm: 'PM',
     },
@@ -97,9 +109,12 @@ export function SignupForm() {
             payFrequency: values.payFrequency,
             standardBiWeeklyHours: values.standardBiWeeklyHours,
             storeTimings: {
-                weekdays: `${values.closingTimeWeekdays} ${values.closingTimeWeekdaysAmPm}`,
-                saturday: `${values.closingTimeSaturday} ${values.closingTimeSaturdayAmPm}`,
-                sunday: `${values.closingTimeSunday} ${values.closingTimeSundayAmPm}`,
+                openWeekdays: `${values.openingTimeWeekdays} ${values.openingTimeWeekdaysAmPm}`,
+                closeWeekdays: `${values.closingTimeWeekdays} ${values.closingTimeWeekdaysAmPm}`,
+                openSaturday: `${values.openingTimeSaturday} ${values.openingTimeSaturdayAmPm}`,
+                closeSaturday: `${values.closingTimeSaturday} ${values.closingTimeSaturdayAmPm}`,
+                openSunday: `${values.openingTimeSunday} ${values.openingTimeSundayAmPm}`,
+                closeSunday: `${values.closingTimeSunday} ${values.closingTimeSundayAmPm}`,
             },
             role: 'manager',
             createdAt: new Date(),
@@ -246,29 +261,71 @@ export function SignupForm() {
 
             <div className="space-y-4">
                 <div>
-                    <h3 className="text-sm font-medium">Store Closing Times</h3>
+                    <h3 className="text-sm font-medium">Store Hours</h3>
                     <p className="text-sm text-muted-foreground">Used to auto-clock out employees who forget.</p>
                 </div>
-                <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
-                    <div className="space-y-2">
-                        <FormLabel>Mon - Fri</FormLabel>
-                        <div className="flex gap-2">
-                             <FormField control={form.control} name="closingTimeWeekdays" render={({ field }) => (<FormItem className="flex-1"><FormControl><Input placeholder="05:00" {...field} disabled={isLoading} /></FormControl><FormMessage /></FormItem>)} />
-                             <FormField control={form.control} name="closingTimeWeekdaysAmPm" render={({ field }) => (<FormItem><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger disabled={isLoading}><SelectValue/></SelectTrigger></FormControl><SelectContent><SelectItem value="AM">AM</SelectItem><SelectItem value="PM">PM</SelectItem></SelectContent></Select></FormItem>)} />
+
+                <div className="space-y-4">
+                    {/* Weekdays */}
+                    <div className="p-4 border rounded-md">
+                        <FormLabel className="font-semibold">Mon - Fri</FormLabel>
+                        <div className="grid grid-cols-2 gap-4 mt-2">
+                            <div className="space-y-2">
+                                <FormLabel className="text-xs">Opening Time</FormLabel>
+                                <div className="flex gap-2">
+                                    <FormField control={form.control} name="openingTimeWeekdays" render={({ field }) => (<FormItem className="flex-1"><FormControl><Input placeholder="09:00" {...field} disabled={isLoading}/></FormControl><FormMessage /></FormItem>)} />
+                                    <FormField control={form.control} name="openingTimeWeekdaysAmPm" render={({ field }) => (<FormItem><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger disabled={isLoading}><SelectValue/></SelectTrigger></FormControl><SelectContent><SelectItem value="AM">AM</SelectItem><SelectItem value="PM">PM</SelectItem></SelectContent></Select></FormItem>)} />
+                                </div>
+                            </div>
+                            <div className="space-y-2">
+                                <FormLabel className="text-xs">Closing Time</FormLabel>
+                                <div className="flex gap-2">
+                                    <FormField control={form.control} name="closingTimeWeekdays" render={({ field }) => (<FormItem className="flex-1"><FormControl><Input placeholder="05:00" {...field} disabled={isLoading}/></FormControl><FormMessage /></FormItem>)} />
+                                    <FormField control={form.control} name="closingTimeWeekdaysAmPm" render={({ field }) => (<FormItem><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger disabled={isLoading}><SelectValue/></SelectTrigger></FormControl><SelectContent><SelectItem value="AM">AM</SelectItem><SelectItem value="PM">PM</SelectItem></SelectContent></Select></FormItem>)} />
+                                </div>
+                            </div>
                         </div>
                     </div>
-                     <div className="space-y-2">
-                        <FormLabel>Saturday</FormLabel>
-                        <div className="flex gap-2">
-                             <FormField control={form.control} name="closingTimeSaturday" render={({ field }) => (<FormItem className="flex-1"><FormControl><Input placeholder="05:00" {...field} disabled={isLoading} /></FormControl><FormMessage /></FormItem>)} />
-                             <FormField control={form.control} name="closingTimeSaturdayAmPm" render={({ field }) => (<FormItem><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger disabled={isLoading}><SelectValue/></SelectTrigger></FormControl><SelectContent><SelectItem value="AM">AM</SelectItem><SelectItem value="PM">PM</SelectItem></SelectContent></Select></FormItem>)} />
+
+                    {/* Saturday */}
+                    <div className="p-4 border rounded-md">
+                        <FormLabel className="font-semibold">Saturday</FormLabel>
+                        <div className="grid grid-cols-2 gap-4 mt-2">
+                            <div className="space-y-2">
+                                <FormLabel className="text-xs">Opening Time</FormLabel>
+                                <div className="flex gap-2">
+                                    <FormField control={form.control} name="openingTimeSaturday" render={({ field }) => (<FormItem className="flex-1"><FormControl><Input placeholder="10:00" {...field} disabled={isLoading} /></FormControl><FormMessage /></FormItem>)} />
+                                    <FormField control={form.control} name="openingTimeSaturdayAmPm" render={({ field }) => (<FormItem><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger disabled={isLoading}><SelectValue/></SelectTrigger></FormControl><SelectContent><SelectItem value="AM">AM</SelectItem><SelectItem value="PM">PM</SelectItem></SelectContent></Select></FormItem>)} />
+                                </div>
+                            </div>
+                            <div className="space-y-2">
+                                <FormLabel className="text-xs">Closing Time</FormLabel>
+                                <div className="flex gap-2">
+                                    <FormField control={form.control} name="closingTimeSaturday" render={({ field }) => (<FormItem className="flex-1"><FormControl><Input placeholder="03:00" {...field} disabled={isLoading} /></FormControl><FormMessage /></FormItem>)} />
+                                    <FormField control={form.control} name="closingTimeSaturdayAmPm" render={({ field }) => (<FormItem><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger disabled={isLoading}><SelectValue/></SelectTrigger></FormControl><SelectContent><SelectItem value="AM">AM</SelectItem><SelectItem value="PM">PM</SelectItem></SelectContent></Select></FormItem>)} />
+                                </div>
+                            </div>
                         </div>
                     </div>
-                     <div className="space-y-2">
-                        <FormLabel>Sunday</FormLabel>
-                        <div className="flex gap-2">
-                             <FormField control={form.control} name="closingTimeSunday" render={({ field }) => (<FormItem className="flex-1"><FormControl><Input placeholder="05:00" {...field} disabled={isLoading} /></FormControl><FormMessage /></FormItem>)} />
-                             <FormField control={form.control} name="closingTimeSundayAmPm" render={({ field }) => (<FormItem><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger disabled={isLoading}><SelectValue/></SelectTrigger></FormControl><SelectContent><SelectItem value="AM">AM</SelectItem><SelectItem value="PM">PM</SelectItem></SelectContent></Select></FormItem>)} />
+                    
+                    {/* Sunday */}
+                    <div className="p-4 border rounded-md">
+                        <FormLabel className="font-semibold">Sunday</FormLabel>
+                        <div className="grid grid-cols-2 gap-4 mt-2">
+                            <div className="space-y-2">
+                                <FormLabel className="text-xs">Opening Time</FormLabel>
+                                <div className="flex gap-2">
+                                    <FormField control={form.control} name="openingTimeSunday" render={({ field }) => (<FormItem className="flex-1"><FormControl><Input placeholder="12:00" {...field} disabled={isLoading} /></FormControl><FormMessage /></FormItem>)} />
+                                    <FormField control={form.control} name="openingTimeSundayAmPm" render={({ field }) => (<FormItem><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger disabled={isLoading}><SelectValue/></SelectTrigger></FormControl><SelectContent><SelectItem value="AM">AM</SelectItem><SelectItem value="PM">PM</SelectItem></SelectContent></Select></FormItem>)} />
+                                </div>
+                            </div>
+                            <div className="space-y-2">
+                                <FormLabel className="text-xs">Closing Time</FormLabel>
+                                <div className="flex gap-2">
+                                    <FormField control={form.control} name="closingTimeSunday" render={({ field }) => (<FormItem className="flex-1"><FormControl><Input placeholder="05:00" {...field} disabled={isLoading} /></FormControl><FormMessage /></FormItem>)} />
+                                    <FormField control={form.control} name="closingTimeSundayAmPm" render={({ field }) => (<FormItem><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger disabled={isLoading}><SelectValue/></SelectTrigger></FormControl><SelectContent><SelectItem value="AM">AM</SelectItem><SelectItem value="PM">PM</SelectItem></SelectContent></Select></FormItem>)} />
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
