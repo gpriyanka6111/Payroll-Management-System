@@ -1,12 +1,20 @@
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  output: 'export',
   /* config options here */
   images: {
+    unoptimized: true,
     remotePatterns: [
       {
         protocol: "https",
         hostname: "picsum.photos",
+        port: "",
+        pathname: "/**",
+      },
+       {
+        protocol: "https",
+        hostname: "placehold.co",
         port: "",
         pathname: "/**",
       },
@@ -15,6 +23,4 @@ const nextConfig = {
   allowedDevOrigins: ["https://*.cloudworkstations.dev"],
 };
 
-module.exports = {
- output:'export',
-};
+module.exports = nextConfig;
