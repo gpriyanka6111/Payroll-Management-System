@@ -33,8 +33,6 @@ import { db } from '@/lib/firebase';
 import { Skeleton } from '../ui/skeleton';
 import { Label } from '../ui/label';
 
-const COMPANY_STANDARD_BIWEEKLY_HOURS = 100;
-
 const employeePayrollInputSchema = z.object({
   employeeId: z.string(),
   name: z.string(),
@@ -56,12 +54,6 @@ const employeePayrollInputSchema = z.object({
   {
     message: "PTO used cannot exceed available balance.",
     path: ["ptoUsed"],
-  }
-).refine(
-  (data) => data.payMethod === 'Salaried' || data.totalHoursWorked <= COMPANY_STANDARD_BIWEEKLY_HOURS,
-  {
-    message: `Hours cannot exceed company standard of ${COMPANY_STANDARD_BIWEEKLY_HOURS}.`,
-    path: ["totalHoursWorked"],
   }
 );
 
@@ -694,7 +686,7 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
                 <h3 className="text-lg font-medium">Payroll Summary</h3>
                 <div className="grid grid-cols-1 gap-6 md:grid-cols-5">
                     <div className="space-y-2">
-                       <Label>GP: <span className="font-bold">{formatCurrency(payrollResults.reduce((s, r) => s + r.grossCheckAmount, 0))}</span></Label>
+                       <Label>GP <span className="font-bold">{formatCurrency(payrollResults.reduce((s, r) => s + r.grossCheckAmount, 0))}</span></Label>
                     </div>
                     <div className="space-y-2">
                        <Label>EMPLOYEE</Label>
@@ -709,7 +701,7 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
                        <Input value={summaryNetPay} onChange={(e) => setSummaryNetPay(e.target.value)} />
                     </div>
                     <div className="space-y-2">
-                       <Label>OTHERS: <span className="font-bold">{formatCurrency(payrollResults.reduce((s, r) => s + r.grossOtherAmount, 0))}</span></Label>
+                       <Label>OTHERS <span className="font-bold">{formatCurrency(payrollResults.reduce((s, r) => s + r.grossOtherAmount, 0))}</span></Label>
                     </div>
                 </div>
              </div>
