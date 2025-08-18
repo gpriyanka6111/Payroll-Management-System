@@ -114,7 +114,10 @@ function RunPayrollPageContent() {
   }, [payrollId, user]);
 
   const isDateDisabled = (date: Date) => {
-    if (isEditMode) return false; // Don't disable any dates when editing
+    // When editing, no dates should be considered "disabled" by past payrolls.
+    // The date pickers themselves will be locked.
+    if (isEditMode) return false;
+
     for (const range of disabledDateRanges) {
       // Check if the date falls within one of the existing payroll periods
       if (date >= range.from && date <= range.to) {
@@ -138,7 +141,7 @@ function RunPayrollPageContent() {
           <h1 className="text-3xl font-bold">{isEditMode ? 'Edit Payroll' : 'Run New Payroll'}</h1>
           <p className="text-muted-foreground">
             {isEditMode
-              ? `Editing payroll for period: ${initialData ? format(from!, 'LLL dd, y') + ' - ' + format(to!, 'LLL dd, y') : '...'}`
+              ? `Editing payroll for period: ${initialData && from && to ? format(from, 'LLL dd, y') + ' - ' + format(to, 'LLL dd, y') : '...'}`
               : 'Calculate employee payroll for a specific period.'}
           </p>
         </div>
