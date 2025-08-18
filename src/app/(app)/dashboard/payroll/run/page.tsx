@@ -9,12 +9,12 @@ import Link from 'next/link';
 import { PayrollCalculation } from '@/components/payroll/payroll-calculation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Calculator, Calendar as CalendarIcon, ArrowLeft, Loader2 } from 'lucide-react';
+import { Calculator, Calendar as CalendarIcon, ArrowLeft, Loader2, History } from 'lucide-react';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import { Label } from '@/components/ui/label';
-import { doc, getDoc, collection, getDocs, query } from 'firebase/firestore';
+import { doc, getDoc, collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/contexts/auth-context';
 import type { Payroll } from '@/lib/types';
@@ -31,23 +31,27 @@ function RunPayrollPageContent() {
   const [isLoading, setIsLoading] = React.useState(!!payrollId);
   const [isFetchingRanges, setIsFetchingRanges] = React.useState(true);
   const [disabledDateRanges, setDisabledDateRanges] = React.useState<{ from: Date; to: Date }[]>([]);
+  const [lastPayrollDate, setLastPayrollDate] = React.useState<string | null>(null);
 
   const isEditMode = !!payrollId;
 
-  // Fetch existing payroll ranges to disable dates in the calendar
+  // Fetch existing payroll ranges to disable dates and get the last payroll date
   React.useEffect(() => {
     if (!user || isEditMode) {
         setIsFetchingRanges(false);
         return;
     };
 
-    const fetchPayrollRanges = async () => {
+    const fetchPayrollData = async () => {
       setIsFetchingRanges(true);
       try {
         const payrollsCollectionRef = collection(db, 'users', user.uid, 'payrolls');
-        const q = query(payrollsCollectionRef);
-        const querySnapshot = await getDocs(q);
-        const ranges = querySnapshot.docs
+        
+        // Fetch all ranges for disabling dates
+        const allPayrollsQuery = query(payrollsCollectionRef, orderBy('toDate', 'desc'));
+        const allPayrollsSnapshot = await getDocs(allPayrollsQuery);
+        
+        const ranges = allPayrollsSnapshot.docs
           .map(doc => {
             const data = doc.data();
             const [fromY, fromM, fromD] = data.fromDate.split('-').map(Number);
@@ -58,14 +62,25 @@ function RunPayrollPageContent() {
             };
           });
         setDisabledDateRanges(ranges);
+
+        // Get the most recent payroll for display
+        if (!allPayrollsSnapshot.empty) {
+            const lastPayroll = allPayrollsSnapshot.docs[0].data();
+            const [fromY, fromM, fromD] = lastPayroll.fromDate.split('-').map(Number);
+            const [toY, toM, toD] = lastPayroll.toDate.split('-').map(Number);
+            const fromDate = new Date(fromY, fromM - 1, fromD);
+            const toDate = new Date(toY, toM - 1, toD);
+            setLastPayrollDate(`${format(fromDate, 'LLL dd, y')} - ${format(toDate, 'LLL dd, y')}`);
+        }
+
       } catch (error) {
-        console.error("Error fetching payroll ranges:", error);
+        console.error("Error fetching payroll data:", error);
       } finally {
         setIsFetchingRanges(false);
       }
     };
 
-    fetchPayrollRanges();
+    fetchPayrollData();
   }, [user, isEditMode]);
 
 
@@ -118,7 +133,7 @@ function RunPayrollPageContent() {
           <ArrowLeft className="mr-2 h-4 w-4" /> Back to Payroll History
         </Link>
       </Button>
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-start">
         <div>
           <h1 className="text-3xl font-bold">{isEditMode ? 'Edit Payroll' : 'Run New Payroll'}</h1>
           <p className="text-muted-foreground">
@@ -127,6 +142,14 @@ function RunPayrollPageContent() {
               : 'Calculate employee payroll for a specific period.'}
           </p>
         </div>
+        {!isEditMode && lastPayrollDate && (
+             <div className="text-right">
+                <p className="text-sm font-medium flex items-center text-muted-foreground">
+                  <History className="mr-2 h-4 w-4"/> Last Payroll Run
+                </p>
+                <p className="text-sm font-semibold">{lastPayrollDate}</p>
+             </div>
+        )}
       </div>
 
       {isPageLoading ? (
