@@ -165,8 +165,9 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
             }, 0);
             
             const totalHours = totalMinutes / 60;
-            setValue(`employees.${i}.totalHoursWorked`, parseFloat(totalHours.toFixed(2)), { shouldValidate: true, shouldDirty: true });
-            setValue(`employees.${i}.checkHours`, parseFloat(totalHours.toFixed(2)), { shouldValidate: true, shouldDirty: true });
+            const roundedHours = parseFloat(totalHours.toFixed(2));
+            setValue(`employees.${i}.totalHoursWorked`, roundedHours, { shouldValidate: true, shouldDirty: true });
+            setValue(`employees.${i}.checkHours`, roundedHours, { shouldValidate: true, shouldDirty: true });
         }
          toast({ title: "Hours Fetched", description: "Total hours for hourly employees have been updated.", variant: 'default' });
        } catch (error) {
