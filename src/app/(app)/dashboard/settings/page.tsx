@@ -20,12 +20,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Skeleton } from '@/components/ui/skeleton';
 
+const timeRegex = /^(?:2[0-3]|[01]?[0-9]):[0-5][0-9]$/;
+const timeFormatMessage = "Invalid time format. Use HH:MM (24-hour).";
+
 // Zod schema for form validation
 const settingsSchema = z.object({
   companyName: z.string().min(1, "Company name cannot be empty."),
   payFrequency: z.enum(['weekly', 'bi-weekly', 'semi-monthly', 'monthly']),
   standardBiWeeklyHours: z.coerce.number().positive({ message: "Standard hours must be a positive number." }),
-  storeClosingTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Invalid time format. Use HH:MM (24-hour).").optional(),
+  storeClosingTime: z.string().regex(timeRegex, timeFormatMessage).optional(),
+  closingTimeWeekdays: z.string().regex(timeRegex, { message: timeFormatMessage }),
+  closingTimeSaturday: z.string().regex(timeRegex, { message: timeFormatMessage }),
+  closingTimeSunday: z.string().regex(timeRegex, { message: timeFormatMessage }),
   securityPin: z.string().length(4, "PIN must be 4 digits.").regex(/^\d{4}$/, "PIN must only contain numbers.").optional().or(z.literal('')),
 });
 
@@ -43,7 +49,10 @@ export default function SettingsPage() {
       companyName: '',
       payFrequency: 'bi-weekly',
       standardBiWeeklyHours: 80,
-      storeClosingTime: '17:00', // Default to 5 PM
+      storeClosingTime: '17:00', // Legacy, kept for compatibility
+      closingTimeWeekdays: '17:00',
+      closingTimeSaturday: '17:00',
+      closingTimeSunday: '17:00',
       securityPin: '',
     },
   });
@@ -59,7 +68,10 @@ export default function SettingsPage() {
             companyName: data.companyName || '',
             payFrequency: data.payFrequency || 'bi-weekly',
             standardBiWeeklyHours: data.standardBiWeeklyHours || 80,
-            storeClosingTime: data.storeClosingTime || '17:00',
+            storeClosingTime: data.storeClosingTime || '17:00', // Legacy
+            closingTimeWeekdays: data.storeTimings?.weekdays || data.storeClosingTime || '17:00',
+            closingTimeSaturday: data.storeTimings?.saturday || data.storeClosingTime || '17:00',
+            closingTimeSunday: data.storeTimings?.sunday || data.storeClosingTime || '17:00',
             securityPin: data.securityPin || '',
           });
         }
@@ -84,8 +96,21 @@ export default function SettingsPage() {
     setIsSaving(true);
     const userDocRef = doc(db, 'users', user.uid);
     try {
+      const dataToSave = {
+        companyName: values.companyName,
+        payFrequency: values.payFrequency,
+        standardBiWeeklyHours: values.standardBiWeeklyHours,
+        storeClosingTime: values.closingTimeWeekdays, // Update legacy field for compatibility
+        storeTimings: {
+            weekdays: values.closingTimeWeekdays,
+            saturday: values.closingTimeSaturday,
+            sunday: values.closingTimeSunday,
+        },
+        securityPin: values.securityPin,
+      };
+
       // Use setDoc with merge: true to create the document if it doesn't exist, or update it if it does.
-      await setDoc(userDocRef, values, { merge: true });
+      await setDoc(userDocRef, dataToSave, { merge: true });
       toast({
         title: "Settings Saved",
         description: "Your company settings have been updated.",
@@ -197,62 +222,89 @@ export default function SettingsPage() {
 
                     <Card>
                         <CardHeader>
-                        <CardTitle className="flex items-center"><Clock className="mr-2 h-5 w-5 text-muted-foreground"/> Payroll Defaults</CardTitle>
-                        <CardDescription>Set default values for your payroll runs.</CardDescription>
+                        <CardTitle className="flex items-center"><Clock className="mr-2 h-5 w-5 text-muted-foreground"/> Payroll & Timeclock Defaults</CardTitle>
+                        <CardDescription>Set default values for your payroll runs and timeclock behavior.</CardDescription>
                         </CardHeader>
-                        <CardContent className="space-y-4">
-                            <FormField
-                                control={form.control}
-                                name="payFrequency"
-                                render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>Pay Frequency</FormLabel>
-                                    <Select onValueChange={field.onChange} value={field.value}>
-                                    <FormControl>
-                                        <SelectTrigger>
-                                        <SelectValue placeholder="Select a frequency" />
-                                        </SelectTrigger>
-                                    </FormControl>
-                                    <SelectContent>
-                                        <SelectItem value="weekly">Weekly</SelectItem>
-                                        <SelectItem value="bi-weekly">Bi-weekly</SelectItem>
-                                        <SelectItem value="semi-monthly">Semi-monthly (15th and end of month)</SelectItem>
-                                        <SelectItem value="monthly">Monthly</SelectItem>
-                                    </SelectContent>
-                                    </Select>
-                                    <FormMessage />
-                                </FormItem>
-                                )}
-                            />
-                            <FormField
-                                control={form.control}
-                                name="standardBiWeeklyHours"
-                                render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>Standard Hours Per Period</FormLabel>
-                                    <FormControl>
-                                    <Input type="number" placeholder="e.g., 80" {...field} />
-                                    </FormControl>
-                                    <FormMessage />
-                                </FormItem>
-                                )}
-                            />
-                            <FormField
-                                control={form.control}
-                                name="storeClosingTime"
-                                render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>Store Closing Time</FormLabel>
-                                    <FormControl>
-                                    <Input type="text" placeholder="HH:MM (e.g., 17:00)" {...field} />
-                                    </FormControl>
-                                     <FormDescription>
-                                        Used to auto-clock out employees who forget. Use 24-hour format.
-                                    </FormDescription>
-                                    <FormMessage />
-                                </FormItem>
-                                )}
-                            />
+                        <CardContent className="space-y-6">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <FormField
+                                    control={form.control}
+                                    name="payFrequency"
+                                    render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Pay Frequency</FormLabel>
+                                        <Select onValueChange={field.onChange} value={field.value}>
+                                        <FormControl>
+                                            <SelectTrigger>
+                                            <SelectValue placeholder="Select a frequency" />
+                                            </SelectTrigger>
+                                        </FormControl>
+                                        <SelectContent>
+                                            <SelectItem value="weekly">Weekly</SelectItem>
+                                            <SelectItem value="bi-weekly">Bi-weekly</SelectItem>
+                                            <SelectItem value="semi-monthly">Semi-monthly (15th and end of month)</SelectItem>
+                                            <SelectItem value="monthly">Monthly</SelectItem>
+                                        </SelectContent>
+                                        </Select>
+                                        <FormMessage />
+                                    </FormItem>
+                                    )}
+                                />
+                                <FormField
+                                    control={form.control}
+                                    name="standardBiWeeklyHours"
+                                    render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Standard Hours Per Period</FormLabel>
+                                        <FormControl>
+                                        <Input type="number" placeholder="e.g., 80" {...field} />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                    )}
+                                />
+                            </div>
+                            <div>
+                                <FormLabel>Store Closing Times</FormLabel>
+                                <FormDescription className="mb-2">
+                                    Used to auto-clock out employees who forget. Use 24-hour format (HH:MM).
+                                </FormDescription>
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-2">
+                                    <FormField
+                                        control={form.control}
+                                        name="closingTimeWeekdays"
+                                        render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel className="text-xs">Mon - Fri</FormLabel>
+                                            <FormControl><Input type="time" {...field} /></FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                        )}
+                                    />
+                                    <FormField
+                                        control={form.control}
+                                        name="closingTimeSaturday"
+                                        render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel className="text-xs">Saturday</FormLabel>
+                                            <FormControl><Input type="time" {...field} /></FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                        )}
+                                    />
+                                    <FormField
+                                        control={form.control}
+                                        name="closingTimeSunday"
+                                        render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel className="text-xs">Sunday</FormLabel>
+                                            <FormControl><Input type="time" {...field} /></FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                        )}
+                                    />
+                                </div>
+                            </div>
                         </CardContent>
                     </Card>
                 </div>

@@ -5,7 +5,7 @@ import * as React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Clock, LogIn, LogOut, CheckCircle, Users, Calendar as CalendarIcon } from "lucide-react";
-import { format, differenceInHours, differenceInMinutes, startOfDay, endOfDay, isBefore, startOfToday, subDays } from "date-fns";
+import { format, differenceInHours, differenceInMinutes, startOfDay, endOfDay, isBefore, startOfToday, subDays, getDay } from "date-fns";
 import { useAuth } from '@/contexts/auth-context';
 import { collection, addDoc, query, where, onSnapshot, serverTimestamp, doc, updateDoc, Timestamp, getDocs, limit, orderBy, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -188,9 +188,24 @@ export default function DashboardPage() {
         if (isBefore(activeTimeEntry.timeIn.toDate(), startOfToday())) {
             const userSettingsRef = doc(db, 'users', user.uid);
             const userSettingsSnap = await getDoc(userSettingsRef);
-            let closingTime = '17:00'; // Default closing time
+            
+            let closingTime = '17:00'; // Default
             if (userSettingsSnap.exists()) {
-                closingTime = userSettingsSnap.data().storeClosingTime || '17:00';
+                const settings = userSettingsSnap.data();
+                const clockInDate = activeTimeEntry.timeIn.toDate();
+                const dayOfWeek = getDay(clockInDate); // Sunday = 0, Monday = 1, etc.
+
+                if (settings.storeTimings) {
+                    if (dayOfWeek >= 1 && dayOfWeek <= 5) { // Monday to Friday
+                        closingTime = settings.storeTimings.weekdays || '17:00';
+                    } else if (dayOfWeek === 6) { // Saturday
+                        closingTime = settings.storeTimings.saturday || '17:00';
+                    } else { // Sunday
+                        closingTime = settings.storeTimings.sunday || '17:00';
+                    }
+                } else {
+                    closingTime = settings.storeClosingTime || '17:00'; // Fallback to old field
+                }
             }
 
             const [hours, minutes] = closingTime.split(':').map(Number);

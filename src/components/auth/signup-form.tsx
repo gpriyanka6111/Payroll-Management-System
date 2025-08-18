@@ -13,6 +13,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -27,6 +28,8 @@ import { doc, setDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
 
+const timeRegex = /^(?:2[0-3]|[01]?[0-9]):[0-5][0-9]$/;
+const timeFormatMessage = "Invalid time format. Use HH:MM (24-hour).";
 
 const signupSchema = z.object({
   email: z.string().email({ message: 'Invalid email address.' }),
@@ -38,6 +41,9 @@ const signupSchema = z.object({
   companyName: z.string().min(1, { message: "Company name is required." }),
   payFrequency: z.string().default('bi-weekly'),
   standardBiWeeklyHours: z.coerce.number().positive({ message: "Standard hours must be positive." }),
+  closingTimeWeekdays: z.string().regex(timeRegex, { message: timeFormatMessage }),
+  closingTimeSaturday: z.string().regex(timeRegex, { message: timeFormatMessage }),
+  closingTimeSunday: z.string().regex(timeRegex, { message: timeFormatMessage }),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ["confirmPassword"], // path of error
@@ -60,6 +66,9 @@ export function SignupForm() {
       companyName: '',
       payFrequency: 'bi-weekly',
       standardBiWeeklyHours: 80,
+      closingTimeWeekdays: '17:00',
+      closingTimeSaturday: '17:00',
+      closingTimeSunday: '17:00',
     },
   });
 
@@ -83,6 +92,12 @@ export function SignupForm() {
             companyName: values.companyName,
             payFrequency: values.payFrequency,
             standardBiWeeklyHours: values.standardBiWeeklyHours,
+            storeClosingTime: values.closingTimeWeekdays, // Keep this for backward compatibility with settings page
+            storeTimings: {
+                weekdays: values.closingTimeWeekdays,
+                saturday: values.closingTimeSaturday,
+                sunday: values.closingTimeSunday,
+            },
             role: 'manager', // The first user to sign up is always the manager
             createdAt: new Date(),
         });
@@ -182,40 +197,90 @@ export function SignupForm() {
 
             <Separator className="my-4" />
 
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-              <FormField
-                  control={form.control}
-                  name="payFrequency"
-                  render={({ field }) => (
-                      <FormItem>
-                      <FormLabel>Pay Frequency</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value} disabled>
-                          <FormControl>
-                          <SelectTrigger disabled={isLoading}>
-                              <SelectValue placeholder="Select a frequency" />
-                          </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                              <SelectItem value="bi-weekly">Bi-weekly</SelectItem>
-                          </SelectContent>
-                      </Select>
-                      <FormMessage />
-                      </FormItem>
-                  )}
-              />
-              <FormField
-                  control={form.control}
-                  name="standardBiWeeklyHours"
-                  render={({ field }) => (
-                      <FormItem>
-                      <FormLabel>Standard Bi-Weekly Hours</FormLabel>
-                      <FormControl>
-                          <Input type="number" placeholder="e.g., 80" {...field} disabled={isLoading} />
-                      </FormControl>
-                      <FormMessage />
-                      </FormItem>
-                  )}
-              />
+            <div className="space-y-4">
+                 <div>
+                    <h3 className="text-sm font-medium">Payroll Defaults</h3>
+                    <p className="text-sm text-muted-foreground">Set default values for your payroll runs.</p>
+                 </div>
+                <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                <FormField
+                    control={form.control}
+                    name="payFrequency"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>Pay Frequency</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value} disabled>
+                            <FormControl>
+                            <SelectTrigger disabled={isLoading}>
+                                <SelectValue placeholder="Select a frequency" />
+                            </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                                <SelectItem value="bi-weekly">Bi-weekly</SelectItem>
+                            </SelectContent>
+                        </Select>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                />
+                <FormField
+                    control={form.control}
+                    name="standardBiWeeklyHours"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>Standard Bi-Weekly Hours</FormLabel>
+                        <FormControl>
+                            <Input type="number" placeholder="e.g., 80" {...field} disabled={isLoading} />
+                        </FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                />
+                </div>
+            </div>
+
+            <Separator className="my-4" />
+
+            <div className="space-y-4">
+                <div>
+                    <h3 className="text-sm font-medium">Store Closing Times</h3>
+                    <p className="text-sm text-muted-foreground">Used to auto-clock out employees who forget. Use 24-hour format (HH:MM).</p>
+                </div>
+                <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
+                    <FormField
+                        control={form.control}
+                        name="closingTimeWeekdays"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Mon - Fri</FormLabel>
+                                <FormControl><Input type="time" {...field} disabled={isLoading} /></FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                     <FormField
+                        control={form.control}
+                        name="closingTimeSaturday"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Saturday</FormLabel>
+                                <FormControl><Input type="time" {...field} disabled={isLoading} /></FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                     <FormField
+                        control={form.control}
+                        name="closingTimeSunday"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Sunday</FormLabel>
+                                <FormControl><Input type="time" {...field} disabled={isLoading} /></FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                </div>
             </div>
 
 
