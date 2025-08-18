@@ -46,7 +46,12 @@ const employeePayrollInputSchema = z.object({
   ptoUsed: z.coerce.number().min(0, { message: 'PTO hours must be non-negative.' }).default(0),
   ptoBalance: z.number().optional(),
   comment: z.string().optional(),
-}).refine(data => data.payMethod === 'Salaried' || data.checkHours <= data.totalHoursWorked, {
+}).refine(data => {
+    if (data.payMethod === 'Hourly') {
+        return data.checkHours <= data.totalHoursWorked;
+    }
+    return true; // For salaried employees, this check is ignored
+}, {
     message: "Check hours cannot exceed total hours.",
     path: ["checkHours"],
 }).refine(
@@ -165,7 +170,7 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
             }, 0);
             
             const totalHours = totalMinutes / 60;
-            const roundedHours = parseFloat(totalHours.toFixed(2));
+            const roundedHours = parseFloat(totalHours.toFixed(1));
             setValue(`employees.${i}.totalHoursWorked`, roundedHours, { shouldValidate: true, shouldDirty: true });
             setValue(`employees.${i}.checkHours`, roundedHours, { shouldValidate: true, shouldDirty: true });
         }
