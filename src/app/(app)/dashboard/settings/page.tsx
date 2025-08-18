@@ -7,18 +7,28 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { useAuth } from '@/contexts/auth-context';
 import { db } from '@/lib/firebase';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Settings as SettingsIcon, Building, Clock, UserCircle, ArrowLeft, Loader2, Shield } from "lucide-react";
+import { Settings as SettingsIcon, Building, Clock, UserCircle, ArrowLeft, Loader2, Shield, AlertTriangle } from "lucide-react";
 import Link from 'next/link';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const timeRegex = /^(0?[1-9]|1[0-2]):[0-5][0-9]$/;
 const timeFormatMessage = "Use HH:MM format (e.g., 05:00).";
@@ -33,10 +43,20 @@ const settingsSchema = z.object({
   closingTimeSaturdayAmPm: z.enum(['AM', 'PM']),
   closingTimeSunday: z.string().regex(timeRegex, { message: timeFormatMessage }),
   closingTimeSundayAmPm: z.enum(['AM', 'PM']),
-  securityPin: z.string().length(4, "PIN must be 4 digits.").regex(/^\d{4}$/, "PIN must only contain numbers.").optional().or(z.literal('')),
 });
 
 type SettingsFormValues = z.infer<typeof settingsSchema>;
+
+const pinSchema = z.object({
+    currentPin: z.string().optional(),
+    newPin: z.string().length(4, "PIN must be 4 digits.").regex(/^\d{4}$/, "PIN must only contain numbers."),
+    confirmPin: z.string(),
+}).refine(data => data.newPin === data.confirmPin, {
+    message: "New PINs do not match.",
+    path: ["confirmPin"],
+});
+
+type PinFormValues = z.infer<typeof pinSchema>;
 
 const parseTime = (timeString: string | undefined, defaultTime: string, defaultAmPm: 'AM' | 'PM') => {
     if (!timeString) return { time: defaultTime, ampm: defaultAmPm };
@@ -54,6 +74,133 @@ const parseTime = (timeString: string | undefined, defaultTime: string, defaultA
     }
     return { time: defaultTime, ampm: defaultAmPm };
 };
+
+function ChangePinDialog() {
+    const { user } = useAuth();
+    const { toast } = useToast();
+    const [open, setOpen] = React.useState(false);
+    const [error, setError] = React.useState('');
+    const [isSavingPin, setIsSavingPin] = React.useState(false);
+    const [hasPin, setHasPin] = React.useState(false);
+
+    const pinForm = useForm<PinFormValues>({
+        resolver: zodResolver(pinSchema),
+        defaultValues: { currentPin: '', newPin: '', confirmPin: '' },
+    });
+    
+    React.useEffect(() => {
+        if (open && user) {
+            const userDocRef = doc(db, 'users', user.uid);
+            getDoc(userDocRef).then(docSnap => {
+                if (docSnap.exists() && docSnap.data().securityPin) {
+                    setHasPin(true);
+                } else {
+                    setHasPin(false);
+                }
+            });
+        }
+    }, [open, user]);
+
+    const handlePinSubmit = async (values: PinFormValues) => {
+        if (!user) return;
+        setIsSavingPin(true);
+        setError('');
+
+        try {
+            const userDocRef = doc(db, 'users', user.uid);
+            const docSnap = await getDoc(userDocRef);
+
+            if (docSnap.exists()) {
+                const currentPinOnDb = docSnap.data().securityPin;
+                // Verify current PIN if one is set
+                if (hasPin && currentPinOnDb !== values.currentPin) {
+                    setError('The current PIN is incorrect.');
+                    setIsSavingPin(false);
+                    return;
+                }
+
+                // Update to the new PIN
+                await updateDoc(userDocRef, { securityPin: values.newPin });
+                toast({ title: 'Success', description: 'Your security PIN has been updated.' });
+                pinForm.reset();
+                setOpen(false);
+            }
+        } catch (err) {
+            setError('An error occurred. Please try again.');
+        } finally {
+            setIsSavingPin(false);
+        }
+    };
+    
+    return (
+        <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+                <Button variant="outline">Change Security PIN</Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                    <DialogTitle>Change Security PIN</DialogTitle>
+                    <DialogDescription>
+                        Update your 4-digit PIN used for accessing sensitive information.
+                    </DialogDescription>
+                </DialogHeader>
+                 <Form {...pinForm}>
+                    <form onSubmit={pinForm.handleSubmit(handlePinSubmit)} className="space-y-4 py-4">
+                        {error && <Alert variant="destructive"><AlertTriangle className="h-4 w-4" /><AlertTitle>{error}</AlertTitle></Alert>}
+                        {hasPin && (
+                            <FormField
+                                control={pinForm.control}
+                                name="currentPin"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Current PIN</FormLabel>
+                                        <FormControl>
+                                            <Input type="password" placeholder="••••" maxLength={4} {...field} />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                        )}
+                        <FormField
+                            control={pinForm.control}
+                            name="newPin"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>New PIN</FormLabel>
+                                    <FormControl>
+                                        <Input type="password" placeholder="••••" maxLength={4} {...field} />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                        <FormField
+                            control={pinForm.control}
+                            name="confirmPin"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Confirm New PIN</FormLabel>
+                                    <FormControl>
+                                        <Input type="password" placeholder="••••" maxLength={4} {...field} />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                         <DialogFooter>
+                            <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+                            <Button type="submit" disabled={isSavingPin}>
+                                {isSavingPin && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                                Save PIN
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </Form>
+            </DialogContent>
+        </Dialog>
+    );
+}
 
 
 export default function SettingsPage() {
@@ -74,7 +221,6 @@ export default function SettingsPage() {
       closingTimeSaturdayAmPm: 'PM',
       closingTimeSunday: '05:00',
       closingTimeSundayAmPm: 'PM',
-      securityPin: '',
     },
   });
 
@@ -98,7 +244,6 @@ export default function SettingsPage() {
             closingTimeSaturdayAmPm: saturday.ampm,
             closingTimeSunday: sunday.time,
             closingTimeSundayAmPm: sunday.ampm,
-            securityPin: data.securityPin || '',
           });
         }
         setIsLoading(false);
@@ -131,7 +276,6 @@ export default function SettingsPage() {
             saturday: `${values.closingTimeSaturday} ${values.closingTimeSaturdayAmPm}`,
             sunday: `${values.closingTimeSunday} ${values.closingTimeSundayAmPm}`,
         },
-        securityPin: values.securityPin,
       };
 
       await setDoc(userDocRef, dataToSave, { merge: true });
@@ -343,22 +487,7 @@ export default function SettingsPage() {
                         <CardDescription>Protect sensitive areas with a PIN.</CardDescription>
                         </CardHeader>
                         <CardContent>
-                             <FormField
-                                control={form.control}
-                                name="securityPin"
-                                render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>4-Digit Security PIN</FormLabel>
-                                    <FormControl>
-                                    <Input type="password" placeholder="••••" maxLength={4} {...field} value={field.value ?? ''}/>
-                                    </FormControl>
-                                    <FormDescription>
-                                        Leave blank to disable PIN protection.
-                                    </FormDescription>
-                                    <FormMessage />
-                                </FormItem>
-                                )}
-                            />
+                             <ChangePinDialog />
                         </CardContent>
                     </Card>
                 </div>
