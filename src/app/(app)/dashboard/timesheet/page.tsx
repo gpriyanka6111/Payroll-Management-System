@@ -5,10 +5,10 @@ import * as React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Calendar as CalendarIcon, ArrowLeft, Users } from "lucide-react";
-import { format, differenceInMinutes, startOfDay, isSameDay, subDays, eachDayOfInterval } from "date-fns";
+import { Calendar as CalendarIcon, ArrowLeft, Users, Pencil, AlertTriangle, Loader2 } from "lucide-react";
+import { format, differenceInMinutes, startOfDay, isSameDay, subDays, eachDayOfInterval, parse } from "date-fns";
 import { useAuth } from '@/contexts/auth-context';
-import { collection, query, where, getDocs, Timestamp, orderBy } from 'firebase/firestore';
+import { collection, query, where, getDocs, Timestamp, orderBy, doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -30,13 +30,18 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogFooter,
 } from "@/components/ui/dialog"
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 
 interface TimeEntry {
     id: string;
     timeIn: Timestamp;
     timeOut: Timestamp | null;
+    employeeId: string; // Keep employeeId here for easy access
 }
 
 interface DailySummary {
@@ -54,7 +59,157 @@ interface TimesheetData {
     totals: Record<string, number>; // [employeeId] -> totalHours
 }
 
-function DailyActivityDialog({ isOpen, onClose, date, summaries }: { isOpen: boolean, onClose: () => void, date: Date | null, summaries: DailySummary[] }) {
+function PinDialog({ open, onOpenChange, onPinVerified }: { open: boolean, onOpenChange: (open: boolean) => void, onPinVerified: () => void }) {
+    const [pin, setPin] = React.useState('');
+    const [error, setError] = React.useState('');
+    const [isLoading, setIsLoading] = React.useState(false);
+    const { user } = useAuth();
+
+    const handleVerifyPin = async () => {
+        if (!user) {
+            setError('You must be logged in.');
+            return;
+        }
+        setIsLoading(true);
+        setError('');
+        try {
+            const userDocRef = doc(db, 'users', user.uid);
+            const docSnap = await getDoc(userDocRef);
+            if (docSnap.exists() && docSnap.data().securityPin === pin) {
+                onPinVerified();
+            } else if (docSnap.exists() && !docSnap.data().securityPin) {
+                 onPinVerified();
+            }
+            else {
+                setError('Invalid PIN. Please try again.');
+            }
+        } catch (err) {
+            setError('An error occurred while verifying the PIN.');
+        } finally {
+            setIsLoading(false);
+            setPin('');
+        }
+    };
+     const handlePinChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const value = e.target.value.replace(/\D/g, ''); // Only allow digits
+        setPin(value);
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                    <DialogTitle>Enter Security PIN</DialogTitle>
+                    <DialogDescription>
+                        Enter your 4-digit PIN to edit this time entry.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                     {error && (
+                        <Alert variant="destructive">
+                            <AlertTriangle className="h-4 w-4" />
+                            <AlertTitle>Error</AlertTitle>
+                            <AlertDescription>{error}</AlertDescription>
+                        </Alert>
+                    )}
+                    <Input
+                        type="password"
+                        maxLength={4}
+                        placeholder="••••"
+                        value={pin}
+                        onChange={handlePinChange}
+                        className="text-center text-2xl tracking-[1rem]"
+                    />
+                    <Button onClick={handleVerifyPin} className="w-full" disabled={isLoading || pin.length !== 4}>
+                        {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : "Verify PIN"}
+                    </Button>
+                </div>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+
+function EditTimeEntryDialog({ isOpen, onClose, entry, date, onSave }: { isOpen: boolean, onClose: () => void, entry: TimeEntry | null, date: Date | null, onSave: () => void }) {
+    const { user } = useAuth();
+    const { toast } = useToast();
+    const [timeIn, setTimeIn] = React.useState('');
+    const [timeOut, setTimeOut] = React.useState('');
+    const [isSaving, setIsSaving] = React.useState(false);
+    const [error, setError] = React.useState('');
+
+    React.useEffect(() => {
+        if (entry) {
+            setTimeIn(format(entry.timeIn.toDate(), 'HH:mm'));
+            setTimeOut(entry.timeOut ? format(entry.timeOut.toDate(), 'HH:mm') : '');
+        }
+    }, [entry]);
+
+    const handleSave = async () => {
+        if (!user || !entry || !date) return;
+
+        const timeInDate = parse(timeIn, 'HH:mm', date);
+        const timeOutDate = timeOut ? parse(timeOut, 'HH:mm', date) : null;
+        
+        if (timeOutDate && timeOutDate < timeInDate) {
+            setError('Clock-out time cannot be before clock-in time.');
+            return;
+        }
+        setError('');
+        setIsSaving(true);
+        try {
+            const entryDocRef = doc(db, 'users', user.uid, 'employees', entry.employeeId, 'timeEntries', entry.id);
+            await updateDoc(entryDocRef, {
+                timeIn: Timestamp.fromDate(timeInDate),
+                timeOut: timeOutDate ? Timestamp.fromDate(timeOutDate) : null
+            });
+            toast({ title: 'Success', description: 'Time entry updated successfully.' });
+            onSave();
+        } catch (err) {
+            console.error('Error updating time entry:', err);
+            toast({ title: 'Error', description: 'Failed to update time entry.', variant: 'destructive' });
+        } finally {
+            setIsSaving(false);
+        }
+    };
+    
+    if (!entry || !date) return null;
+
+    return (
+        <Dialog open={isOpen} onOpenChange={onClose}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Edit Time Entry</DialogTitle>
+                    <DialogDescription>
+                        Adjust the clock-in and clock-out times for {format(date, 'PPP')}. Use 24-hour format (HH:mm).
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                    {error && <Alert variant="destructive"><AlertTriangle className="h-4 w-4" /><AlertTitle>{error}</AlertTitle></Alert>}
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="timeIn">Clock In</Label>
+                            <Input id="timeIn" type="time" value={timeIn} onChange={e => setTimeIn(e.target.value)} />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="timeOut">Clock Out</Label>
+                            <Input id="timeOut" type="time" value={timeOut} onChange={e => setTimeOut(e.target.value)} />
+                        </div>
+                    </div>
+                </div>
+                <DialogFooter>
+                    <Button variant="outline" onClick={onClose}>Cancel</Button>
+                    <Button onClick={handleSave} disabled={isSaving}>
+                        {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>} Save
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    )
+}
+
+
+function DailyActivityDialog({ isOpen, onClose, date, summaries, onEditRequest }: { isOpen: boolean, onClose: () => void, date: Date | null, summaries: DailySummary[], onEditRequest: (entry: TimeEntry) => void }) {
     if (!date) return null;
 
     return (
@@ -75,9 +230,14 @@ function DailyActivityDialog({ isOpen, onClose, date, summaries }: { isOpen: boo
                                     <p className="text-sm text-muted-foreground mb-2">Total Hours: <span className="font-bold text-primary">{summary.totalHours.toFixed(2)}</span></p>
                                     <ul className="space-y-1 pl-4">
                                         {summary.entries.map(entry => (
-                                            <li key={entry.id} className="text-xs list-disc list-inside">
-                                                {format(entry.timeIn.toDate(), 'p')} - {entry.timeOut ? format(entry.timeOut.toDate(), 'p') : '...'}
-                                                <span className="ml-2 text-muted-foreground">({formatDuration(entry.timeIn.toDate(), entry.timeOut?.toDate() ?? null)})</span>
+                                            <li key={entry.id} className="text-xs list-disc list-inside flex items-center justify-between">
+                                                <span>
+                                                    {format(entry.timeIn.toDate(), 'p')} - {entry.timeOut ? format(entry.timeOut.toDate(), 'p') : '...'}
+                                                    <span className="ml-2 text-muted-foreground">({formatDuration(entry.timeIn.toDate(), entry.timeOut?.toDate() ?? null)})</span>
+                                                </span>
+                                                 <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => onEditRequest(entry)}>
+                                                    <Pencil className="h-3 w-3" />
+                                                </Button>
                                             </li>
                                         ))}
                                     </ul>
@@ -118,109 +278,102 @@ export default function TimesheetPage() {
 
   const [isDetailsDialogOpen, setIsDetailsDialogOpen] = React.useState(false);
   const [selectedDateDetails, setSelectedDateDetails] = React.useState<{ date: Date | null; summaries: DailySummary[] }>({ date: null, summaries: [] });
-
-  React.useEffect(() => {
-    if (!user || !date?.from || !date?.to) {
+  const [isPinDialogOpen, setIsPinDialogOpen] = React.useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = React.useState(false);
+  const [entryToEdit, setEntryToEdit] = React.useState<TimeEntry | null>(null);
+  
+  const fetchData = React.useCallback(async () => {
+     if (!user || !date?.from || !date?.to) {
         setTimesheetData({ dates: [], employees: [], entries: {}, totals: {} });
         setIsLoading(false);
         return;
     };
+    setIsLoading(true);
+    try {
+        const employeesCollectionRef = collection(db, 'users', user.uid, 'employees');
+        const employeesQuery = query(employeesCollectionRef, orderBy('lastName', 'asc'));
+        const employeeSnapshot = await getDocs(employeesQuery);
+        const employeesData: Employee[] = employeeSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
+        const uniqueEmployees = employeesData.map(emp => ({ id: emp.id, name: `${emp.firstName} ${emp.lastName}` }));
 
-    const fetchAllTimesheets = async () => {
-        setIsLoading(true);
-        try {
-            // 1. Fetch all employees
-            const employeesCollectionRef = collection(db, 'users', user.uid, 'employees');
-            const employeesQuery = query(employeesCollectionRef, orderBy('lastName', 'asc'));
-            const employeeSnapshot = await getDocs(employeesQuery);
-            const employeesData: Employee[] = employeeSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
-            const uniqueEmployees = employeesData.map(emp => ({ id: emp.id, name: `${emp.firstName} ${emp.lastName}` }));
+        const allSummaries: DailySummary[] = [];
+        const toDateEnd = new Date(date.to);
+        toDateEnd.setHours(23, 59, 59, 999);
 
+        for (const employee of employeesData) {
+            const timeEntriesRef = collection(db, 'users', user.uid, 'employees', employee.id, 'timeEntries');
+            const q = query(
+                timeEntriesRef,
+                where('timeIn', '>=', date.from),
+                where('timeIn', '<=', toDateEnd),
+                orderBy('timeIn', 'desc')
+            );
+            const entriesSnapshot = await getDocs(q);
+            const employeeEntries: TimeEntry[] = entriesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), employeeId: employee.id } as TimeEntry));
 
-            // 2. Fetch time entries for each employee within the date range
-            const allSummaries: DailySummary[] = [];
-            const toDateEnd = new Date(date.to);
-            toDateEnd.setHours(23, 59, 59, 999);
-
-            for (const employee of employeesData) {
-                const timeEntriesRef = collection(db, 'users', user.uid, 'employees', employee.id, 'timeEntries');
-                const q = query(
-                    timeEntriesRef,
-                    where('timeIn', '>=', date.from),
-                    where('timeIn', '<=', toDateEnd),
-                    orderBy('timeIn', 'desc')
-                );
-                const entriesSnapshot = await getDocs(q);
-                const employeeEntries: TimeEntry[] = entriesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TimeEntry));
-
-                // 3. Group entries by day and calculate totals
-                const entriesByDay = new Map<string, { totalMinutes: number; entries: TimeEntry[] }>();
-
-                employeeEntries.forEach(entry => {
-                    if (!entry.timeOut) return;
-                    const dayKey = format(startOfDay(entry.timeIn.toDate()), 'yyyy-MM-dd');
-                    const dayData = entriesByDay.get(dayKey) || { totalMinutes: 0, entries: [] };
-                    
-                    const duration = differenceInMinutes(entry.timeOut.toDate(), entry.timeIn.toDate());
-                    dayData.totalMinutes += duration > 0 ? duration : 0;
-                    dayData.entries.push(entry);
-
-                    entriesByDay.set(dayKey, dayData);
-                });
-
-                // 4. Create summary objects
-                entriesByDay.forEach((data, dayKey) => {
-                    allSummaries.push({
-                        employeeId: employee.id,
-                        employeeName: `${employee.firstName} ${employee.lastName}`,
-                        date: new Date(dayKey),
-                        totalHours: data.totalMinutes / 60,
-                        entries: data.entries.sort((a, b) => a.timeIn.toDate().getTime() - b.timeIn.toDate().getTime()), // Sort entries chronologically for detail view
-                    });
-                });
-            }
-            
-            // 5. Transform data for pivot table
-            const allDatesInRange = eachDayOfInterval({
-                start: date.from,
-                end: date.to,
-            }).sort((a, b) => a.getTime() - b.getTime()); // Sort ascending: oldest first
-
-
-            const entriesMap: Record<string, Record<string, DailySummary | undefined>> = {};
-            const employeeTotals: Record<string, number> = {};
-            uniqueEmployees.forEach(emp => employeeTotals[emp.id] = 0);
-
-            allDatesInRange.forEach(d => {
-                const dateKey = format(d, 'yyyy-MM-dd');
-                entriesMap[dateKey] = {};
-                uniqueEmployees.forEach(emp => {
-                    const summary = allSummaries.find(s => s.employeeId === emp.id && isSameDay(s.date, d));
-                    entriesMap[dateKey][emp.id] = summary;
-                    if (summary) {
-                        employeeTotals[emp.id] += summary.totalHours;
-                    }
-                });
+            const entriesByDay = new Map<string, { totalMinutes: number; entries: TimeEntry[] }>();
+            employeeEntries.forEach(entry => {
+                if (!entry.timeOut) return;
+                const dayKey = format(startOfDay(entry.timeIn.toDate()), 'yyyy-MM-dd');
+                const dayData = entriesByDay.get(dayKey) || { totalMinutes: 0, entries: [] };
+                
+                const duration = differenceInMinutes(entry.timeOut.toDate(), entry.timeIn.toDate());
+                dayData.totalMinutes += duration > 0 ? duration : 0;
+                dayData.entries.push(entry);
+                entriesByDay.set(dayKey, dayData);
             });
 
-            setTimesheetData({
-                dates: allDatesInRange,
-                employees: uniqueEmployees,
-                entries: entriesMap,
-                totals: employeeTotals,
+            entriesByDay.forEach((data, dayKey) => {
+                allSummaries.push({
+                    employeeId: employee.id,
+                    employeeName: `${employee.firstName} ${employee.lastName}`,
+                    date: new Date(dayKey),
+                    totalHours: data.totalMinutes / 60,
+                    entries: data.entries.sort((a, b) => a.timeIn.toDate().getTime() - b.timeIn.toDate().getTime()),
+                });
             });
-
-        } catch (error) {
-            console.error("Error fetching timesheets:", error);
-            toast({ title: "Error", description: "Could not fetch timesheet data.", variant: "destructive" });
-        } finally {
-            setIsLoading(false);
         }
+        
+        const allDatesInRange = eachDayOfInterval({
+            start: date.from,
+            end: date.to,
+        }).sort((a, b) => a.getTime() - b.getTime());
+
+        const entriesMap: Record<string, Record<string, DailySummary | undefined>> = {};
+        const employeeTotals: Record<string, number> = {};
+        uniqueEmployees.forEach(emp => employeeTotals[emp.id] = 0);
+
+        allDatesInRange.forEach(d => {
+            const dateKey = format(d, 'yyyy-MM-dd');
+            entriesMap[dateKey] = {};
+            uniqueEmployees.forEach(emp => {
+                const summary = allSummaries.find(s => s.employeeId === emp.id && isSameDay(s.date, d));
+                entriesMap[dateKey][emp.id] = summary;
+                if (summary) {
+                    employeeTotals[emp.id] += summary.totalHours;
+                }
+            });
+        });
+
+        setTimesheetData({
+            dates: allDatesInRange,
+            employees: uniqueEmployees,
+            entries: entriesMap,
+            totals: employeeTotals,
+        });
+
+    } catch (error) {
+        console.error("Error fetching timesheets:", error);
+        toast({ title: "Error", description: "Could not fetch timesheet data.", variant: "destructive" });
+    } finally {
+        setIsLoading(false);
     }
-
-    fetchAllTimesheets();
-
   }, [user, date, toast]);
+
+  React.useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
 
   const handleDateClick = (d: Date) => {
     const dateKey = format(d, 'yyyy-MM-dd');
@@ -231,6 +384,24 @@ export default function TimesheetPage() {
     setSelectedDateDetails({ date: d, summaries: dailySummaries });
     setIsDetailsDialogOpen(true);
   };
+
+  const handleEditRequest = (entry: TimeEntry) => {
+    setEntryToEdit(entry);
+    setIsPinDialogOpen(true);
+  };
+
+  const handlePinVerified = () => {
+    setIsPinDialogOpen(false);
+    setIsDetailsDialogOpen(false);
+    setIsEditDialogOpen(true);
+  };
+
+  const handleEditSave = () => {
+      setIsEditDialogOpen(false);
+      setEntryToEdit(null);
+      fetchData(); // Refetch data to show updated times
+  }
+
 
   const totalHoursForAll = React.useMemo(() => {
      return Object.values(timesheetData.totals).reduce((acc, total) => acc + total, 0);
@@ -311,7 +482,7 @@ export default function TimesheetPage() {
                                 <TableRow>
                                     <TableHead className="sticky left-0 bg-card z-10 min-w-[150px]">Date</TableHead>
                                     {timesheetData.employees.map(emp => (
-                                        <TableHead key={emp.id} className="text-right">{emp.name}</TableHead>
+                                        <TableHead key={emp.id} className="text-left">{emp.name}</TableHead>
                                     ))}
                                 </TableRow>
                             </TableHeader>
@@ -328,7 +499,7 @@ export default function TimesheetPage() {
                                             {timesheetData.employees.map(emp => {
                                                 const summary = timesheetData.entries[dateKey]?.[emp.id];
                                                 return (
-                                                    <TableCell key={emp.id} className="text-right tabular-nums">
+                                                    <TableCell key={emp.id} className="text-left tabular-nums">
                                                         {summary && summary.totalHours > 0 ? (
                                                             <Tooltip>
                                                                 <TooltipTrigger asChild>
@@ -362,7 +533,7 @@ export default function TimesheetPage() {
                                 <TableRow>
                                     <TableHead className="sticky left-0 bg-card z-10">Total Hours</TableHead>
                                      {timesheetData.employees.map(emp => (
-                                        <TableHead key={`total-${emp.id}`} className="text-right font-bold text-primary tabular-nums">
+                                        <TableHead key={`total-${emp.id}`} className="text-left font-bold text-primary tabular-nums">
                                             {timesheetData.totals[emp.id]?.toFixed(2) ?? '0.00'}
                                         </TableHead>
                                     ))}
@@ -385,6 +556,21 @@ export default function TimesheetPage() {
             onClose={() => setIsDetailsDialogOpen(false)}
             date={selectedDateDetails.date}
             summaries={selectedDateDetails.summaries}
+            onEditRequest={handleEditRequest}
+        />
+
+        <PinDialog 
+            open={isPinDialogOpen}
+            onOpenChange={setIsPinDialogOpen}
+            onPinVerified={handlePinVerified}
+        />
+        
+        <EditTimeEntryDialog 
+            isOpen={isEditDialogOpen}
+            onClose={() => setIsEditDialogOpen(false)}
+            entry={entryToEdit}
+            date={selectedDateDetails.date}
+            onSave={handleEditSave}
         />
 
     </div>
