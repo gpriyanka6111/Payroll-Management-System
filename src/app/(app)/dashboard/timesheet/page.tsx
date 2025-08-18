@@ -280,7 +280,7 @@ export default function TimesheetPage() {
   const [selectedDateDetails, setSelectedDateDetails] = React.useState<{ date: Date | null; summaries: DailySummary[] }>({ date: null, summaries: [] });
   const [isPinDialogOpen, setIsPinDialogOpen] = React.useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = React.useState(false);
-  const [entryToEdit, setEntryToEdit] = React.useState<TimeEntry | null>(null);
+  const [entryToEdit, setEntryToEdit] = React.useState<{entry: TimeEntry, date: Date} | null>(null);
   
   const fetchData = React.useCallback(async () => {
      if (!user || !date?.from || !date?.to) {
@@ -313,12 +313,14 @@ export default function TimesheetPage() {
 
             const entriesByDay = new Map<string, { totalMinutes: number; entries: TimeEntry[] }>();
             employeeEntries.forEach(entry => {
-                if (!entry.timeOut) return;
                 const dayKey = format(startOfDay(entry.timeIn.toDate()), 'yyyy-MM-dd');
                 const dayData = entriesByDay.get(dayKey) || { totalMinutes: 0, entries: [] };
                 
-                const duration = differenceInMinutes(entry.timeOut.toDate(), entry.timeIn.toDate());
-                dayData.totalMinutes += duration > 0 ? duration : 0;
+                if(entry.timeOut) {
+                    const duration = differenceInMinutes(entry.timeOut.toDate(), entry.timeIn.toDate());
+                    dayData.totalMinutes += duration > 0 ? duration : 0;
+                }
+
                 dayData.entries.push(entry);
                 entriesByDay.set(dayKey, dayData);
             });
@@ -386,8 +388,10 @@ export default function TimesheetPage() {
   };
 
   const handleEditRequest = (entry: TimeEntry) => {
-    setEntryToEdit(entry);
-    setIsPinDialogOpen(true);
+    if (selectedDateDetails.date) {
+        setEntryToEdit({ entry, date: selectedDateDetails.date });
+        setIsPinDialogOpen(true);
+    }
   };
 
   const handlePinVerified = () => {
@@ -568,8 +572,8 @@ export default function TimesheetPage() {
         <EditTimeEntryDialog 
             isOpen={isEditDialogOpen}
             onClose={() => setIsEditDialogOpen(false)}
-            entry={entryToEdit}
-            date={selectedDateDetails.date}
+            entry={entryToEdit?.entry ?? null}
+            date={entryToEdit?.date ?? null}
             onSave={handleEditSave}
         />
 
