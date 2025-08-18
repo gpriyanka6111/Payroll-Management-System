@@ -520,12 +520,12 @@ export default function TimesheetPage() {
             timesheetData.employees.length > 0 ? (
                 <TooltipProvider>
                     <div className="overflow-x-auto">
-                        <Table>
+                        <Table className="table-fixed w-full">
                             <TableHeader>
                                 <TableRow>
-                                    <TableHead className="sticky left-0 bg-card z-10 min-w-[150px]">Date</TableHead>
+                                    <TableHead className="sticky left-0 bg-card z-10 min-w-[150px] w-[150px]">Date</TableHead>
                                     {timesheetData.employees.map(emp => (
-                                        <TableHead key={emp.id} className="text-left">{emp.name}</TableHead>
+                                        <TableHead key={emp.id} className="text-left min-w-[150px] w-[150px]">{emp.name}</TableHead>
                                     ))}
                                 </TableRow>
                             </TableHeader>
@@ -619,3 +619,5 @@ export default function TimesheetPage() {
     </div>
   );
 }
+
+    
