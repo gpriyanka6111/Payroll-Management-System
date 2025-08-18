@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Calendar as CalendarIcon, ArrowLeft, Users, Pencil, AlertTriangle, Loader2 } from "lucide-react";
-import { format, differenceInMinutes, startOfDay, isSameDay, subDays, eachDayOfInterval, parse } from "date-fns";
+import { format, differenceInMinutes, startOfDay, isSameDay, subDays, eachDayOfInterval, parse, set } from "date-fns";
 import { useAuth } from '@/contexts/auth-context';
 import { collection, query, where, getDocs, Timestamp, orderBy, doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -148,8 +148,14 @@ function EditTimeEntryDialog({ isOpen, onClose, entry, date, onSave }: { isOpen:
     const handleSave = async () => {
         if (!user || !entry || !date) return;
 
-        const timeInDate = parse(timeIn, 'HH:mm', date);
-        const timeOutDate = timeOut ? parse(timeOut, 'HH:mm', date) : null;
+        const [inHours, inMinutes] = timeIn.split(':').map(Number);
+        const timeInDate = set(date, { hours: inHours, minutes: inMinutes, seconds: 0, milliseconds: 0 });
+
+        let timeOutDate: Date | null = null;
+        if (timeOut) {
+            const [outHours, outMinutes] = timeOut.split(':').map(Number);
+            timeOutDate = set(date, { hours: outHours, minutes: outMinutes, seconds: 0, milliseconds: 0 });
+        }
         
         if (timeOutDate && timeOutDate < timeInDate) {
             setError('Clock-out time cannot be before clock-in time.');
@@ -329,7 +335,7 @@ export default function TimesheetPage() {
                 allSummaries.push({
                     employeeId: employee.id,
                     employeeName: `${employee.firstName} ${employee.lastName}`,
-                    date: new Date(dayKey),
+                    date: parse(dayKey, 'yyyy-MM-dd', new Date()),
                     totalHours: data.totalMinutes / 60,
                     entries: data.entries.sort((a, b) => a.timeIn.toDate().getTime() - b.timeIn.toDate().getTime()),
                 });
