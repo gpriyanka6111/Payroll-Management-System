@@ -5,7 +5,7 @@ import * as React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Clock, LogIn, LogOut, CheckCircle, Users, Calendar as CalendarIcon } from "lucide-react";
-import { format, differenceInHours, differenceInMinutes, startOfDay, endOfDay, isBefore, startOfToday, subDays, getDay } from "date-fns";
+import { format, differenceInHours, differenceInMinutes, startOfDay, endOfDay, isBefore, startOfToday, subDays, getDay, parse } from "date-fns";
 import { useAuth } from '@/contexts/auth-context';
 import { collection, addDoc, query, where, onSnapshot, serverTimestamp, doc, updateDoc, Timestamp, getDocs, limit, orderBy, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -184,33 +184,28 @@ export default function DashboardPage() {
         let timeOutValue: Date | Timestamp = serverTimestamp() as Timestamp;
         let toastDescription = `${activeTimeEntry.employeeName}'s shift has ended.`;
 
-        // Check if the clock-in was on a previous day
         if (isBefore(activeTimeEntry.timeIn.toDate(), startOfToday())) {
             const userSettingsRef = doc(db, 'users', user.uid);
             const userSettingsSnap = await getDoc(userSettingsRef);
             
-            let closingTime = '17:00'; // Default
+            let closingTime = '05:00 PM'; // Default
             if (userSettingsSnap.exists()) {
                 const settings = userSettingsSnap.data();
                 const clockInDate = activeTimeEntry.timeIn.toDate();
-                const dayOfWeek = getDay(clockInDate); // Sunday = 0, Monday = 1, etc.
+                const dayOfWeek = getDay(clockInDate); // Sunday = 0, Monday = 1...
 
                 if (settings.storeTimings) {
-                    if (dayOfWeek >= 1 && dayOfWeek <= 5) { // Monday to Friday
-                        closingTime = settings.storeTimings.weekdays || '17:00';
+                    if (dayOfWeek >= 1 && dayOfWeek <= 5) { // Mon-Fri
+                        closingTime = settings.storeTimings.weekdays || '05:00 PM';
                     } else if (dayOfWeek === 6) { // Saturday
-                        closingTime = settings.storeTimings.saturday || '17:00';
+                        closingTime = settings.storeTimings.saturday || '05:00 PM';
                     } else { // Sunday
-                        closingTime = settings.storeTimings.sunday || '17:00';
+                        closingTime = settings.storeTimings.sunday || '05:00 PM';
                     }
-                } else {
-                    closingTime = settings.storeClosingTime || '17:00'; // Fallback to old field
                 }
             }
 
-            const [hours, minutes] = closingTime.split(':').map(Number);
-            const clockOutDate = activeTimeEntry.timeIn.toDate();
-            clockOutDate.setHours(hours, minutes, 0, 0);
+            const clockOutDate = parse(closingTime, 'hh:mm a', activeTimeEntry.timeIn.toDate());
 
             timeOutValue = clockOutDate;
             toastDescription = `${activeTimeEntry.employeeName} was automatically clocked out for a previous shift at ${format(clockOutDate, 'p')}.`;

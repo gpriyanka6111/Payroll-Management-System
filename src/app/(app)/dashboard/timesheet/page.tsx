@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Calendar as CalendarIcon, ArrowLeft, Users, Pencil, AlertTriangle, Loader2 } from "lucide-react";
-import { format, differenceInMinutes, startOfDay, isSameDay, subDays, eachDayOfInterval, parse, set } from "date-fns";
+import { format, differenceInMinutes, startOfDay, isSameDay, subDays, eachDayOfInterval, parse } from "date-fns";
 import { useAuth } from '@/contexts/auth-context';
 import { collection, query, where, getDocs, Timestamp, orderBy, doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -35,6 +35,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 
 interface TimeEntry {
@@ -133,35 +134,50 @@ function PinDialog({ open, onOpenChange, onPinVerified }: { open: boolean, onOpe
 function EditTimeEntryDialog({ isOpen, onClose, entry, date, onSave }: { isOpen: boolean, onClose: () => void, entry: TimeEntry | null, date: Date | null, onSave: () => void }) {
     const { user } = useAuth();
     const { toast } = useToast();
-    const [timeIn, setTimeIn] = React.useState('');
-    const [timeOut, setTimeOut] = React.useState('');
     const [isSaving, setIsSaving] = React.useState(false);
     const [error, setError] = React.useState('');
 
+    const [timeIn, setTimeIn] = React.useState('09:00');
+    const [timeInAmPm, setTimeInAmPm] = React.useState<'AM' | 'PM'>('AM');
+    const [timeOut, setTimeOut] = React.useState('05:00');
+    const [timeOutAmPm, setTimeOutAmPm] = React.useState<'AM' | 'PM'>('PM');
+    const [isClockedOut, setIsClockedOut] = React.useState(true);
+
+
     React.useEffect(() => {
         if (entry) {
-            setTimeIn(format(entry.timeIn.toDate(), 'HH:mm'));
-            setTimeOut(entry.timeOut ? format(entry.timeOut.toDate(), 'HH:mm') : '');
+            const timeInDate = entry.timeIn.toDate();
+            setTimeIn(format(timeInDate, 'hh:mm'));
+            setTimeInAmPm(format(timeInDate, 'a') as 'AM' | 'PM');
+
+            if (entry.timeOut) {
+                 const timeOutDate = entry.timeOut.toDate();
+                 setTimeOut(format(timeOutDate, 'hh:mm'));
+                 setTimeOutAmPm(format(timeOutDate, 'a') as 'AM' | 'PM');
+                 setIsClockedOut(true);
+            } else {
+                 setIsClockedOut(false);
+                 setTimeOut('05:00');
+                 setTimeOutAmPm('PM');
+            }
         }
     }, [entry]);
 
     const handleSave = async () => {
         if (!user || !entry || !date) return;
+        setError('');
 
-        const [inHours, inMinutes] = timeIn.split(':').map(Number);
-        const timeInDate = set(date, { hours: inHours, minutes: inMinutes, seconds: 0, milliseconds: 0 });
-
+        const timeInDate = parse(`${timeIn} ${timeInAmPm}`, 'hh:mm a', date);
         let timeOutDate: Date | null = null;
-        if (timeOut) {
-            const [outHours, outMinutes] = timeOut.split(':').map(Number);
-            timeOutDate = set(date, { hours: outHours, minutes: outMinutes, seconds: 0, milliseconds: 0 });
+        if (isClockedOut) {
+            timeOutDate = parse(`${timeOut} ${timeOutAmPm}`, 'hh:mm a', date);
         }
         
         if (timeOutDate && timeOutDate < timeInDate) {
             setError('Clock-out time cannot be before clock-in time.');
             return;
         }
-        setError('');
+        
         setIsSaving(true);
         try {
             const entryDocRef = doc(db, 'users', user.uid, 'employees', entry.employeeId, 'timeEntries', entry.id);
@@ -187,19 +203,37 @@ function EditTimeEntryDialog({ isOpen, onClose, entry, date, onSave }: { isOpen:
                 <DialogHeader>
                     <DialogTitle>Edit Time Entry</DialogTitle>
                     <DialogDescription>
-                        Adjust the clock-in and clock-out times for {format(date, 'PPP')}. Use 24-hour format (HH:mm).
+                        Adjust the clock-in/out times for {format(date, 'PPP')}.
                     </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
                     {error && <Alert variant="destructive"><AlertTriangle className="h-4 w-4" /><AlertTitle>{error}</AlertTitle></Alert>}
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
-                            <Label htmlFor="timeIn">Clock In</Label>
-                            <Input id="timeIn" type="time" value={timeIn} onChange={e => setTimeIn(e.target.value)} />
+                            <Label>Clock In</Label>
+                            <div className="flex gap-2">
+                                <Input value={timeIn} onChange={e => setTimeIn(e.target.value)} placeholder="hh:mm" />
+                                <Select value={timeInAmPm} onValueChange={(v: 'AM' | 'PM') => setTimeInAmPm(v)}>
+                                    <SelectTrigger><SelectValue /></SelectTrigger>
+                                    <SelectContent><SelectItem value="AM">AM</SelectItem><SelectItem value="PM">PM</SelectItem></SelectContent>
+                                </Select>
+                            </div>
                         </div>
                         <div className="space-y-2">
-                            <Label htmlFor="timeOut">Clock Out</Label>
-                            <Input id="timeOut" type="time" value={timeOut} onChange={e => setTimeOut(e.target.value)} />
+                             <Label>Clock Out</Label>
+                            <div className="flex gap-2">
+                                <Input value={timeOut} onChange={e => setTimeOut(e.target.value)} placeholder="hh:mm" disabled={!isClockedOut} />
+                                <Select value={timeOutAmPm} onValueChange={(v: 'AM' | 'PM') => setTimeOutAmPm(v)} disabled={!isClockedOut}>
+                                    <SelectTrigger><SelectValue /></SelectTrigger>
+                                    <SelectContent><SelectItem value="AM">AM</SelectItem><SelectItem value="PM">PM</SelectItem></SelectContent>
+                                </Select>
+                            </div>
+                             <div className="flex items-center space-x-2 mt-2">
+                                <input type="checkbox" id="isClockedOut" checked={!isClockedOut} onChange={(e) => setIsClockedOut(!e.target.checked)} />
+                                <label htmlFor="isClockedOut" className="text-xs font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                                    Still clocked in?
+                                </label>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -259,7 +293,6 @@ function DailyActivityDialog({ isOpen, onClose, date, summaries, onEditRequest }
     )
 }
 
-// Moved outside the component to avoid re-declaration on every render
 const formatDuration = (start: Date, end: Date | null) => {
     if (!end) return 'Active';
     const totalMinutes = differenceInMinutes(end, start);

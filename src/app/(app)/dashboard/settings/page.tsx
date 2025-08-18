@@ -20,22 +20,41 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Skeleton } from '@/components/ui/skeleton';
 
-const timeRegex = /^(?:2[0-3]|[01]?[0-9]):[0-5][0-9]$/;
-const timeFormatMessage = "Invalid time format. Use HH:MM (24-hour).";
+const timeRegex = /^(0?[1-9]|1[0-2]):[0-5][0-9]$/;
+const timeFormatMessage = "Use HH:MM format (e.g., 05:00).";
 
-// Zod schema for form validation
 const settingsSchema = z.object({
   companyName: z.string().min(1, "Company name cannot be empty."),
   payFrequency: z.enum(['weekly', 'bi-weekly', 'semi-monthly', 'monthly']),
   standardBiWeeklyHours: z.coerce.number().positive({ message: "Standard hours must be a positive number." }),
-  storeClosingTime: z.string().regex(timeRegex, timeFormatMessage).optional(),
   closingTimeWeekdays: z.string().regex(timeRegex, { message: timeFormatMessage }),
+  closingTimeWeekdaysAmPm: z.enum(['AM', 'PM']),
   closingTimeSaturday: z.string().regex(timeRegex, { message: timeFormatMessage }),
+  closingTimeSaturdayAmPm: z.enum(['AM', 'PM']),
   closingTimeSunday: z.string().regex(timeRegex, { message: timeFormatMessage }),
+  closingTimeSundayAmPm: z.enum(['AM', 'PM']),
   securityPin: z.string().length(4, "PIN must be 4 digits.").regex(/^\d{4}$/, "PIN must only contain numbers.").optional().or(z.literal('')),
 });
 
 type SettingsFormValues = z.infer<typeof settingsSchema>;
+
+const parseTime = (timeString: string | undefined, defaultTime: string, defaultAmPm: 'AM' | 'PM') => {
+    if (!timeString) return { time: defaultTime, ampm: defaultAmPm };
+    const parts = timeString.split(' ');
+    if (parts.length === 2 && (parts[1] === 'AM' || parts[1] === 'PM')) {
+        return { time: parts[0], ampm: parts[1] };
+    }
+    // Fallback for old 24h format
+    const [h] = timeString.split(':').map(Number);
+    if (!isNaN(h) && h >= 0 && h <= 23) {
+      const hour = h % 12 === 0 ? 12 : h % 12;
+      const minute = timeString.split(':')[1] || '00';
+      const ampm = h >= 12 ? 'PM' : 'AM';
+      return { time: `${String(hour).padStart(2, '0')}:${minute}`, ampm };
+    }
+    return { time: defaultTime, ampm: defaultAmPm };
+};
+
 
 export default function SettingsPage() {
   const { user } = useAuth();
@@ -49,10 +68,12 @@ export default function SettingsPage() {
       companyName: '',
       payFrequency: 'bi-weekly',
       standardBiWeeklyHours: 80,
-      storeClosingTime: '17:00', // Legacy, kept for compatibility
-      closingTimeWeekdays: '17:00',
-      closingTimeSaturday: '17:00',
-      closingTimeSunday: '17:00',
+      closingTimeWeekdays: '05:00',
+      closingTimeWeekdaysAmPm: 'PM',
+      closingTimeSaturday: '05:00',
+      closingTimeSaturdayAmPm: 'PM',
+      closingTimeSunday: '05:00',
+      closingTimeSundayAmPm: 'PM',
       securityPin: '',
     },
   });
@@ -63,15 +84,20 @@ export default function SettingsPage() {
       getDoc(userDocRef).then(docSnap => {
         if (docSnap.exists()) {
           const data = docSnap.data();
-          // Reset form with fetched data
+          const weekdays = parseTime(data.storeTimings?.weekdays, '05:00', 'PM');
+          const saturday = parseTime(data.storeTimings?.saturday, '05:00', 'PM');
+          const sunday = parseTime(data.storeTimings?.sunday, '05:00', 'PM');
+
           form.reset({
             companyName: data.companyName || '',
             payFrequency: data.payFrequency || 'bi-weekly',
             standardBiWeeklyHours: data.standardBiWeeklyHours || 80,
-            storeClosingTime: data.storeClosingTime || '17:00', // Legacy
-            closingTimeWeekdays: data.storeTimings?.weekdays || data.storeClosingTime || '17:00',
-            closingTimeSaturday: data.storeTimings?.saturday || data.storeClosingTime || '17:00',
-            closingTimeSunday: data.storeTimings?.sunday || data.storeClosingTime || '17:00',
+            closingTimeWeekdays: weekdays.time,
+            closingTimeWeekdaysAmPm: weekdays.ampm,
+            closingTimeSaturday: saturday.time,
+            closingTimeSaturdayAmPm: saturday.ampm,
+            closingTimeSunday: sunday.time,
+            closingTimeSundayAmPm: sunday.ampm,
             securityPin: data.securityPin || '',
           });
         }
@@ -100,16 +126,14 @@ export default function SettingsPage() {
         companyName: values.companyName,
         payFrequency: values.payFrequency,
         standardBiWeeklyHours: values.standardBiWeeklyHours,
-        storeClosingTime: values.closingTimeWeekdays, // Update legacy field for compatibility
         storeTimings: {
-            weekdays: values.closingTimeWeekdays,
-            saturday: values.closingTimeSaturday,
-            sunday: values.closingTimeSunday,
+            weekdays: `${values.closingTimeWeekdays} ${values.closingTimeWeekdaysAmPm}`,
+            saturday: `${values.closingTimeSaturday} ${values.closingTimeSaturdayAmPm}`,
+            sunday: `${values.closingTimeSunday} ${values.closingTimeSundayAmPm}`,
         },
         securityPin: values.securityPin,
       };
 
-      // Use setDoc with merge: true to create the document if it doesn't exist, or update it if it does.
       await setDoc(userDocRef, dataToSave, { merge: true });
       toast({
         title: "Settings Saved",
@@ -267,42 +291,30 @@ export default function SettingsPage() {
                             <div>
                                 <FormLabel>Store Closing Times</FormLabel>
                                 <FormDescription className="mb-2">
-                                    Used to auto-clock out employees who forget. Use 24-hour format (HH:MM).
+                                    Used to auto-clock out employees who forget.
                                 </FormDescription>
-                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-2">
-                                    <FormField
-                                        control={form.control}
-                                        name="closingTimeWeekdays"
-                                        render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel className="text-xs">Mon - Fri</FormLabel>
-                                            <FormControl><Input type="time" {...field} /></FormControl>
-                                            <FormMessage />
-                                        </FormItem>
-                                        )}
-                                    />
-                                    <FormField
-                                        control={form.control}
-                                        name="closingTimeSaturday"
-                                        render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel className="text-xs">Saturday</FormLabel>
-                                            <FormControl><Input type="time" {...field} /></FormControl>
-                                            <FormMessage />
-                                        </FormItem>
-                                        )}
-                                    />
-                                    <FormField
-                                        control={form.control}
-                                        name="closingTimeSunday"
-                                        render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel className="text-xs">Sunday</FormLabel>
-                                            <FormControl><Input type="time" {...field} /></FormControl>
-                                            <FormMessage />
-                                        </FormItem>
-                                        )}
-                                    />
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-6 mt-4">
+                                    <div className="space-y-2">
+                                        <Label className="text-xs">Mon - Fri</Label>
+                                        <div className="flex gap-2">
+                                            <FormField control={form.control} name="closingTimeWeekdays" render={({ field }) => (<FormItem className="flex-1"><FormControl><Input placeholder="05:00" {...field}/></FormControl><FormMessage /></FormItem>)} />
+                                            <FormField control={form.control} name="closingTimeWeekdaysAmPm" render={({ field }) => (<FormItem><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl><SelectContent><SelectItem value="AM">AM</SelectItem><SelectItem value="PM">PM</SelectItem></SelectContent></Select></FormItem>)} />
+                                        </div>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label className="text-xs">Saturday</Label>
+                                        <div className="flex gap-2">
+                                             <FormField control={form.control} name="closingTimeSaturday" render={({ field }) => (<FormItem className="flex-1"><FormControl><Input placeholder="05:00" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                             <FormField control={form.control} name="closingTimeSaturdayAmPm" render={({ field }) => (<FormItem><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl><SelectContent><SelectItem value="AM">AM</SelectItem><SelectItem value="PM">PM</SelectItem></SelectContent></Select></FormItem>)} />
+                                        </div>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label className="text-xs">Sunday</Label>
+                                        <div className="flex gap-2">
+                                             <FormField control={form.control} name="closingTimeSunday" render={({ field }) => (<FormItem className="flex-1"><FormControl><Input placeholder="05:00" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                             <FormField control={form.control} name="closingTimeSundayAmPm" render={({ field }) => (<FormItem><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl><SelectContent><SelectItem value="AM">AM</SelectItem><SelectItem value="PM">PM</SelectItem></SelectContent></Select></FormItem>)} />
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </CardContent>
