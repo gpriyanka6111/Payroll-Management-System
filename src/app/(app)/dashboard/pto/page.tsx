@@ -4,12 +4,12 @@
 import * as React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { User, History, Printer, ArrowLeft } from 'lucide-react';
-import { format } from 'date-fns';
+import { User, History, Printer, ArrowLeft, DollarSign } from 'lucide-react';
+import { format, startOfYear } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/auth-context';
-import { collection, onSnapshot, query, orderBy, getDocs } from 'firebase/firestore';
+import { collection, query, orderBy, getDocs, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Employee, Payroll } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -21,10 +21,17 @@ interface PtoUsageRecord {
   ptoUsed: number;
 }
 
+interface YtdEarningsRecord {
+    employeeId: string;
+    employeeName: string;
+    grossPay: number;
+}
+
 export default function PtoTrackerPage() {
   const { user } = useAuth();
   const [employees, setEmployees] = React.useState<Employee[]>([]);
   const [ptoHistory, setPtoHistory] = React.useState<PtoUsageRecord[]>([]);
+  const [ytdEarnings, setYtdEarnings] = React.useState<YtdEarningsRecord[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [today, setToday] = React.useState('');
 
@@ -48,13 +55,28 @@ export default function PtoTrackerPage() {
       } as Employee));
       setEmployees(employeesData);
 
-      // Fetch Payrolls and generate PTO history
+      // Fetch Payrolls for the current year
+      const yearStart = startOfYear(new Date());
       const payrollsCollectionRef = collection(db, 'users', user.uid, 'payrolls');
-      const payrollsQuery = query(payrollsCollectionRef, orderBy('toDate', 'desc'));
+      const payrollsQuery = query(
+        payrollsCollectionRef, 
+        where('toDate', '>=', format(yearStart, 'yyyy-MM-dd')),
+        orderBy('toDate', 'desc')
+      );
       const payrollSnapshot = await getDocs(payrollsQuery);
       const payrollsData: Payroll[] = payrollSnapshot.docs.map(doc => doc.data() as Payroll);
       
       const usageHistory: PtoUsageRecord[] = [];
+      const ytdTotals: { [employeeId: string]: YtdEarningsRecord } = {};
+
+      employeesData.forEach(emp => {
+          ytdTotals[emp.id] = {
+              employeeId: emp.id,
+              employeeName: `${emp.firstName} ${emp.lastName}`,
+              grossPay: 0
+          };
+      });
+
       payrollsData.forEach(payroll => {
         payroll.results.forEach((result: any) => {
           if (result.ptoUsed > 0) {
@@ -65,10 +87,16 @@ export default function PtoTrackerPage() {
               ptoUsed: result.ptoUsed,
             });
           }
+
+          if (ytdTotals[result.employeeId]) {
+              const gross = (result.grossCheckAmount || 0) + (result.grossOtherAmount || 0);
+              ytdTotals[result.employeeId].grossPay += gross;
+          }
         });
       });
       
       setPtoHistory(usageHistory);
+      setYtdEarnings(Object.values(ytdTotals));
       setIsLoading(false);
     };
 
@@ -82,7 +110,6 @@ export default function PtoTrackerPage() {
           .filter(record => record.employeeId === employee.id)
           .reduce((sum, record) => sum + record.ptoUsed, 0);
       
-      // The current employee.ptoBalance should be the most up-to-date remaining balance
       const remainingBalance = employee.ptoBalance;
       const initialBalance = remainingBalance + usedYTD;
 
@@ -96,6 +123,10 @@ export default function PtoTrackerPage() {
 
   const formatHours = (hours: number): string => {
       return `${hours.toFixed(2)}`;
+  };
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
   };
 
   const formatDate = (dateString: string) => {
@@ -112,8 +143,8 @@ export default function PtoTrackerPage() {
         </Link>
       </Button>
       <div>
-        <h1 className="text-3xl font-bold">PTO Tracker</h1>
-        <p className="text-muted-foreground">Review employee Paid Time Off balances and history from live payroll data.</p>
+        <h1 className="text-3xl font-bold">PTO & YTD Tracker</h1>
+        <p className="text-muted-foreground">Review employee Paid Time Off balances and Year-to-Date earnings from live payroll data.</p>
       </div>
 
       {/* PTO Summary Card */}
@@ -154,6 +185,49 @@ export default function PtoTrackerPage() {
                   <TableRow>
                     <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
                       No employee data found.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+       {/* YTD Earnings Summary Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center">
+            <DollarSign className="mr-2 h-5 w-5 text-muted-foreground" />
+            Year-to-Date Earnings Summary
+          </CardTitle>
+          <CardDescription>A summary of total gross pay for the current calendar year.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+             <div className="space-y-2">
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+             </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Employee</TableHead>
+                  <TableHead className="text-right">YTD Gross Pay</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {ytdEarnings.map(employee => (
+                  <TableRow key={employee.employeeId}>
+                    <TableCell className="font-medium">{employee.employeeName}</TableCell>
+                    <TableCell className="text-right font-semibold tabular-nums">{formatCurrency(employee.grossPay)}</TableCell>
+                  </TableRow>
+                ))}
+                {ytdEarnings.length === 0 && !isLoading && (
+                  <TableRow>
+                    <TableCell colSpan={2} className="h-24 text-center text-muted-foreground">
+                      No earnings data found for this year.
                     </TableCell>
                   </TableRow>
                 )}
