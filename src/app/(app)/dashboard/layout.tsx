@@ -148,7 +148,7 @@ export default function DashboardLayout({
                 <path d="M2 17l10 5 10-5"></path>
                 <path d="M2 12l10 5 10-5"></path>
             </svg>
-            <h1 className="text-xl font-semibold text-primary group-data-[collapsible=icon]:hidden">Paypall</h1>
+            <h1 className="text-xl font-semibold text-primary group-data-[collapsible=icon]:hidden">WorkRoll</h1>
            </Link>
           <SidebarTrigger className="ml-auto" />
         </SidebarHeader>

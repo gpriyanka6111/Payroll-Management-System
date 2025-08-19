@@ -20,7 +20,7 @@ export default function LandingPage() {
                     Simplified Payroll for Your Small Business
                   </h1>
                   <p className="max-w-[600px] text-muted-foreground md:text-xl">
-                    Paypall is the smart, intuitive, and affordable solution to manage your team's payroll, PTO, and more. Stop wrestling with spreadsheets and start focusing on your business.
+                    WorkRoll is the smart, intuitive, and affordable solution to manage your team's payroll, PTO, and more. Stop wrestling with spreadsheets and start focusing on your business.
                   </p>
                 </div>
                 <div className="flex flex-col gap-2 min-[400px]:flex-row">
@@ -90,7 +90,7 @@ export default function LandingPage() {
       {/* Footer */}
       <footer className="flex w-full shrink-0 flex-col items-center gap-2 border-t px-4 py-6 sm:flex-row md:px-6">
         <p className="text-xs text-muted-foreground">
-          &copy; {new Date().getFullYear()} Paypall. All rights reserved.
+          &copy; {new Date().getFullYear()} WorkRoll. All rights reserved.
         </p>
         <nav className="flex gap-4 sm:ml-auto sm:gap-6">
           <Link href="#" className="text-xs hover:underline underline-offset-4">

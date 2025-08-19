@@ -19,7 +19,7 @@ export function Header() {
           <path d="M2 17l10 5 10-5"></path>
           <path d="M2 12l10 5 10-5"></path>
         </svg>
-        <span className="ml-2 text-lg font-semibold text-primary">Paypall</span>
+        <span className="ml-2 text-lg font-semibold text-primary">WorkRoll</span>
       </Link>
       <nav className="ml-auto flex gap-4 sm:gap-6 items-center">
         <Link
