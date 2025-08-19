@@ -188,11 +188,11 @@ export default function DashboardLayout({
              <div className="flex items-center gap-5 text-sm lg:gap-8">
                 {navLinks.map(link => (
                     link.protected ? (
-                        <a href={link.href} key={link.href} onClick={(e) => handleProtectedLinkClick(e, link.href)} className="text-muted-foreground transition-colors hover:text-foreground">
+                        <a href={link.href} key={link.href} onClick={(e) => handleProtectedLinkClick(e, link.href)} className="text-foreground transition-colors hover:text-foreground/80">
                             {link.label}
                         </a>
                     ) : (
-                        <Link href={link.href} key={link.href} className="text-muted-foreground transition-colors hover:text-foreground">
+                        <Link href={link.href} key={link.href} className="text-foreground transition-colors hover:text-foreground/80">
                             {link.label}
                         </Link>
                     )

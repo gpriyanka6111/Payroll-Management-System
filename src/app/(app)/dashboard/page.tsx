@@ -4,7 +4,7 @@
 import * as React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Clock, LogIn, LogOut, CheckCircle, Users, Calendar as CalendarIcon } from "lucide-react";
+import { Clock, LogIn, LogOut, CheckCircle, Users, Calendar as CalendarIcon, Hourglass, Briefcase } from "lucide-react";
 import { format, differenceInHours, differenceInMinutes, startOfDay, endOfDay, isBefore, startOfToday, subDays, getDay, parse } from "date-fns";
 import { useAuth } from '@/contexts/auth-context';
 import { collection, addDoc, query, where, onSnapshot, serverTimestamp, doc, updateDoc, Timestamp, getDocs, limit, orderBy, getDoc } from 'firebase/firestore';
@@ -247,69 +247,128 @@ export default function DashboardPage() {
     return `${hours}h ${minutes}m`;
   };
 
+  const todaysStats = React.useMemo(() => {
+    const clockedInCount = todaysGlobalEntries.filter(entry => entry.timeOut === null).length;
+    const totalHoursToday = todaysGlobalEntries.reduce((total, entry) => {
+        if (entry.timeOut) {
+            const minutes = differenceInMinutes(entry.timeOut.toDate(), entry.timeIn.toDate());
+            return total + (minutes > 0 ? minutes / 60 : 0);
+        }
+        return total;
+    }, 0);
+    return {
+        clockedIn: clockedInCount,
+        totalHours: totalHoursToday.toFixed(2),
+        totalEmployees: employees.length
+    }
+  }, [todaysGlobalEntries, employees.length]);
+
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Time Clock</h1>
-        <p className="text-muted-foreground">Select an employee to clock them in or out for their shifts.</p>
-      </div>
-      
-      <Card className="max-w-md mx-auto">
-        <CardHeader className="text-center">
-          <CardTitle className="text-5xl font-bold tracking-tighter">{format(currentTime, 'p')}</CardTitle>
-          <CardDescription>{format(currentTime, 'eeee, MMMM d, yyyy')}</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-            <div className="grid gap-2">
-                <label className="text-sm font-medium">Select Employee</label>
-                 {isLoading ? <Skeleton className="h-10 w-full" /> : (
-                    <Select onValueChange={setSelectedEmployeeId} value={selectedEmployeeId || ''} disabled={isLoading}>
-                        <SelectTrigger>
-                            <SelectValue placeholder="Select an employee..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {employees.map(emp => (
-                                <SelectItem key={emp.id} value={emp.id}>{emp.firstName} {emp.lastName}</SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                 )}
-            </div>
+       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2">
+            <Card>
+                <CardHeader>
+                    <CardTitle className="text-3xl font-bold">Time Clock</CardTitle>
+                    <CardDescription>Select an employee to clock them in or out for their shifts.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <div className="max-w-md mx-auto space-y-4">
+                        <div className="text-center">
+                            <h2 className="text-5xl font-bold tracking-tighter">{format(currentTime, 'p')}</h2>
+                            <p className="text-muted-foreground">{format(currentTime, 'eeee, MMMM d, yyyy')}</p>
+                        </div>
+                        <div className="grid gap-2">
+                            <label className="text-sm font-medium">Select Employee</label>
+                            {isLoading ? <Skeleton className="h-10 w-full" /> : (
+                                <Select onValueChange={setSelectedEmployeeId} value={selectedEmployeeId || ''} disabled={isLoading}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Select an employee..." />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {employees.map(emp => (
+                                            <SelectItem key={emp.id} value={emp.id}>{emp.firstName} {emp.lastName}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            )}
+                        </div>
 
-          {selectedEmployeeId && (
-            isTimeLogLoading ? (
-                <Skeleton className="h-24 w-full" />
-            ) : activeTimeEntry ? (
-                <div className="text-center p-4 bg-accent/20 border-accent border rounded-lg">
-                    <p className="font-semibold text-accent-foreground">Currently clocked in.</p>
-                    {activeTimeEntry.timeIn && (
-                       <>
-                        <p className="text-sm text-muted-foreground">Shift started at: {format(activeTimeEntry.timeIn.toDate(), 'p')}</p>
-                        <p className="text-sm text-muted-foreground">Elapsed time: {getElapsedTime()}</p>
-                       </>
-                    )}
-                </div>
-            ) : (
-                <div className="text-center p-4 bg-muted/50 rounded-lg">
-                    <p className="font-semibold text-muted-foreground">Currently clocked out.</p>
-                </div>
-            )
-          )}
-          <div className="grid grid-cols-2 gap-4">
-            <Button size="lg" onClick={handleTimeIn} disabled={!selectedEmployeeId || !!activeTimeEntry || isSubmitting}>
-              <LogIn className="mr-2 h-5 w-5" /> Time In
-            </Button>
-            <Button size="lg" variant="destructive" onClick={handleTimeOut} disabled={!selectedEmployeeId || !activeTimeEntry || isSubmitting}>
-              <LogOut className="mr-2 h-5 w-5" /> Time Out
-            </Button>
+                        {selectedEmployeeId && (
+                        isTimeLogLoading ? (
+                            <Skeleton className="h-24 w-full" />
+                        ) : activeTimeEntry ? (
+                            <div className="text-center p-4 bg-accent/20 border-accent border rounded-lg">
+                                <p className="font-semibold text-accent-foreground">Currently clocked in.</p>
+                                {activeTimeEntry.timeIn && (
+                                <>
+                                    <p className="text-sm text-muted-foreground">Shift started at: {format(activeTimeEntry.timeIn.toDate(), 'p')}</p>
+                                    <p className="text-sm text-muted-foreground">Elapsed time: {getElapsedTime()}</p>
+                                </>
+                                )}
+                            </div>
+                        ) : (
+                            <div className="text-center p-4 bg-muted/50 rounded-lg">
+                                <p className="font-semibold text-muted-foreground">Currently clocked out.</p>
+                            </div>
+                        )
+                        )}
+                        <div className="grid grid-cols-2 gap-4">
+                        <Button size="lg" onClick={handleTimeIn} disabled={!selectedEmployeeId || !!activeTimeEntry || isSubmitting}>
+                            <LogIn className="mr-2 h-5 w-5" /> Time In
+                        </Button>
+                        <Button size="lg" variant="destructive" onClick={handleTimeOut} disabled={!selectedEmployeeId || !activeTimeEntry || isSubmitting}>
+                            <LogOut className="mr-2 h-5 w-5" /> Time Out
+                        </Button>
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
           </div>
-        </CardContent>
-      </Card>
+
+          <div className="lg:col-span-1">
+             <Card>
+                <CardHeader>
+                    <CardTitle>Today's Activity</CardTitle>
+                    <CardDescription>A real-time overview of your team.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                   <div className="flex items-start gap-4">
+                       <div className="bg-primary/10 text-primary p-3 rounded-full">
+                           <Users className="h-6 w-6"/>
+                       </div>
+                       <div>
+                           <p className="text-2xl font-bold">{todaysStats.clockedIn}</p>
+                           <p className="text-sm text-muted-foreground">Employees Clocked In</p>
+                       </div>
+                   </div>
+                    <div className="flex items-start gap-4">
+                       <div className="bg-primary/10 text-primary p-3 rounded-full">
+                           <Hourglass className="h-6 w-6"/>
+                       </div>
+                       <div>
+                           <p className="text-2xl font-bold">{todaysStats.totalHours}</p>
+                           <p className="text-sm text-muted-foreground">Total Hours Today</p>
+                       </div>
+                   </div>
+                   <div className="flex items-start gap-4">
+                       <div className="bg-primary/10 text-primary p-3 rounded-full">
+                           <Briefcase className="h-6 w-6"/>
+                       </div>
+                       <div>
+                           <p className="text-2xl font-bold">{todaysStats.totalEmployees}</p>
+                           <p className="text-sm text-muted-foreground">Total Employees</p>
+                       </div>
+                   </div>
+                </CardContent>
+             </Card>
+          </div>
+       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center"><Users className="mr-2 h-5 w-5"/> Today's Activity (All Employees)</CardTitle>
+          <CardTitle className="flex items-center"><Users className="mr-2 h-5 w-5"/> Today's Log</CardTitle>
           <CardDescription>A log of all clock-in and clock-out events for today.</CardDescription>
         </CardHeader>
         <CardContent>
