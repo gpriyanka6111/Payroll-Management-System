@@ -19,12 +19,6 @@ import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import type { Employee } from '@/lib/types';
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"
-import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -249,41 +243,36 @@ function EditTimeEntryDialog({ isOpen, onClose, entry, date, onSave }: { isOpen:
 }
 
 
-function DailyActivityDialog({ isOpen, onClose, date, summaries, onEditRequest }: { isOpen: boolean, onClose: () => void, date: Date | null, summaries: DailySummary[], onEditRequest: (entry: TimeEntry) => void }) {
-    if (!date) return null;
+function DailyActivityDialog({ isOpen, onClose, date, summary, onEditRequest }: { isOpen: boolean, onClose: () => void, date: Date | null, summary: DailySummary | null, onEditRequest: (entry: TimeEntry) => void }) {
+    if (!date || !summary) return null;
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="sm:max-w-2xl">
+            <DialogContent className="sm:max-w-lg">
                 <DialogHeader>
                     <DialogTitle className="flex items-center"><Users className="mr-2 h-5 w-5" /> Daily Activity Summary</DialogTitle>
                     <DialogDescription>
-                        A detailed log of all employee activity for {format(date, 'PPP')}.
+                        {summary.employeeName} on {format(date, 'PPP')}.
                     </DialogDescription>
                 </DialogHeader>
                 <div className="max-h-[60vh] overflow-y-auto">
-                    {summaries.length > 0 ? (
-                        <ul className="space-y-4 py-4">
-                            {summaries.map(summary => (
-                                <li key={summary.employeeId} className="border-b pb-4 last:border-b-0">
-                                    <h4 className="font-semibold">{summary.employeeName}</h4>
-                                    <p className="text-sm text-muted-foreground mb-2">Total Hours: <span className="font-bold text-primary">{summary.totalHours.toFixed(2)}</span></p>
-                                    <ul className="space-y-1 pl-4">
-                                        {summary.entries.map(entry => (
-                                            <li key={entry.id} className="text-xs list-disc list-inside flex items-center justify-between">
-                                                <span>
-                                                    {format(entry.timeIn.toDate(), 'p')} - {entry.timeOut ? format(entry.timeOut.toDate(), 'p') : '...'}
-                                                    <span className="ml-2 text-muted-foreground">({formatDuration(entry.timeIn.toDate(), entry.timeOut?.toDate() ?? null)})</span>
-                                                </span>
-                                                 <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => onEditRequest(entry)}>
-                                                    <Pencil className="h-3 w-3" />
-                                                </Button>
-                                            </li>
-                                        ))}
-                                    </ul>
-                                </li>
-                            ))}
-                        </ul>
+                    {summary.entries.length > 0 ? (
+                        <div className="space-y-4 py-4">
+                            <h4 className="font-semibold">Total Hours: <span className="font-bold text-primary">{summary.totalHours.toFixed(2)}</span></h4>
+                            <ul className="space-y-2 pl-4">
+                                {summary.entries.map(entry => (
+                                    <li key={entry.id} className="text-sm list-disc list-inside flex items-center justify-between p-2 border rounded-md">
+                                        <span>
+                                            {format(entry.timeIn.toDate(), 'p')} - {entry.timeOut ? format(entry.timeOut.toDate(), 'p') : '...'}
+                                            <span className="ml-2 text-muted-foreground">({formatDuration(entry.timeIn.toDate(), entry.timeOut?.toDate() ?? null)})</span>
+                                        </span>
+                                         <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => onEditRequest(entry)}>
+                                            <Pencil className="h-3 w-3" />
+                                        </Button>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
                     ) : (
                         <p className="text-center text-muted-foreground py-10">No activity was recorded for this day.</p>
                     )}
@@ -316,7 +305,7 @@ export default function TimesheetPage() {
   });
 
   const [isDetailsDialogOpen, setIsDetailsDialogOpen] = React.useState(false);
-  const [selectedDateDetails, setSelectedDateDetails] = React.useState<{ date: Date | null; summaries: DailySummary[] }>({ date: null, summaries: [] });
+  const [selectedCellDetails, setSelectedCellDetails] = React.useState<{ date: Date | null; summary: DailySummary | null }>({ date: null, summary: null });
   const [isPinDialogOpen, setIsPinDialogOpen] = React.useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = React.useState(false);
   const [entryToEdit, setEntryToEdit] = React.useState<{entry: TimeEntry, date: Date} | null>(null);
@@ -415,27 +404,14 @@ export default function TimesheetPage() {
     fetchData();
   }, [fetchData]);
 
-
-  const handleDateClick = (d: Date) => {
-    const dateKey = format(d, 'yyyy-MM-dd');
-    const dailySummaries = timesheetData.employees
-        .map(emp => timesheetData.entries[dateKey]?.[emp.id])
-        .filter((summary): summary is DailySummary => !!summary && summary.totalHours > 0);
-    
-    setSelectedDateDetails({ date: d, summaries: dailySummaries });
+  const handleCellClick = (summary: DailySummary | undefined, d: Date) => {
+    setSelectedCellDetails({ date: d, summary: summary || null });
     setIsDetailsDialogOpen(true);
   };
-   const handleCellClick = (summary: DailySummary | undefined) => {
-    if (summary) {
-      setSelectedDateDetails({ date: summary.date, summaries: [summary] });
-      setIsDetailsDialogOpen(true);
-    }
-  };
-
 
   const handleEditRequest = (entry: TimeEntry) => {
-    if (selectedDateDetails.date) {
-        setEntryToEdit({ entry, date: selectedDateDetails.date });
+    if (selectedCellDetails.date) {
+        setEntryToEdit({ entry, date: selectedCellDetails.date });
         setIsPinDialogOpen(true);
     }
   };
@@ -525,74 +501,81 @@ export default function TimesheetPage() {
              </div>
            ) : (
             timesheetData.employees.length > 0 ? (
-                <TooltipProvider>
-                    <div className="overflow-x-auto border rounded-lg">
-                        <Table className="min-w-full w-max">
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead rowSpan={2} className="sticky left-0 bg-card z-10 w-[150px] align-middle">Date</TableHead>
-                                    {timesheetData.employees.map(emp => (
-                                        <TableHead key={emp.id} colSpan={3} className="text-center font-semibold border-l">{emp.name}</TableHead>
-                                    ))}
+                <div className="overflow-x-auto border rounded-lg">
+                    <Table className="min-w-full w-max">
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead rowSpan={2} className="sticky left-0 bg-card z-10 w-[200px] align-middle font-bold text-foreground">Employee</TableHead>
+                                {timesheetData.dates.map(d => (
+                                    <TableHead key={format(d, 'yyyy-MM-dd')} colSpan={3} className="text-center font-semibold border-l min-w-[240px]">
+                                        {format(d, 'eee, MMM dd')}
+                                    </TableHead>
+                                ))}
+                                <TableHead rowSpan={2} className="sticky right-0 bg-card z-10 w-[100px] align-middle text-right font-bold text-foreground">Total</TableHead>
+                            </TableRow>
+                            <TableRow>
+                                {timesheetData.dates.flatMap(d => [
+                                    <TableHead key={`${format(d, 'yyyy-MM-dd')}-in`} className="text-center border-l w-[80px]">In</TableHead>,
+                                    <TableHead key={`${format(d, 'yyyy-MM-dd')}-out`} className="text-center w-[80px]">Out</TableHead>,
+                                    <TableHead key={`${format(d, 'yyyy-MM-dd')}-total`} className="text-center w-[80px]">Total</TableHead>
+                                ])}
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                             {timesheetData.employees.map(emp => (
+                                <TableRow key={emp.id}>
+                                    <TableCell className="font-medium sticky left-0 bg-card z-10">{emp.name}</TableCell>
+                                    {timesheetData.dates.flatMap(d => {
+                                        const dateKey = format(d, 'yyyy-MM-dd');
+                                        const summary = timesheetData.entries[dateKey]?.[emp.id];
+                                        const hasSingleEntry = summary && summary.entries.length === 1 && summary.entries[0].timeOut;
+                                        const hasMultipleEntries = summary && summary.entries.length > 1;
+
+                                        const inCell = (
+                                            <TableCell key={`${emp.id}-${dateKey}-in`} className="text-center tabular-nums border-l cursor-pointer hover:bg-muted/50" onClick={() => handleCellClick(summary, d)}>
+                                            {hasSingleEntry ? format(summary.entries[0].timeIn.toDate(), 'p') : hasMultipleEntries ? 'Multiple' : summary && !summary.entries[0].timeOut ? format(summary.entries[0].timeIn.toDate(), 'p') : <span className="text-muted-foreground">-</span>}
+                                            </TableCell>
+                                        );
+                                        const outCell = (
+                                            <TableCell key={`${emp.id}-${dateKey}-out`} className="text-center tabular-nums cursor-pointer hover:bg-muted/50" onClick={() => handleCellClick(summary, d)}>
+                                            {hasSingleEntry ? format(summary.entries[0].timeOut!.toDate(), 'p') : hasMultipleEntries ? 'Multiple' : summary && !summary.entries[0].timeOut ? <span className="text-accent font-semibold">ACTIVE</span> : <span className="text-muted-foreground">-</span>}
+                                            </TableCell>
+                                        );
+                                        const totalCell = (
+                                            <TableCell key={`${emp.id}-${dateKey}-total`} className="text-center tabular-nums font-semibold cursor-pointer hover:bg-muted/50" onClick={() => handleCellClick(summary, d)}>
+                                            {summary && summary.totalHours > 0 ? summary.totalHours.toFixed(2) : <span className="text-muted-foreground">-</span>}
+                                            </TableCell>
+                                        );
+                                        return [inCell, outCell, totalCell];
+                                    })}
+                                    <TableCell className="sticky right-0 bg-card z-10 text-right font-bold text-primary tabular-nums">
+                                        {timesheetData.totals[emp.id]?.toFixed(2) ?? '0.00'}
+                                    </TableCell>
                                 </TableRow>
-                                <TableRow>
-                                    {timesheetData.employees.flatMap(emp => [
-                                        <TableHead key={`${emp.id}-in`} className="text-center border-l w-[100px]">In</TableHead>,
-                                        <TableHead key={`${emp.id}-out`} className="text-center w-[100px]">Out</TableHead>,
-                                        <TableHead key={`${emp.id}-total`} className="text-center w-[100px]">Total</TableHead>
-                                    ])}
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
+                             ))}
+                        </TableBody>
+                         <TableFooter>
+                            <TableRow>
+                                <TableHead className="sticky left-0 bg-card z-10 text-right font-bold" colSpan={1}>Total Hours</TableHead>
                                 {timesheetData.dates.map(d => {
                                     const dateKey = format(d, 'yyyy-MM-dd');
+                                    const dailyTotal = timesheetData.employees.reduce((acc, emp) => {
+                                        const summary = timesheetData.entries[dateKey]?.[emp.id];
+                                        return acc + (summary?.totalHours ?? 0);
+                                    }, 0);
                                     return (
-                                        <TableRow key={dateKey}>
-                                            <TableCell className="font-medium sticky left-0 bg-card z-10">
-                                                 <Button variant="link" className="p-0 h-auto" onClick={() => handleDateClick(d)}>
-                                                    {format(d, 'eee, MMM dd')}
-                                                </Button>
-                                            </TableCell>
-                                            {timesheetData.employees.flatMap(emp => {
-                                                const summary = timesheetData.entries[dateKey]?.[emp.id];
-                                                const hasSingleEntry = summary && summary.entries.length === 1 && summary.entries[0].timeOut;
-                                                const hasMultipleEntries = summary && summary.entries.length > 1;
-
-                                                const inCell = (
-                                                  <TableCell key={`${emp.id}-in-cell`} className="text-center tabular-nums border-l cursor-pointer hover:bg-muted/50" onClick={() => handleCellClick(summary)}>
-                                                    {hasSingleEntry ? format(summary.entries[0].timeIn.toDate(), 'p') : hasMultipleEntries ? 'Multiple' : summary && !summary.entries[0].timeOut ? format(summary.entries[0].timeIn.toDate(), 'p') : <span className="text-muted-foreground">-</span>}
-                                                  </TableCell>
-                                                );
-                                                const outCell = (
-                                                  <TableCell key={`${emp.id}-out-cell`} className="text-center tabular-nums cursor-pointer hover:bg-muted/50" onClick={() => handleCellClick(summary)}>
-                                                    {hasSingleEntry ? format(summary.entries[0].timeOut!.toDate(), 'p') : hasMultipleEntries ? 'Multiple' : summary && !summary.entries[0].timeOut ? <span className="text-accent font-semibold">ACTIVE</span> : <span className="text-muted-foreground">-</span>}
-                                                  </TableCell>
-                                                );
-                                                const totalCell = (
-                                                  <TableCell key={`${emp.id}-total-cell`} className="text-center tabular-nums font-semibold cursor-pointer hover:bg-muted/50" onClick={() => handleCellClick(summary)}>
-                                                    {summary && summary.totalHours > 0 ? summary.totalHours.toFixed(2) : <span className="text-muted-foreground">-</span>}
-                                                  </TableCell>
-                                                );
-
-                                                return [inCell, outCell, totalCell];
-                                            })}
-                                        </TableRow>
+                                        <TableHead key={`total-${dateKey}`} className="text-center font-bold text-primary tabular-nums border-l" colSpan={3}>
+                                            {dailyTotal > 0 ? dailyTotal.toFixed(2) : ''}
+                                        </TableHead>
                                     )
                                 })}
-                            </TableBody>
-                             <TableFooter>
-                                <TableRow>
-                                    <TableHead className="sticky left-0 bg-card z-10 text-right" colSpan={1}>Total Hours</TableHead>
-                                     {timesheetData.employees.map(emp => (
-                                        <TableHead key={`total-${emp.id}`} className="text-center font-bold text-primary tabular-nums border-l" colSpan={3}>
-                                            {timesheetData.totals[emp.id]?.toFixed(2) ?? '0.00'}
-                                        </TableHead>
-                                    ))}
-                                </TableRow>
-                            </TableFooter>
-                        </Table>
-                    </div>
-                </TooltipProvider>
+                                <TableHead className="sticky right-0 bg-card z-10 text-right font-bold text-primary tabular-nums">
+                                    {totalHoursForAll.toFixed(2)}
+                                </TableHead>
+                            </TableRow>
+                        </TableFooter>
+                    </Table>
+                </div>
             ) : (
                 <div className="text-center py-10 text-muted-foreground">
                     No employees found. Please add an employee first.
@@ -605,8 +588,8 @@ export default function TimesheetPage() {
         <DailyActivityDialog
             isOpen={isDetailsDialogOpen}
             onClose={() => setIsDetailsDialogOpen(false)}
-            date={selectedDateDetails.date}
-            summaries={selectedDateDetails.summaries}
+            date={selectedCellDetails.date}
+            summary={selectedCellDetails.summary}
             onEditRequest={handleEditRequest}
         />
 
