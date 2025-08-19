@@ -425,6 +425,13 @@ export default function TimesheetPage() {
     setSelectedDateDetails({ date: d, summaries: dailySummaries });
     setIsDetailsDialogOpen(true);
   };
+   const handleCellClick = (summary: DailySummary | undefined) => {
+    if (summary) {
+      setSelectedDateDetails({ date: summary.date, summaries: [summary] });
+      setIsDetailsDialogOpen(true);
+    }
+  };
+
 
   const handleEditRequest = (entry: TimeEntry) => {
     if (selectedDateDetails.date) {
@@ -520,12 +527,12 @@ export default function TimesheetPage() {
             timesheetData.employees.length > 0 ? (
                 <TooltipProvider>
                     <div className="overflow-x-auto">
-                        <Table className="table-fixed w-full">
+                        <Table className="min-w-full w-max">
                             <TableHeader>
                                 <TableRow>
-                                    <TableHead className="sticky left-0 bg-card z-10 min-w-[150px] w-[150px]">Date</TableHead>
+                                    <TableHead className="sticky left-0 bg-card z-10 w-[180px]">Date</TableHead>
                                     {timesheetData.employees.map(emp => (
-                                        <TableHead key={emp.id} className="text-left min-w-[150px] w-[150px]">{emp.name}</TableHead>
+                                        <TableHead key={emp.id} className="text-left w-[200px]">{emp.name}</TableHead>
                                     ))}
                                 </TableRow>
                             </TableHeader>
@@ -541,27 +548,28 @@ export default function TimesheetPage() {
                                             </TableCell>
                                             {timesheetData.employees.map(emp => {
                                                 const summary = timesheetData.entries[dateKey]?.[emp.id];
+                                                const hasSingleEntry = summary && summary.entries.length === 1 && summary.entries[0].timeOut;
+                                                const hasMultipleEntries = summary && summary.entries.length > 1;
+
                                                 return (
-                                                    <TableCell key={emp.id} className="text-left tabular-nums">
+                                                    <TableCell key={emp.id} className="text-left align-top">
                                                         {summary && summary.totalHours > 0 ? (
-                                                            <Tooltip>
-                                                                <TooltipTrigger asChild>
-                                                                    <span className="font-semibold cursor-pointer text-primary hover:underline">{summary.totalHours.toFixed(2)}</span>
-                                                                </TooltipTrigger>
-                                                                <TooltipContent>
-                                                                    <div className="p-2">
-                                                                        <h4 className="font-bold mb-2">Time Entries</h4>
-                                                                        <ul className="space-y-1">
-                                                                            {summary.entries.map(entry => (
-                                                                                <li key={entry.id} className="text-xs">
-                                                                                   {format(entry.timeIn.toDate(), 'p')} - {entry.timeOut ? format(entry.timeOut.toDate(), 'p') : '...'}
-                                                                                   <span className="ml-2 text-muted-foreground">({formatDuration(entry.timeIn.toDate(), entry.timeOut?.toDate() ?? null)})</span>
-                                                                                </li>
-                                                                            ))}
-                                                                        </ul>
-                                                                    </div>
-                                                                </TooltipContent>
-                                                            </Tooltip>
+                                                          <div className="text-xs cursor-pointer hover:bg-muted/50 p-1 rounded-md" onClick={() => handleCellClick(summary)}>
+                                                            {hasSingleEntry ? (
+                                                                <div className="space-y-1">
+                                                                    <div className="flex justify-between"><span>In:</span> <span className="font-semibold">{format(summary.entries[0].timeIn.toDate(), 'p')}</span></div>
+                                                                    <div className="flex justify-between"><span>Out:</span> <span className="font-semibold">{summary.entries[0].timeOut ? format(summary.entries[0].timeOut.toDate(), 'p') : '...'}</span></div>
+                                                                    <div className="flex justify-between font-bold text-primary pt-1 border-t mt-1"><span>Total:</span> <span>{summary.totalHours.toFixed(2)} hrs</span></div>
+                                                                </div>
+                                                            ) : hasMultipleEntries ? (
+                                                                <div>
+                                                                    <p className="font-semibold">Multiple Punches</p>
+                                                                    <p className="font-bold text-primary">{summary.totalHours.toFixed(2)} hrs</p>
+                                                                </div>
+                                                            ) : (
+                                                                <p className="font-semibold text-accent">Clocked In</p>
+                                                            )}
+                                                          </div>
                                                         ) : (
                                                             <span className="text-muted-foreground">-</span>
                                                         )}
