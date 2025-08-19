@@ -181,7 +181,7 @@ export default function DashboardLayout({
                     <path d="M2 17l10 5 10-5"></path>
                     <path d="M2 12l10 5 10-5"></path>
                 </svg>
-                <span className="sr-only">WorkRoll</span>
+                <span>WorkRoll</span>
             </Link>
           </div>
            <nav className="hidden flex-1 justify-center md:flex">
