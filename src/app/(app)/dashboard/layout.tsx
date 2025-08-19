@@ -174,7 +174,7 @@ export default function DashboardLayout({
   return (
     <div className="flex min-h-screen w-full flex-col">
        <header className="sticky top-0 flex h-16 items-center gap-4 border-b bg-background px-4 md:px-6 z-50">
-          <nav className="hidden flex-col gap-6 text-lg font-medium md:flex md:flex-row md:items-center md:gap-5 md:text-sm lg:gap-6">
+          <div className="flex items-center">
             <Link href="/dashboard" className="flex items-center gap-2 text-lg font-semibold md:text-base">
                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 2 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6 text-primary">
                     <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
@@ -183,17 +183,21 @@ export default function DashboardLayout({
                 </svg>
                 <span className="sr-only">WorkRoll</span>
             </Link>
-            {navLinks.map(link => (
-                 link.protected ? (
-                    <a href={link.href} key={link.href} onClick={(e) => handleProtectedLinkClick(e, link.href)} className="text-muted-foreground transition-colors hover:text-foreground">
-                        {link.label}
-                    </a>
-                ) : (
-                    <Link href={link.href} key={link.href} className="text-muted-foreground transition-colors hover:text-foreground">
-                        {link.label}
-                    </Link>
-                )
-            ))}
+          </div>
+           <nav className="hidden flex-1 justify-center md:flex">
+             <div className="flex items-center gap-5 text-sm lg:gap-8">
+                {navLinks.map(link => (
+                    link.protected ? (
+                        <a href={link.href} key={link.href} onClick={(e) => handleProtectedLinkClick(e, link.href)} className="text-muted-foreground transition-colors hover:text-foreground">
+                            {link.label}
+                        </a>
+                    ) : (
+                        <Link href={link.href} key={link.href} className="text-muted-foreground transition-colors hover:text-foreground">
+                            {link.label}
+                        </Link>
+                    )
+                ))}
+              </div>
           </nav>
            <Sheet>
             <SheetTrigger asChild>
@@ -230,9 +234,7 @@ export default function DashboardLayout({
                 </nav>
             </SheetContent>
             </Sheet>
-          <div className="flex w-full items-center gap-4 md:ml-auto md:gap-2 lg:gap-4">
-             <div className="ml-auto flex-1 sm:flex-initial">
-             </div>
+          <div className="flex items-center gap-4 md:gap-2 lg:gap-4">
              <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                     <Button variant="secondary" size="icon" className="rounded-full">
