@@ -172,8 +172,11 @@ export default function DashboardLayout({
   ]
 
   return (
-    <div className="flex min-h-screen w-full flex-col">
-       <header className="sticky top-0 flex h-16 items-center gap-4 border-b bg-background px-4 md:px-6 z-50">
+    <div className="relative min-h-screen w-full">
+      <div className="absolute inset-0 -z-10 h-full w-full bg-background bg-[linear-gradient(to_right,#f0f0f0_1px,transparent_1px),linear-gradient(to_bottom,#f0f0f0_1px,transparent_1px)] bg-[size:6rem_4rem]">
+        <div className="absolute bottom-0 left-0 right-0 top-0 bg-[radial-gradient(circle_500px_at_50%_200px,#C9EBFF,transparent)]"></div>
+      </div>
+       <header className="sticky top-0 z-50 flex h-16 items-center gap-4 border-b bg-background/95 px-4 backdrop-blur-sm md:px-6">
           <div className="flex items-center">
             <Link href="/dashboard" className="flex items-center gap-2 text-lg font-semibold md:text-base">
                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 2 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6 text-primary">
@@ -181,18 +184,18 @@ export default function DashboardLayout({
                     <path d="M2 17l10 5 10-5"></path>
                     <path d="M2 12l10 5 10-5"></path>
                 </svg>
-                <span>WorkRoll</span>
+                <span className="font-bold">WorkRoll</span>
             </Link>
           </div>
            <nav className="hidden flex-1 justify-center md:flex">
              <div className="flex items-center gap-5 text-sm lg:gap-8">
                 {navLinks.map(link => (
                     link.protected ? (
-                        <a href={link.href} key={link.href} onClick={(e) => handleProtectedLinkClick(e, link.href)} className="text-foreground transition-colors hover:text-foreground/80">
+                        <a href={link.href} key={link.href} onClick={(e) => handleProtectedLinkClick(e, link.href)} className="text-foreground/80 transition-colors hover:text-foreground font-medium">
                             {link.label}
                         </a>
                     ) : (
-                        <Link href={link.href} key={link.href} className="text-foreground transition-colors hover:text-foreground/80">
+                        <Link href={link.href} key={link.href} className="text-foreground/80 transition-colors hover:text-foreground font-medium">
                             {link.label}
                         </Link>
                     )
