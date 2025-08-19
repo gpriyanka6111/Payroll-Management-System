@@ -482,7 +482,7 @@ export default function TimesheetPage() {
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead className="w-[120px] font-bold">Date</TableHead>
+                                <TableHead className="w-[120px] font-bold">Date / Metric</TableHead>
                                 {employees.map(emp => (
                                     <TableHead key={emp.id} className="text-center font-bold">{emp.firstName} {emp.lastName}</TableHead>
                                 ))}
@@ -494,38 +494,39 @@ export default function TimesheetPage() {
                                 return (
                                     <React.Fragment key={day.toISOString()}>
                                         <TableRow>
-                                            <TableCell rowSpan={3} className="font-medium align-top pt-4 border-b">
+                                            <TableCell className="font-medium align-top pt-4">
                                                 {format(day, 'eee, MMM dd')}
                                             </TableCell>
+                                            {employees.map(emp => <TableCell key={emp.id}></TableCell> )}
+                                        </TableRow>
+                                        <TableRow>
+                                            <TableCell className="pl-6 text-muted-foreground">In:</TableCell>
                                             {employees.map(emp => {
                                                 const summary = daySummaries.find(s => s.employeeId === emp.id);
-                                                const singleEntry = summary?.entries.length === 1 ? summary.entries[0] : null;
                                                 return (
-                                                    <TableCell key={`${emp.id}-in`} className="text-center tabular-nums h-8 pt-4 cursor-pointer" onClick={() => handleCellClick(summary)}>
-                                                        <span className="text-xs text-muted-foreground mr-2">In:</span>
-                                                        {summary ? (summary.entries.length > 1 ? 'Multiple' : singleEntry?.timeIn ? format(singleEntry.timeIn.toDate(), 'p') : '-') : '-'}
+                                                    <TableCell key={`${emp.id}-in`} className="text-center tabular-nums cursor-pointer" onClick={() => handleCellClick(summary)}>
+                                                        {summary ? (summary.entries.length > 1 ? 'Multiple' : (summary.entries[0]?.timeIn ? format(summary.entries[0].timeIn.toDate(), 'p') : '-')) : '-'}
                                                     </TableCell>
                                                 );
                                             })}
                                         </TableRow>
                                         <TableRow>
-                                            {employees.map(emp => {
+                                            <TableCell className="pl-6 text-muted-foreground">Out:</TableCell>
+                                             {employees.map(emp => {
                                                 const summary = daySummaries.find(s => s.employeeId === emp.id);
-                                                const singleEntry = summary?.entries.length === 1 ? summary.entries[0] : null;
                                                 return (
-                                                    <TableCell key={`${emp.id}-out`} className="text-center tabular-nums h-8 cursor-pointer" onClick={() => handleCellClick(summary)}>
-                                                         <span className="text-xs text-muted-foreground mr-2">Out:</span>
-                                                        {summary ? (summary.entries.length > 1 ? 'Multiple' : singleEntry?.timeOut ? format(singleEntry.timeOut.toDate(), 'p') : (singleEntry?.timeIn ? <span className="text-accent font-semibold">ACTIVE</span> : '-')) : '-'}
+                                                    <TableCell key={`${emp.id}-out`} className="text-center tabular-nums cursor-pointer" onClick={() => handleCellClick(summary)}>
+                                                        {summary ? (summary.entries.length > 1 ? 'Multiple' : (summary.entries[0]?.timeOut ? format(summary.entries[0].timeOut.toDate(), 'p') : (summary.entries[0]?.timeIn ? <span className="text-accent font-semibold">ACTIVE</span> : '-'))) : '-'}
                                                     </TableCell>
                                                 );
                                             })}
                                         </TableRow>
                                          <TableRow>
+                                            <TableCell className="pl-6 font-semibold">Total:</TableCell>
                                             {employees.map(emp => {
                                                 const summary = daySummaries.find(s => s.employeeId === emp.id);
                                                 return (
-                                                    <TableCell key={`${emp.id}-total`} className="text-center font-semibold tabular-nums h-8 border-b cursor-pointer" onClick={() => handleCellClick(summary)}>
-                                                        <span className="text-xs text-muted-foreground font-normal mr-2">Total:</span>
+                                                    <TableCell key={`${emp.id}-total`} className="text-center font-semibold tabular-nums border-b cursor-pointer" onClick={() => handleCellClick(summary)}>
                                                         {summary && summary.totalHours > 0 ? `${summary.totalHours.toFixed(2)}` : '-'}
                                                     </TableCell>
                                                 );
@@ -581,3 +582,5 @@ export default function TimesheetPage() {
     </div>
   );
 }
+
+    
