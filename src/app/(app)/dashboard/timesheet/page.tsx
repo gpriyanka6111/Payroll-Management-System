@@ -465,7 +465,7 @@ export default function TimesheetPage() {
         </Link>
       </Button>
       <h1 className="text-3xl font-bold">Consolidated Timesheet</h1>
-      <p className="text-muted-foreground">Review total logged hours for all employees. Click on a date for a daily summary, or an hour value for detailed entries.</p>
+      <p className="text-muted-foreground">Review total logged hours for all employees. Click on a cell to view or edit detailed punch entries.</p>
       
       <Card>
         <CardHeader>
@@ -526,14 +526,21 @@ export default function TimesheetPage() {
            ) : (
             timesheetData.employees.length > 0 ? (
                 <TooltipProvider>
-                    <div className="overflow-x-auto">
+                    <div className="overflow-x-auto border rounded-lg">
                         <Table className="min-w-full w-max">
                             <TableHeader>
                                 <TableRow>
-                                    <TableHead className="sticky left-0 bg-card z-10 w-[180px]">Date</TableHead>
+                                    <TableHead rowSpan={2} className="sticky left-0 bg-card z-10 w-[150px] align-middle">Date</TableHead>
                                     {timesheetData.employees.map(emp => (
-                                        <TableHead key={emp.id} className="text-left w-[200px]">{emp.name}</TableHead>
+                                        <TableHead key={emp.id} colSpan={3} className="text-center font-semibold border-l">{emp.name}</TableHead>
                                     ))}
+                                </TableRow>
+                                <TableRow>
+                                    {timesheetData.employees.flatMap(emp => [
+                                        <TableHead key={`${emp.id}-in`} className="text-center border-l w-[100px]">In</TableHead>,
+                                        <TableHead key={`${emp.id}-out`} className="text-center w-[100px]">Out</TableHead>,
+                                        <TableHead key={`${emp.id}-total`} className="text-center w-[100px]">Total</TableHead>
+                                    ])}
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -542,39 +549,32 @@ export default function TimesheetPage() {
                                     return (
                                         <TableRow key={dateKey}>
                                             <TableCell className="font-medium sticky left-0 bg-card z-10">
-                                                <Button variant="link" className="p-0 h-auto" onClick={() => handleDateClick(d)}>
-                                                    {format(d, 'PPP')}
+                                                 <Button variant="link" className="p-0 h-auto" onClick={() => handleDateClick(d)}>
+                                                    {format(d, 'eee, MMM dd')}
                                                 </Button>
                                             </TableCell>
-                                            {timesheetData.employees.map(emp => {
+                                            {timesheetData.employees.flatMap(emp => {
                                                 const summary = timesheetData.entries[dateKey]?.[emp.id];
                                                 const hasSingleEntry = summary && summary.entries.length === 1 && summary.entries[0].timeOut;
                                                 const hasMultipleEntries = summary && summary.entries.length > 1;
 
-                                                return (
-                                                    <TableCell key={emp.id} className="text-left align-top">
-                                                        {summary && summary.totalHours > 0 ? (
-                                                          <div className="text-xs cursor-pointer hover:bg-muted/50 p-1 rounded-md" onClick={() => handleCellClick(summary)}>
-                                                            {hasSingleEntry ? (
-                                                                <div className="space-y-1">
-                                                                    <div className="flex justify-between"><span>In:</span> <span className="font-semibold">{format(summary.entries[0].timeIn.toDate(), 'p')}</span></div>
-                                                                    <div className="flex justify-between"><span>Out:</span> <span className="font-semibold">{summary.entries[0].timeOut ? format(summary.entries[0].timeOut.toDate(), 'p') : '...'}</span></div>
-                                                                    <div className="flex justify-between font-bold text-primary pt-1 border-t mt-1"><span>Total:</span> <span>{summary.totalHours.toFixed(2)} hrs</span></div>
-                                                                </div>
-                                                            ) : hasMultipleEntries ? (
-                                                                <div>
-                                                                    <p className="font-semibold">Multiple Punches</p>
-                                                                    <p className="font-bold text-primary">{summary.totalHours.toFixed(2)} hrs</p>
-                                                                </div>
-                                                            ) : (
-                                                                <p className="font-semibold text-accent">Clocked In</p>
-                                                            )}
-                                                          </div>
-                                                        ) : (
-                                                            <span className="text-muted-foreground">-</span>
-                                                        )}
-                                                    </TableCell>
-                                                )
+                                                const inCell = (
+                                                  <TableCell key={`${emp.id}-in-cell`} className="text-center tabular-nums border-l cursor-pointer hover:bg-muted/50" onClick={() => handleCellClick(summary)}>
+                                                    {hasSingleEntry ? format(summary.entries[0].timeIn.toDate(), 'p') : hasMultipleEntries ? 'Multiple' : summary && !summary.entries[0].timeOut ? format(summary.entries[0].timeIn.toDate(), 'p') : <span className="text-muted-foreground">-</span>}
+                                                  </TableCell>
+                                                );
+                                                const outCell = (
+                                                  <TableCell key={`${emp.id}-out-cell`} className="text-center tabular-nums cursor-pointer hover:bg-muted/50" onClick={() => handleCellClick(summary)}>
+                                                    {hasSingleEntry ? format(summary.entries[0].timeOut!.toDate(), 'p') : hasMultipleEntries ? 'Multiple' : summary && !summary.entries[0].timeOut ? <span className="text-accent font-semibold">ACTIVE</span> : <span className="text-muted-foreground">-</span>}
+                                                  </TableCell>
+                                                );
+                                                const totalCell = (
+                                                  <TableCell key={`${emp.id}-total-cell`} className="text-center tabular-nums font-semibold cursor-pointer hover:bg-muted/50" onClick={() => handleCellClick(summary)}>
+                                                    {summary && summary.totalHours > 0 ? summary.totalHours.toFixed(2) : <span className="text-muted-foreground">-</span>}
+                                                  </TableCell>
+                                                );
+
+                                                return [inCell, outCell, totalCell];
                                             })}
                                         </TableRow>
                                     )
@@ -582,9 +582,9 @@ export default function TimesheetPage() {
                             </TableBody>
                              <TableFooter>
                                 <TableRow>
-                                    <TableHead className="sticky left-0 bg-card z-10">Total Hours</TableHead>
+                                    <TableHead className="sticky left-0 bg-card z-10 text-right" colSpan={1}>Total Hours</TableHead>
                                      {timesheetData.employees.map(emp => (
-                                        <TableHead key={`total-${emp.id}`} className="text-left font-bold text-primary tabular-nums">
+                                        <TableHead key={`total-${emp.id}`} className="text-center font-bold text-primary tabular-nums border-l" colSpan={3}>
                                             {timesheetData.totals[emp.id]?.toFixed(2) ?? '0.00'}
                                         </TableHead>
                                     ))}
@@ -627,5 +627,3 @@ export default function TimesheetPage() {
     </div>
   );
 }
-
-    
