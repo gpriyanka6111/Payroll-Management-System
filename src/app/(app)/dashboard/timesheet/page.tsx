@@ -5,7 +5,7 @@ import * as React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Calendar as CalendarIcon, ArrowLeft, Users, Pencil, AlertTriangle, Loader2 } from "lucide-react";
+import { Calendar as CalendarIcon, ArrowLeft, Users, Pencil, AlertTriangle, Loader2, FileSpreadsheet } from "lucide-react";
 import { format, differenceInMinutes, startOfDay, isSameDay, subDays, eachDayOfInterval, parse } from "date-fns";
 import { useAuth } from '@/contexts/auth-context';
 import { collection, query, where, getDocs, Timestamp, orderBy, doc, getDoc, updateDoc } from 'firebase/firestore';
@@ -30,6 +30,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import * as XLSX from 'xlsx';
 
 
 interface TimeEntry {
@@ -410,6 +411,66 @@ export default function TimesheetPage() {
     return totals;
   }, [employees, dailySummaries]);
 
+  const handleExportToExcel = () => {
+    if (!employees.length || !days.length || !dateRange?.from || !dateRange.to) {
+        toast({ title: 'No Data', description: 'There is no data to export.', variant: 'destructive' });
+        return;
+    }
+
+    const wb = XLSX.utils.book_new();
+    const ws_data: (string | number)[][] = [];
+
+    // Header row
+    const headerRow = ['Date / Metric', ...employees.map(e => `${e.firstName} ${e.lastName}`)];
+    ws_data.push(headerRow);
+
+    // Data rows
+    days.forEach(day => {
+        const daySummaries = dailySummaries.filter(s => isSameDay(s.date, day));
+        
+        // In row
+        const inRow: (string | number)[] = [format(day, 'eee, MMM dd')];
+        employees.forEach(emp => {
+            const summary = daySummaries.find(s => s.employeeId === emp.id);
+            const value = summary ? (summary.entries.length > 1 ? 'Multiple' : (summary.entries[0]?.timeIn ? format(summary.entries[0].timeIn.toDate(), 'p') : '-')) : '-';
+            inRow.push(value);
+        });
+        ws_data.push(inRow);
+
+        // Out row
+        const outRow: (string | number)[] = ['Out:'];
+         employees.forEach(emp => {
+            const summary = daySummaries.find(s => s.employeeId === emp.id);
+            const value = summary ? (summary.entries.length > 1 ? 'Multiple' : (summary.entries[0]?.timeOut ? format(summary.entries[0].timeOut.toDate(), 'p') : (summary.entries[0]?.timeIn ? 'ACTIVE' : '-'))) : '-';
+            outRow.push(value);
+        });
+        ws_data.push(outRow);
+
+        // Total row
+        const totalRow: (string | number)[] = ['Total:'];
+         employees.forEach(emp => {
+            const summary = daySummaries.find(s => s.employeeId === emp.id);
+            const value = summary && summary.totalHours > 0 ? `${summary.totalHours.toFixed(2)}` : '-';
+            totalRow.push(value);
+        });
+        ws_data.push(totalRow);
+    });
+
+    // Footer row
+    const footerRow: (string | number)[] = ['Total Hours'];
+    employees.forEach(emp => {
+        footerRow.push((employeeTotals.get(emp.id) || 0).toFixed(2));
+    });
+    ws_data.push(footerRow);
+
+    const ws = XLSX.utils.aoa_to_sheet(ws_data);
+    XLSX.utils.book_append_sheet(wb, ws, "Timesheet");
+
+    const fileName = `timesheet (${format(dateRange.from, 'yyyy-MM-dd')} to ${format(dateRange.to, 'yyyy-MM-dd')}).xlsx`;
+    XLSX.writeFile(wb, fileName);
+  };
+
+
   return (
     <div className="space-y-6">
        <Button variant="outline" asChild className="w-fit">
@@ -466,6 +527,10 @@ export default function TimesheetPage() {
                         />
                         </PopoverContent>
                     </Popover>
+                    <Button variant="outline" onClick={handleExportToExcel}>
+                        <FileSpreadsheet className="mr-2 h-4 w-4" />
+                        Export to XLSX
+                    </Button>
                 </div>
             </div>
         </CardHeader>
@@ -482,8 +547,7 @@ export default function TimesheetPage() {
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead className="w-[120px] font-bold">Date</TableHead>
-                                <TableHead className="w-[80px] font-bold">Metric</TableHead>
+                                <TableHead className="w-[120px] font-bold">Date / Metric</TableHead>
                                 {employees.map(emp => (
                                     <TableHead key={emp.id} className="text-center font-bold">{emp.firstName} {emp.lastName}</TableHead>
                                 ))}
@@ -580,5 +644,3 @@ export default function TimesheetPage() {
     </div>
   );
 }
-
-    
