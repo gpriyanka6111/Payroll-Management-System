@@ -482,7 +482,8 @@ export default function TimesheetPage() {
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead className="w-[120px] font-bold">Date / Metric</TableHead>
+                                <TableHead className="w-[120px] font-bold">Date</TableHead>
+                                <TableHead className="w-[80px] font-bold">Metric</TableHead>
                                 {employees.map(emp => (
                                     <TableHead key={emp.id} className="text-center font-bold">{emp.firstName} {emp.lastName}</TableHead>
                                 ))}
@@ -494,13 +495,10 @@ export default function TimesheetPage() {
                                 return (
                                     <React.Fragment key={day.toISOString()}>
                                         <TableRow>
-                                            <TableCell className="font-medium align-top pt-4">
+                                            <TableCell rowSpan={3} className="font-medium align-top pt-4 border-b">
                                                 {format(day, 'eee, MMM dd')}
                                             </TableCell>
-                                            {employees.map(emp => <TableCell key={emp.id}></TableCell> )}
-                                        </TableRow>
-                                        <TableRow>
-                                            <TableCell className="pl-6 text-muted-foreground">In:</TableCell>
+                                            <TableCell className="font-semibold text-muted-foreground">In:</TableCell>
                                             {employees.map(emp => {
                                                 const summary = daySummaries.find(s => s.employeeId === emp.id);
                                                 return (
@@ -511,7 +509,7 @@ export default function TimesheetPage() {
                                             })}
                                         </TableRow>
                                         <TableRow>
-                                            <TableCell className="pl-6 text-muted-foreground">Out:</TableCell>
+                                            <TableCell className="font-semibold text-muted-foreground">Out:</TableCell>
                                              {employees.map(emp => {
                                                 const summary = daySummaries.find(s => s.employeeId === emp.id);
                                                 return (
@@ -522,11 +520,11 @@ export default function TimesheetPage() {
                                             })}
                                         </TableRow>
                                          <TableRow>
-                                            <TableCell className="pl-6 font-semibold">Total:</TableCell>
+                                            <TableCell className="font-bold border-b">Total:</TableCell>
                                             {employees.map(emp => {
                                                 const summary = daySummaries.find(s => s.employeeId === emp.id);
                                                 return (
-                                                    <TableCell key={`${emp.id}-total`} className="text-center font-semibold tabular-nums border-b cursor-pointer" onClick={() => handleCellClick(summary)}>
+                                                    <TableCell key={`${emp.id}-total`} className="text-center font-bold tabular-nums border-b cursor-pointer" onClick={() => handleCellClick(summary)}>
                                                         {summary && summary.totalHours > 0 ? `${summary.totalHours.toFixed(2)}` : '-'}
                                                     </TableCell>
                                                 );
@@ -538,7 +536,7 @@ export default function TimesheetPage() {
                         </TableBody>
                          <TableFooter>
                             <TableRow>
-                                <TableCell className="text-right font-bold">Total Hours</TableCell>
+                                <TableCell colSpan={2} className="text-right font-bold">Total Hours</TableCell>
                                 {employees.map(emp => (
                                      <TableCell key={emp.id} className="text-center font-bold text-primary tabular-nums">
                                         {(employeeTotals.get(emp.id) || 0).toFixed(2)}
@@ -582,5 +580,3 @@ export default function TimesheetPage() {
     </div>
   );
 }
-
-    
