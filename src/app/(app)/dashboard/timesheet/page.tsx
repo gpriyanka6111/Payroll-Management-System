@@ -505,27 +505,26 @@ export default function TimesheetPage() {
                     <Table className="min-w-full w-max">
                         <TableHeader>
                             <TableRow>
-                                <TableHead rowSpan={2} className="sticky left-0 bg-card z-10 w-[200px] align-middle font-bold text-foreground">Employee</TableHead>
-                                {timesheetData.dates.map(d => (
-                                    <TableHead key={format(d, 'yyyy-MM-dd')} colSpan={3} className="text-center font-semibold border-l min-w-[240px]">
-                                        {format(d, 'eee, MMM dd')}
+                                <TableHead rowSpan={2} className="sticky left-0 bg-card z-10 w-[150px] align-middle font-bold text-foreground">Date</TableHead>
+                                {timesheetData.employees.map(emp => (
+                                    <TableHead key={emp.id} colSpan={3} className="text-center font-semibold border-l min-w-[240px]">
+                                        {emp.name}
                                     </TableHead>
                                 ))}
-                                <TableHead rowSpan={2} className="sticky right-0 bg-card z-10 w-[100px] align-middle text-right font-bold text-foreground">Total</TableHead>
                             </TableRow>
                             <TableRow>
-                                {timesheetData.dates.flatMap(d => [
-                                    <TableHead key={`${format(d, 'yyyy-MM-dd')}-in`} className="text-center border-l w-[80px]">In</TableHead>,
-                                    <TableHead key={`${format(d, 'yyyy-MM-dd')}-out`} className="text-center w-[80px]">Out</TableHead>,
-                                    <TableHead key={`${format(d, 'yyyy-MM-dd')}-total`} className="text-center w-[80px]">Total</TableHead>
+                                {timesheetData.employees.flatMap(emp => [
+                                    <TableHead key={`${emp.id}-in`} className="text-center border-l w-[80px]">In</TableHead>,
+                                    <TableHead key={`${emp.id}-out`} className="text-center w-[80px]">Out</TableHead>,
+                                    <TableHead key={`${emp.id}-total`} className="text-center w-[80px]">Total</TableHead>
                                 ])}
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                             {timesheetData.employees.map(emp => (
-                                <TableRow key={emp.id}>
-                                    <TableCell className="font-medium sticky left-0 bg-card z-10">{emp.name}</TableCell>
-                                    {timesheetData.dates.flatMap(d => {
+                            {timesheetData.dates.map(d => (
+                                <TableRow key={format(d, 'yyyy-MM-dd')}>
+                                    <TableCell className="font-semibold sticky left-0 bg-card z-10">{format(d, 'eee, MMM dd')}</TableCell>
+                                    {timesheetData.employees.flatMap(emp => {
                                         const dateKey = format(d, 'yyyy-MM-dd');
                                         const summary = timesheetData.entries[dateKey]?.[emp.id];
                                         const hasSingleEntry = summary && summary.entries.length === 1 && summary.entries[0].timeOut;
@@ -548,30 +547,17 @@ export default function TimesheetPage() {
                                         );
                                         return [inCell, outCell, totalCell];
                                     })}
-                                    <TableCell className="sticky right-0 bg-card z-10 text-right font-bold text-primary tabular-nums">
-                                        {timesheetData.totals[emp.id]?.toFixed(2) ?? '0.00'}
-                                    </TableCell>
                                 </TableRow>
-                             ))}
+                            ))}
                         </TableBody>
                          <TableFooter>
                             <TableRow>
-                                <TableHead className="sticky left-0 bg-card z-10 text-right font-bold" colSpan={1}>Total Hours</TableHead>
-                                {timesheetData.dates.map(d => {
-                                    const dateKey = format(d, 'yyyy-MM-dd');
-                                    const dailyTotal = timesheetData.employees.reduce((acc, emp) => {
-                                        const summary = timesheetData.entries[dateKey]?.[emp.id];
-                                        return acc + (summary?.totalHours ?? 0);
-                                    }, 0);
-                                    return (
-                                        <TableHead key={`total-${dateKey}`} className="text-center font-bold text-primary tabular-nums border-l" colSpan={3}>
-                                            {dailyTotal > 0 ? dailyTotal.toFixed(2) : ''}
-                                        </TableHead>
-                                    )
-                                })}
-                                <TableHead className="sticky right-0 bg-card z-10 text-right font-bold text-primary tabular-nums">
-                                    {totalHoursForAll.toFixed(2)}
-                                </TableHead>
+                                <TableHead className="sticky left-0 bg-card z-10 text-right font-bold">Total Hours</TableHead>
+                                {timesheetData.employees.map(emp => (
+                                    <TableHead key={`total-${emp.id}`} className="text-center font-bold text-primary tabular-nums border-l" colSpan={3}>
+                                        {timesheetData.totals[emp.id]?.toFixed(2) ?? '0.00'}
+                                    </TableHead>
+                                ))}
                             </TableRow>
                         </TableFooter>
                     </Table>
@@ -610,3 +596,5 @@ export default function TimesheetPage() {
     </div>
   );
 }
+
+    
