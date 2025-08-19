@@ -47,11 +47,15 @@ interface DailySummary {
     entries: TimeEntry[];
 }
 
-interface TimesheetData {
-    dates: Date[];
-    employees: { id: string; name: string }[];
-    entries: Record<string, Record<string, DailySummary | undefined>>; // [dateString][employeeId]
-    totals: Record<string, number>; // [employeeId] -> totalHours
+interface TimesheetRow {
+    date: Date;
+    employeeId: string;
+    employeeName: string;
+    inTime: Date | null;
+    outTime: Date | null;
+    totalHours: number;
+    isMultiple: boolean;
+    dailySummary: DailySummary;
 }
 
 function PinDialog({ open, onOpenChange, onPinVerified }: { open: boolean, onOpenChange: (open: boolean) => void, onPinVerified: () => void }) {
@@ -295,7 +299,7 @@ const formatDuration = (start: Date, end: Date | null) => {
 export default function TimesheetPage() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [timesheetData, setTimesheetData] = React.useState<TimesheetData>({ dates: [], employees: [], entries: {}, totals: {} });
+  const [timesheetRows, setTimesheetRows] = React.useState<TimesheetRow[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   
   const fourteenDaysAgo = subDays(new Date(), 13);
@@ -312,7 +316,7 @@ export default function TimesheetPage() {
   
   const fetchData = React.useCallback(async () => {
      if (!user || !date?.from || !date?.to) {
-        setTimesheetData({ dates: [], employees: [], entries: {}, totals: {} });
+        setTimesheetRows([]);
         setIsLoading(false);
         return;
     };
@@ -322,7 +326,6 @@ export default function TimesheetPage() {
         const employeesQuery = query(employeesCollectionRef, orderBy('lastName', 'asc'));
         const employeeSnapshot = await getDocs(employeesQuery);
         const employeesData: Employee[] = employeeSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
-        const uniqueEmployees = employeesData.map(emp => ({ id: emp.id, name: `${emp.firstName} ${emp.lastName}` }));
 
         const allSummaries: DailySummary[] = [];
         const toDateEnd = new Date(date.to);
@@ -364,33 +367,25 @@ export default function TimesheetPage() {
             });
         }
         
-        const allDatesInRange = eachDayOfInterval({
-            start: date.from,
-            end: date.to,
-        }).sort((a, b) => a.getTime() - b.getTime());
+        const generatedRows: TimesheetRow[] = allSummaries
+        .sort((a,b) => a.date.getTime() - b.date.getTime() || a.employeeName.localeCompare(b.employeeName))
+        .map(summary => {
+            const isMultiple = summary.entries.length > 1;
+            const singleEntry = summary.entries.length === 1 ? summary.entries[0] : null;
 
-        const entriesMap: Record<string, Record<string, DailySummary | undefined>> = {};
-        const employeeTotals: Record<string, number> = {};
-        uniqueEmployees.forEach(emp => employeeTotals[emp.id] = 0);
-
-        allDatesInRange.forEach(d => {
-            const dateKey = format(d, 'yyyy-MM-dd');
-            entriesMap[dateKey] = {};
-            uniqueEmployees.forEach(emp => {
-                const summary = allSummaries.find(s => s.employeeId === emp.id && isSameDay(s.date, d));
-                entriesMap[dateKey][emp.id] = summary;
-                if (summary) {
-                    employeeTotals[emp.id] += summary.totalHours;
-                }
-            });
+            return {
+                date: summary.date,
+                employeeId: summary.employeeId,
+                employeeName: summary.employeeName,
+                inTime: singleEntry ? singleEntry.timeIn.toDate() : null,
+                outTime: singleEntry ? singleEntry.timeOut?.toDate() ?? null : null,
+                totalHours: summary.totalHours,
+                isMultiple: isMultiple,
+                dailySummary: summary,
+            };
         });
 
-        setTimesheetData({
-            dates: allDatesInRange,
-            employees: uniqueEmployees,
-            entries: entriesMap,
-            totals: employeeTotals,
-        });
+        setTimesheetRows(generatedRows);
 
     } catch (error) {
         console.error("Error fetching timesheets:", error);
@@ -404,8 +399,8 @@ export default function TimesheetPage() {
     fetchData();
   }, [fetchData]);
 
-  const handleCellClick = (summary: DailySummary | undefined, d: Date) => {
-    setSelectedCellDetails({ date: d, summary: summary || null });
+  const handleRowClick = (summary: DailySummary) => {
+    setSelectedCellDetails({ date: summary.date, summary: summary });
     setIsDetailsDialogOpen(true);
   };
 
@@ -430,8 +425,8 @@ export default function TimesheetPage() {
 
 
   const totalHoursForAll = React.useMemo(() => {
-     return Object.values(timesheetData.totals).reduce((acc, total) => acc + total, 0);
-  }, [timesheetData.totals]);
+     return timesheetRows.reduce((acc, row) => acc + row.totalHours, 0);
+  }, [timesheetRows]);
 
   return (
     <div className="space-y-6">
@@ -441,7 +436,7 @@ export default function TimesheetPage() {
         </Link>
       </Button>
       <h1 className="text-3xl font-bold">Consolidated Timesheet</h1>
-      <p className="text-muted-foreground">Review total logged hours for all employees. Click on a cell to view or edit detailed punch entries.</p>
+      <p className="text-muted-foreground">Review total logged hours for all employees. Click on a row to view or edit detailed punch entries.</p>
       
       <Card>
         <CardHeader>
@@ -500,71 +495,48 @@ export default function TimesheetPage() {
                 <Skeleton className="h-12 w-full" />
              </div>
            ) : (
-            timesheetData.employees.length > 0 ? (
+            timesheetRows.length > 0 ? (
                 <div className="overflow-x-auto border rounded-lg">
-                    <Table className="min-w-full w-max">
+                    <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead rowSpan={2} className="sticky left-0 bg-card z-10 w-[150px] align-middle font-bold text-foreground">Date</TableHead>
-                                {timesheetData.employees.map(emp => (
-                                    <TableHead key={emp.id} colSpan={3} className="text-center font-semibold border-l min-w-[240px]">
-                                        {emp.name}
-                                    </TableHead>
-                                ))}
-                            </TableRow>
-                            <TableRow>
-                                {timesheetData.employees.flatMap(emp => [
-                                    <TableHead key={`${emp.id}-in`} className="text-center border-l w-[80px]">In</TableHead>,
-                                    <TableHead key={`${emp.id}-out`} className="text-center w-[80px]">Out</TableHead>,
-                                    <TableHead key={`${emp.id}-total`} className="text-center w-[80px]">Total</TableHead>
-                                ])}
+                                <TableHead className="w-[120px]">Date</TableHead>
+                                <TableHead>Employee</TableHead>
+                                <TableHead className="text-center">In</TableHead>
+                                <TableHead className="text-center">Out</TableHead>
+                                <TableHead className="text-right w-[120px]">Total Hours</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {timesheetData.dates.map(d => (
-                                <TableRow key={format(d, 'yyyy-MM-dd')}>
-                                    <TableCell className="font-semibold sticky left-0 bg-card z-10">{format(d, 'eee, MMM dd')}</TableCell>
-                                    {timesheetData.employees.flatMap(emp => {
-                                        const dateKey = format(d, 'yyyy-MM-dd');
-                                        const summary = timesheetData.entries[dateKey]?.[emp.id];
-                                        const hasSingleEntry = summary && summary.entries.length === 1 && summary.entries[0].timeOut;
-                                        const hasMultipleEntries = summary && summary.entries.length > 1;
-
-                                        const inCell = (
-                                            <TableCell key={`${emp.id}-${dateKey}-in`} className="text-center tabular-nums border-l cursor-pointer hover:bg-muted/50" onClick={() => handleCellClick(summary, d)}>
-                                            {hasSingleEntry ? format(summary.entries[0].timeIn.toDate(), 'p') : hasMultipleEntries ? 'Multiple' : summary && !summary.entries[0].timeOut ? format(summary.entries[0].timeIn.toDate(), 'p') : <span className="text-muted-foreground">-</span>}
-                                            </TableCell>
-                                        );
-                                        const outCell = (
-                                            <TableCell key={`${emp.id}-${dateKey}-out`} className="text-center tabular-nums cursor-pointer hover:bg-muted/50" onClick={() => handleCellClick(summary, d)}>
-                                            {hasSingleEntry ? format(summary.entries[0].timeOut!.toDate(), 'p') : hasMultipleEntries ? 'Multiple' : summary && !summary.entries[0].timeOut ? <span className="text-accent font-semibold">ACTIVE</span> : <span className="text-muted-foreground">-</span>}
-                                            </TableCell>
-                                        );
-                                        const totalCell = (
-                                            <TableCell key={`${emp.id}-${dateKey}-total`} className="text-center tabular-nums font-semibold cursor-pointer hover:bg-muted/50" onClick={() => handleCellClick(summary, d)}>
-                                            {summary && summary.totalHours > 0 ? summary.totalHours.toFixed(2) : <span className="text-muted-foreground">-</span>}
-                                            </TableCell>
-                                        );
-                                        return [inCell, outCell, totalCell];
-                                    })}
+                            {timesheetRows.map((row, index) => (
+                                <TableRow key={`${row.date}-${row.employeeId}-${index}`} className="cursor-pointer" onClick={() => handleRowClick(row.dailySummary)}>
+                                    <TableCell className="font-medium">{format(row.date, 'eee, MMM dd')}</TableCell>
+                                    <TableCell>{row.employeeName}</TableCell>
+                                    <TableCell className="text-center tabular-nums">
+                                        {row.isMultiple ? 'Multiple' : row.inTime ? format(row.inTime, 'p') : '-'}
+                                    </TableCell>
+                                    <TableCell className="text-center tabular-nums">
+                                        {row.isMultiple ? 'Multiple' : row.outTime ? format(row.outTime, 'p') : (row.inTime ? <span className="text-accent font-semibold">ACTIVE</span> : '-')}
+                                    </TableCell>
+                                    <TableCell className="text-right font-semibold tabular-nums">
+                                        {row.totalHours > 0 ? row.totalHours.toFixed(2) : '-'}
+                                    </TableCell>
                                 </TableRow>
                             ))}
                         </TableBody>
                          <TableFooter>
                             <TableRow>
-                                <TableHead className="sticky left-0 bg-card z-10 text-right font-bold">Total Hours</TableHead>
-                                {timesheetData.employees.map(emp => (
-                                    <TableHead key={`total-${emp.id}`} className="text-center font-bold text-primary tabular-nums border-l" colSpan={3}>
-                                        {timesheetData.totals[emp.id]?.toFixed(2) ?? '0.00'}
-                                    </TableHead>
-                                ))}
+                                <TableCell colSpan={4} className="text-right font-bold">Total Hours</TableCell>
+                                <TableCell className="text-right font-bold text-primary tabular-nums">
+                                    {totalHoursForAll.toFixed(2)}
+                                </TableCell>
                             </TableRow>
                         </TableFooter>
                     </Table>
                 </div>
             ) : (
                 <div className="text-center py-10 text-muted-foreground">
-                    No employees found. Please add an employee first.
+                    No time entries found for the selected period.
                 </div>
             )
            )}
@@ -596,5 +568,3 @@ export default function TimesheetPage() {
     </div>
   );
 }
-
-    
