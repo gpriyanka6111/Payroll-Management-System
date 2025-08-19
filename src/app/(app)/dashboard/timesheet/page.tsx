@@ -379,8 +379,6 @@ export default function TimesheetPage() {
       setIsDetailsDialogOpen(true);
     } else {
       setSelectedCellDetails({ date, summary: null });
-      // Potentially open a dialog to add a new entry, or just do nothing.
-      // For now, we do nothing if there's no data.
     }
   };
 
@@ -427,17 +425,16 @@ export default function TimesheetPage() {
     const merges: XLSX.Range[] = [];
     let currentRow = 0;
 
-
     // Header row
     const headerRow = ['Date', 'Metric', ...employees.map(e => `${e.firstName} ${e.lastName}`)];
     ws_data.push(headerRow);
     currentRow++;
 
     // Data rows
-    days.forEach((day, dayIndex) => {
+    days.forEach((day) => {
         const daySummaries = dailySummaries.filter(s => isSameDay(s.date, day));
-        
         const dateStr = format(day, 'eee, MMM dd');
+
         // In row
         const inRow: (string | number)[] = [dateStr, 'In:'];
         employees.forEach(emp => {
@@ -449,7 +446,7 @@ export default function TimesheetPage() {
 
         // Out row
         const outRow: (string | number)[] = ['', 'Out:'];
-         employees.forEach(emp => {
+        employees.forEach(emp => {
             const summary = daySummaries.find(s => s.employeeId === emp.id);
             const value = summary ? (summary.entries.length > 1 ? 'Multiple' : (summary.entries[0]?.timeOut ? format(summary.entries[0].timeOut.toDate(), 'p') : (summary.entries[0]?.timeIn ? 'ACTIVE' : '-'))) : '-';
             outRow.push(value);
@@ -458,7 +455,7 @@ export default function TimesheetPage() {
 
         // Total row
         const totalRow: (string | number)[] = ['', 'Total:'];
-         employees.forEach(emp => {
+        employees.forEach(emp => {
             const summary = daySummaries.find(s => s.employeeId === emp.id);
             const value = summary && summary.totalHours > 0 ? `${summary.totalHours.toFixed(2)}` : '-';
             totalRow.push(value);
@@ -466,21 +463,23 @@ export default function TimesheetPage() {
         ws_data.push(totalRow);
 
         // Add merge info for the date cell
-        if (dayIndex > -1) { // Skip header
-             merges.push({ s: { r: currentRow, c: 0 }, e: { r: currentRow + 2, c: 0 } });
+        if (currentRow > 0) {
+            merges.push({ s: { r: currentRow, c: 0 }, e: { r: currentRow + 2, c: 0 } });
         }
         currentRow += 3;
     });
 
     // Footer row
-    const footerRow: (string | number)[] = ['Total Hours', ''];
-    employees.forEach(emp => {
-        footerRow.push((employeeTotals.get(emp.id) || 0).toFixed(2));
-    });
+    const footerRow: (string | number)[] = ['Total Hours', '', ...employees.map(emp => (employeeTotals.get(emp.id) || 0).toFixed(2))];
     ws_data.push(footerRow);
 
     const ws = XLSX.utils.aoa_to_sheet(ws_data);
     ws['!merges'] = merges;
+
+    // Set column widths
+    const colWidths = [{ wch: 15 }, { wch: 8 }, ...employees.map(() => ({ wch: 20 }))];
+    ws['!cols'] = colWidths;
+
     XLSX.utils.book_append_sheet(wb, ws, "Timesheet");
 
     const fileName = `timesheet (${format(dateRange.from, 'yyyy-MM-dd')} to ${format(dateRange.to, 'yyyy-MM-dd')}).xlsx`;
@@ -597,7 +596,7 @@ export default function TimesheetPage() {
                                                 return (
                                                     <TableCell key={`${emp.id}-out`} className="text-center tabular-nums cursor-pointer p-2" onClick={() => handleCellClick(summary, day)}>
                                                         {summary ? (summary.entries.length > 1 ? 'Multiple' : (summary.entries[0]?.timeOut ? format(summary.entries[0].timeOut.toDate(), 'p') : (summary.entries[0]?.timeIn ? <span className="text-accent font-semibold">ACTIVE</span> : '-'))) : '-'}
-                                                    TableCell>
+                                                    </TableCell>
                                                 );
                                             })}
                                         </TableRow>
@@ -662,5 +661,3 @@ export default function TimesheetPage() {
     </div>
   );
 }
-
-    
