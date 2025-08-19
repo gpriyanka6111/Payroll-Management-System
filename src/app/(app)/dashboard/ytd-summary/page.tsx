@@ -116,8 +116,8 @@ export default function YtdSummaryPage() {
   return (
     <div className="space-y-6">
        <Button variant="outline" asChild className="w-fit">
-        <Link href="/dashboard">
-            <ArrowLeft className="mr-2 h-4 w-4" /> Back to Dashboard
+        <Link href="/dashboard/manager">
+            <ArrowLeft className="mr-2 h-4 w-4" /> Back to Manager Dashboard
         </Link>
       </Button>
       <div>

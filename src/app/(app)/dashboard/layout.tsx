@@ -4,7 +4,7 @@
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import { SidebarProvider, Sidebar, SidebarHeader, SidebarContent, SidebarFooter, SidebarTrigger, SidebarInset, SidebarMenu, SidebarMenuItem, SidebarMenuButton } from '@/components/ui/sidebar';
-import { Home, Users, Calculator, Settings, LogOut, CalendarClock, ClipboardList, DollarSign } from 'lucide-react';
+import { Home, Users, Calculator, Settings, LogOut, CalendarClock, ClipboardList, DollarSign, Shield } from 'lucide-react';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/auth-context';
@@ -170,28 +170,10 @@ export default function DashboardLayout({
                     </Link>
                 </SidebarMenuButton>
             </SidebarMenuItem>
-            <SidebarMenuItem>
-              <SidebarMenuButton tooltip="Employees" onClick={() => handleProtectedLinkClick('/dashboard/employees')}>
-                  <Users />
-                  <span>Employees</span>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <SidebarMenuButton tooltip="Payroll" onClick={() => handleProtectedLinkClick('/dashboard/payroll')}>
-                  <Calculator />
-                  <span>Payroll</span>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <SidebarMenuButton tooltip="PTO Tracker" onClick={() => handleProtectedLinkClick('/dashboard/pto')}>
-                  <CalendarClock />
-                  <span>PTO Tracker</span>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <SidebarMenuButton tooltip="YTD Summary" onClick={() => handleProtectedLinkClick('/dashboard/ytd-summary')}>
-                  <DollarSign />
-                  <span>YTD Summary</span>
+             <SidebarMenuItem>
+              <SidebarMenuButton tooltip="Manager Area" onClick={() => handleProtectedLinkClick('/dashboard/manager')}>
+                  <Shield />
+                  <span>Manager Area</span>
               </SidebarMenuButton>
             </SidebarMenuItem>
             <SidebarMenuItem>
