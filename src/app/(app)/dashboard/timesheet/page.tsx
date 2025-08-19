@@ -373,12 +373,17 @@ export default function TimesheetPage() {
     fetchData();
   }, [fetchData]);
 
-  const handleCellClick = (summary: DailySummary | undefined) => {
+  const handleCellClick = (summary: DailySummary | undefined, date: Date) => {
     if (summary) {
       setSelectedCellDetails({ date: summary.date, summary: summary });
       setIsDetailsDialogOpen(true);
+    } else {
+      setSelectedCellDetails({ date, summary: null });
+      // Potentially open a dialog to add a new entry, or just do nothing.
+      // For now, we do nothing if there's no data.
     }
   };
+
 
   const handleEditRequest = (entry: TimeEntry) => {
     if (selectedCellDetails.date) {
@@ -419,17 +424,22 @@ export default function TimesheetPage() {
 
     const wb = XLSX.utils.book_new();
     const ws_data: (string | number)[][] = [];
+    const merges: XLSX.Range[] = [];
+    let currentRow = 0;
+
 
     // Header row
-    const headerRow = ['Date / Metric', ...employees.map(e => `${e.firstName} ${e.lastName}`)];
+    const headerRow = ['Date', 'Metric', ...employees.map(e => `${e.firstName} ${e.lastName}`)];
     ws_data.push(headerRow);
+    currentRow++;
 
     // Data rows
-    days.forEach(day => {
+    days.forEach((day, dayIndex) => {
         const daySummaries = dailySummaries.filter(s => isSameDay(s.date, day));
         
+        const dateStr = format(day, 'eee, MMM dd');
         // In row
-        const inRow: (string | number)[] = [format(day, 'eee, MMM dd')];
+        const inRow: (string | number)[] = [dateStr, 'In:'];
         employees.forEach(emp => {
             const summary = daySummaries.find(s => s.employeeId === emp.id);
             const value = summary ? (summary.entries.length > 1 ? 'Multiple' : (summary.entries[0]?.timeIn ? format(summary.entries[0].timeIn.toDate(), 'p') : '-')) : '-';
@@ -438,7 +448,7 @@ export default function TimesheetPage() {
         ws_data.push(inRow);
 
         // Out row
-        const outRow: (string | number)[] = ['Out:'];
+        const outRow: (string | number)[] = ['', 'Out:'];
          employees.forEach(emp => {
             const summary = daySummaries.find(s => s.employeeId === emp.id);
             const value = summary ? (summary.entries.length > 1 ? 'Multiple' : (summary.entries[0]?.timeOut ? format(summary.entries[0].timeOut.toDate(), 'p') : (summary.entries[0]?.timeIn ? 'ACTIVE' : '-'))) : '-';
@@ -447,23 +457,30 @@ export default function TimesheetPage() {
         ws_data.push(outRow);
 
         // Total row
-        const totalRow: (string | number)[] = ['Total:'];
+        const totalRow: (string | number)[] = ['', 'Total:'];
          employees.forEach(emp => {
             const summary = daySummaries.find(s => s.employeeId === emp.id);
             const value = summary && summary.totalHours > 0 ? `${summary.totalHours.toFixed(2)}` : '-';
             totalRow.push(value);
         });
         ws_data.push(totalRow);
+
+        // Add merge info for the date cell
+        if (dayIndex > -1) { // Skip header
+             merges.push({ s: { r: currentRow, c: 0 }, e: { r: currentRow + 2, c: 0 } });
+        }
+        currentRow += 3;
     });
 
     // Footer row
-    const footerRow: (string | number)[] = ['Total Hours'];
+    const footerRow: (string | number)[] = ['Total Hours', ''];
     employees.forEach(emp => {
         footerRow.push((employeeTotals.get(emp.id) || 0).toFixed(2));
     });
     ws_data.push(footerRow);
 
     const ws = XLSX.utils.aoa_to_sheet(ws_data);
+    ws['!merges'] = merges;
     XLSX.utils.book_append_sheet(wb, ws, "Timesheet");
 
     const fileName = `timesheet (${format(dateRange.from, 'yyyy-MM-dd')} to ${format(dateRange.to, 'yyyy-MM-dd')}).xlsx`;
@@ -547,9 +564,10 @@ export default function TimesheetPage() {
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead className="w-[120px] font-bold">Date / Metric</TableHead>
+                                <TableHead className="w-[120px] font-bold">Date</TableHead>
+                                <TableHead className="w-[80px] font-bold">Metric</TableHead>
                                 {employees.map(emp => (
-                                    <TableHead key={emp.id} className="text-center font-bold">{emp.firstName} {emp.lastName}</TableHead>
+                                    <TableHead key={emp.id} className="text-center font-bold min-w-[150px]">{emp.firstName} {emp.lastName}</TableHead>
                                 ))}
                             </TableRow>
                         </TableHeader>
@@ -559,14 +577,14 @@ export default function TimesheetPage() {
                                 return (
                                     <React.Fragment key={day.toISOString()}>
                                         <TableRow>
-                                            <TableCell rowSpan={3} className="font-medium align-top pt-2 border-b p-2">
+                                            <TableCell rowSpan={3} className="font-medium align-top pt-3 border-b">
                                                 {format(day, 'eee, MMM dd')}
                                             </TableCell>
                                             <TableCell className="font-semibold text-muted-foreground p-2">In:</TableCell>
                                             {employees.map(emp => {
                                                 const summary = daySummaries.find(s => s.employeeId === emp.id);
                                                 return (
-                                                    <TableCell key={`${emp.id}-in`} className="text-center tabular-nums cursor-pointer p-2" onClick={() => handleCellClick(summary)}>
+                                                    <TableCell key={`${emp.id}-in`} className="text-center tabular-nums cursor-pointer p-2" onClick={() => handleCellClick(summary, day)}>
                                                         {summary ? (summary.entries.length > 1 ? 'Multiple' : (summary.entries[0]?.timeIn ? format(summary.entries[0].timeIn.toDate(), 'p') : '-')) : '-'}
                                                     </TableCell>
                                                 );
@@ -577,9 +595,9 @@ export default function TimesheetPage() {
                                              {employees.map(emp => {
                                                 const summary = daySummaries.find(s => s.employeeId === emp.id);
                                                 return (
-                                                    <TableCell key={`${emp.id}-out`} className="text-center tabular-nums cursor-pointer p-2" onClick={() => handleCellClick(summary)}>
+                                                    <TableCell key={`${emp.id}-out`} className="text-center tabular-nums cursor-pointer p-2" onClick={() => handleCellClick(summary, day)}>
                                                         {summary ? (summary.entries.length > 1 ? 'Multiple' : (summary.entries[0]?.timeOut ? format(summary.entries[0].timeOut.toDate(), 'p') : (summary.entries[0]?.timeIn ? <span className="text-accent font-semibold">ACTIVE</span> : '-'))) : '-'}
-                                                    </TableCell>
+                                                    TableCell>
                                                 );
                                             })}
                                         </TableRow>
@@ -588,7 +606,7 @@ export default function TimesheetPage() {
                                             {employees.map(emp => {
                                                 const summary = daySummaries.find(s => s.employeeId === emp.id);
                                                 return (
-                                                    <TableCell key={`${emp.id}-total`} className="text-center font-bold tabular-nums border-b cursor-pointer p-2" onClick={() => handleCellClick(summary)}>
+                                                    <TableCell key={`${emp.id}-total`} className="text-center font-bold tabular-nums border-b cursor-pointer p-2" onClick={() => handleCellClick(summary, day)}>
                                                         {summary && summary.totalHours > 0 ? `${summary.totalHours.toFixed(2)}` : '-'}
                                                     </TableCell>
                                                 );
@@ -644,3 +662,5 @@ export default function TimesheetPage() {
     </div>
   );
 }
+
+    
