@@ -9,7 +9,7 @@ export type Employee = {
   mobileNumber?: string;
   ssn?: string;
   payMethod: 'Hourly' | 'Salaried';
-  payRateCheck: number; // Used for hourly rate
+  payRateCheck?: number; // Used for hourly rate
   payRateOthers?: number; // Used for hourly rate
   biWeeklySalary?: number; // Used for salaried
   standardCheckHours?: number; // Used for hourly rate
