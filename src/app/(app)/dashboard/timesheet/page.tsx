@@ -495,36 +495,36 @@ export default function TimesheetPage() {
                                 return (
                                     <React.Fragment key={day.toISOString()}>
                                         <TableRow>
-                                            <TableCell rowSpan={3} className="font-medium align-top pt-4 border-b">
+                                            <TableCell rowSpan={3} className="font-medium align-top pt-2 border-b p-2">
                                                 {format(day, 'eee, MMM dd')}
                                             </TableCell>
-                                            <TableCell className="font-semibold text-muted-foreground">In:</TableCell>
+                                            <TableCell className="font-semibold text-muted-foreground p-2">In:</TableCell>
                                             {employees.map(emp => {
                                                 const summary = daySummaries.find(s => s.employeeId === emp.id);
                                                 return (
-                                                    <TableCell key={`${emp.id}-in`} className="text-center tabular-nums cursor-pointer" onClick={() => handleCellClick(summary)}>
+                                                    <TableCell key={`${emp.id}-in`} className="text-center tabular-nums cursor-pointer p-2" onClick={() => handleCellClick(summary)}>
                                                         {summary ? (summary.entries.length > 1 ? 'Multiple' : (summary.entries[0]?.timeIn ? format(summary.entries[0].timeIn.toDate(), 'p') : '-')) : '-'}
                                                     </TableCell>
                                                 );
                                             })}
                                         </TableRow>
                                         <TableRow>
-                                            <TableCell className="font-semibold text-muted-foreground">Out:</TableCell>
+                                            <TableCell className="font-semibold text-muted-foreground p-2">Out:</TableCell>
                                              {employees.map(emp => {
                                                 const summary = daySummaries.find(s => s.employeeId === emp.id);
                                                 return (
-                                                    <TableCell key={`${emp.id}-out`} className="text-center tabular-nums cursor-pointer" onClick={() => handleCellClick(summary)}>
+                                                    <TableCell key={`${emp.id}-out`} className="text-center tabular-nums cursor-pointer p-2" onClick={() => handleCellClick(summary)}>
                                                         {summary ? (summary.entries.length > 1 ? 'Multiple' : (summary.entries[0]?.timeOut ? format(summary.entries[0].timeOut.toDate(), 'p') : (summary.entries[0]?.timeIn ? <span className="text-accent font-semibold">ACTIVE</span> : '-'))) : '-'}
                                                     </TableCell>
                                                 );
                                             })}
                                         </TableRow>
                                          <TableRow>
-                                            <TableCell className="font-bold border-b">Total:</TableCell>
+                                            <TableCell className="font-bold border-b p-2">Total:</TableCell>
                                             {employees.map(emp => {
                                                 const summary = daySummaries.find(s => s.employeeId === emp.id);
                                                 return (
-                                                    <TableCell key={`${emp.id}-total`} className="text-center font-bold tabular-nums border-b cursor-pointer" onClick={() => handleCellClick(summary)}>
+                                                    <TableCell key={`${emp.id}-total`} className="text-center font-bold tabular-nums border-b cursor-pointer p-2" onClick={() => handleCellClick(summary)}>
                                                         {summary && summary.totalHours > 0 ? `${summary.totalHours.toFixed(2)}` : '-'}
                                                     </TableCell>
                                                 );
@@ -536,9 +536,9 @@ export default function TimesheetPage() {
                         </TableBody>
                          <TableFooter>
                             <TableRow>
-                                <TableCell colSpan={2} className="text-right font-bold">Total Hours</TableCell>
+                                <TableCell colSpan={2} className="text-right font-bold p-2">Total Hours</TableCell>
                                 {employees.map(emp => (
-                                     <TableCell key={emp.id} className="text-center font-bold text-primary tabular-nums">
+                                     <TableCell key={emp.id} className="text-center font-bold text-primary tabular-nums p-2">
                                         {(employeeTotals.get(emp.id) || 0).toFixed(2)}
                                      </TableCell>
                                 ))}
@@ -580,3 +580,5 @@ export default function TimesheetPage() {
     </div>
   );
 }
+
+    
