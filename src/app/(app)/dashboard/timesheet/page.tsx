@@ -36,7 +36,7 @@ interface TimeEntry {
     id: string;
     timeIn: Timestamp;
     timeOut: Timestamp | null;
-    employeeId: string; // Keep employeeId here for easy access
+    employeeId: string;
 }
 
 interface DailySummary {
@@ -45,17 +45,6 @@ interface DailySummary {
     date: Date;
     totalHours: number;
     entries: TimeEntry[];
-}
-
-interface TimesheetRow {
-    date: Date;
-    employeeId: string;
-    employeeName: string;
-    inTime: Date | null;
-    outTime: Date | null;
-    totalHours: number;
-    isMultiple: boolean;
-    dailySummary: DailySummary;
 }
 
 function PinDialog({ open, onOpenChange, onPinVerified }: { open: boolean, onOpenChange: (open: boolean) => void, onPinVerified: () => void }) {
@@ -299,11 +288,12 @@ const formatDuration = (start: Date, end: Date | null) => {
 export default function TimesheetPage() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [timesheetRows, setTimesheetRows] = React.useState<TimesheetRow[]>([]);
+  const [employees, setEmployees] = React.useState<Employee[]>([]);
+  const [dailySummaries, setDailySummaries] = React.useState<DailySummary[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   
   const fourteenDaysAgo = subDays(new Date(), 13);
-  const [date, setDate] = React.useState<DateRange | undefined>({
+  const [dateRange, setDateRange] = React.useState<DateRange | undefined>({
     from: fourteenDaysAgo,
     to: new Date(),
   });
@@ -315,8 +305,8 @@ export default function TimesheetPage() {
   const [entryToEdit, setEntryToEdit] = React.useState<{entry: TimeEntry, date: Date} | null>(null);
   
   const fetchData = React.useCallback(async () => {
-     if (!user || !date?.from || !date?.to) {
-        setTimesheetRows([]);
+     if (!user || !dateRange?.from || !dateRange?.to) {
+        setDailySummaries([]);
         setIsLoading(false);
         return;
     };
@@ -326,16 +316,17 @@ export default function TimesheetPage() {
         const employeesQuery = query(employeesCollectionRef, orderBy('lastName', 'asc'));
         const employeeSnapshot = await getDocs(employeesQuery);
         const employeesData: Employee[] = employeeSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
+        setEmployees(employeesData);
 
         const allSummaries: DailySummary[] = [];
-        const toDateEnd = new Date(date.to);
+        const toDateEnd = new Date(dateRange.to);
         toDateEnd.setHours(23, 59, 59, 999);
 
         for (const employee of employeesData) {
             const timeEntriesRef = collection(db, 'users', user.uid, 'employees', employee.id, 'timeEntries');
             const q = query(
                 timeEntriesRef,
-                where('timeIn', '>=', date.from),
+                where('timeIn', '>=', dateRange.from),
                 where('timeIn', '<=', toDateEnd),
                 orderBy('timeIn', 'desc')
             );
@@ -367,25 +358,7 @@ export default function TimesheetPage() {
             });
         }
         
-        const generatedRows: TimesheetRow[] = allSummaries
-        .sort((a,b) => a.date.getTime() - b.date.getTime() || a.employeeName.localeCompare(b.employeeName))
-        .map(summary => {
-            const isMultiple = summary.entries.length > 1;
-            const singleEntry = summary.entries.length === 1 ? summary.entries[0] : null;
-
-            return {
-                date: summary.date,
-                employeeId: summary.employeeId,
-                employeeName: summary.employeeName,
-                inTime: singleEntry ? singleEntry.timeIn.toDate() : null,
-                outTime: singleEntry ? singleEntry.timeOut?.toDate() ?? null : null,
-                totalHours: summary.totalHours,
-                isMultiple: isMultiple,
-                dailySummary: summary,
-            };
-        });
-
-        setTimesheetRows(generatedRows);
+        setDailySummaries(allSummaries);
 
     } catch (error) {
         console.error("Error fetching timesheets:", error);
@@ -393,15 +366,17 @@ export default function TimesheetPage() {
     } finally {
         setIsLoading(false);
     }
-  }, [user, date, toast]);
+  }, [user, dateRange, toast]);
 
   React.useEffect(() => {
     fetchData();
   }, [fetchData]);
 
-  const handleRowClick = (summary: DailySummary) => {
-    setSelectedCellDetails({ date: summary.date, summary: summary });
-    setIsDetailsDialogOpen(true);
+  const handleCellClick = (summary: DailySummary | undefined) => {
+    if (summary) {
+      setSelectedCellDetails({ date: summary.date, summary: summary });
+      setIsDetailsDialogOpen(true);
+    }
   };
 
   const handleEditRequest = (entry: TimeEntry) => {
@@ -423,10 +398,17 @@ export default function TimesheetPage() {
       fetchData(); // Refetch data to show updated times
   }
 
+  const days = dateRange && dateRange.from && dateRange.to ? eachDayOfInterval({ start: dateRange.from, end: dateRange.to }) : [];
 
-  const totalHoursForAll = React.useMemo(() => {
-     return timesheetRows.reduce((acc, row) => acc + row.totalHours, 0);
-  }, [timesheetRows]);
+  const employeeTotals = React.useMemo(() => {
+    const totals = new Map<string, number>();
+    employees.forEach(emp => totals.set(emp.id, 0));
+    dailySummaries.forEach(summary => {
+        const currentTotal = totals.get(summary.employeeId) || 0;
+        totals.set(summary.employeeId, currentTotal + summary.totalHours);
+    });
+    return totals;
+  }, [employees, dailySummaries]);
 
   return (
     <div className="space-y-6">
@@ -436,7 +418,7 @@ export default function TimesheetPage() {
         </Link>
       </Button>
       <h1 className="text-3xl font-bold">Consolidated Timesheet</h1>
-      <p className="text-muted-foreground">Review total logged hours for all employees. Click on a row to view or edit detailed punch entries.</p>
+      <p className="text-muted-foreground">Review total logged hours for all employees. Click on a cell to view or edit detailed punch entries.</p>
       
       <Card>
         <CardHeader>
@@ -444,7 +426,7 @@ export default function TimesheetPage() {
                 <div className="flex-1">
                     <CardTitle>Time Log Summary</CardTitle>
                     <CardDescription>
-                        Total hours for selected period: <span className="font-bold text-primary">{totalHoursForAll.toFixed(2)} hours</span>
+                        Displaying time entries for the selected period.
                     </CardDescription>
                 </div>
                 <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
@@ -455,18 +437,18 @@ export default function TimesheetPage() {
                             variant={"outline"}
                             className={cn(
                             "w-full sm:w-[300px] justify-start text-left font-normal",
-                            !date && "text-muted-foreground"
+                            !dateRange && "text-muted-foreground"
                             )}
                         >
                             <CalendarIcon className="mr-2 h-4 w-4" />
-                            {date?.from ? (
-                            date.to ? (
+                            {dateRange?.from ? (
+                            dateRange.to ? (
                                 <>
-                                {format(date.from, "LLL dd, y")} -{" "}
-                                {format(date.to, "LLL dd, y")}
+                                {format(dateRange.from, "LLL dd, y")} -{" "}
+                                {format(dateRange.to, "LLL dd, y")}
                                 </>
                             ) : (
-                                format(date.from, "LLL dd, y")
+                                format(dateRange.from, "LLL dd, y")
                             )
                             ) : (
                             <span>Pick a date</span>
@@ -477,9 +459,9 @@ export default function TimesheetPage() {
                         <Calendar
                             initialFocus
                             mode="range"
-                            defaultMonth={date?.from}
-                            selected={date}
-                            onSelect={setDate}
+                            defaultMonth={dateRange?.from}
+                            selected={dateRange}
+                            onSelect={setDateRange}
                             numberOfMonths={2}
                         />
                         </PopoverContent>
@@ -495,48 +477,79 @@ export default function TimesheetPage() {
                 <Skeleton className="h-12 w-full" />
              </div>
            ) : (
-            timesheetRows.length > 0 ? (
+            employees.length > 0 ? (
                 <div className="overflow-x-auto border rounded-lg">
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead className="w-[120px]">Date</TableHead>
-                                <TableHead>Employee</TableHead>
-                                <TableHead className="text-center">In</TableHead>
-                                <TableHead className="text-center">Out</TableHead>
-                                <TableHead className="text-right w-[120px]">Total Hours</TableHead>
+                                <TableHead className="w-[120px] font-bold">Date</TableHead>
+                                {employees.map(emp => (
+                                    <TableHead key={emp.id} className="text-center font-bold">{emp.firstName} {emp.lastName}</TableHead>
+                                ))}
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {timesheetRows.map((row, index) => (
-                                <TableRow key={`${row.date}-${row.employeeId}-${index}`} className="cursor-pointer" onClick={() => handleRowClick(row.dailySummary)}>
-                                    <TableCell className="font-medium">{format(row.date, 'eee, MMM dd')}</TableCell>
-                                    <TableCell>{row.employeeName}</TableCell>
-                                    <TableCell className="text-center tabular-nums">
-                                        {row.isMultiple ? 'Multiple' : row.inTime ? format(row.inTime, 'p') : '-'}
-                                    </TableCell>
-                                    <TableCell className="text-center tabular-nums">
-                                        {row.isMultiple ? 'Multiple' : row.outTime ? format(row.outTime, 'p') : (row.inTime ? <span className="text-accent font-semibold">ACTIVE</span> : '-')}
-                                    </TableCell>
-                                    <TableCell className="text-right font-semibold tabular-nums">
-                                        {row.totalHours > 0 ? row.totalHours.toFixed(2) : '-'}
-                                    </TableCell>
-                                </TableRow>
-                            ))}
+                            {days.map(day => {
+                                const daySummaries = dailySummaries.filter(s => isSameDay(s.date, day));
+                                return (
+                                    <React.Fragment key={day.toISOString()}>
+                                        <TableRow>
+                                            <TableCell rowSpan={3} className="font-medium align-top pt-4 border-b">
+                                                {format(day, 'eee, MMM dd')}
+                                            </TableCell>
+                                            {employees.map(emp => {
+                                                const summary = daySummaries.find(s => s.employeeId === emp.id);
+                                                const singleEntry = summary?.entries.length === 1 ? summary.entries[0] : null;
+                                                return (
+                                                    <TableCell key={`${emp.id}-in`} className="text-center tabular-nums h-8 pt-4 cursor-pointer" onClick={() => handleCellClick(summary)}>
+                                                        <span className="text-xs text-muted-foreground mr-2">In:</span>
+                                                        {summary ? (summary.entries.length > 1 ? 'Multiple' : singleEntry?.timeIn ? format(singleEntry.timeIn.toDate(), 'p') : '-') : '-'}
+                                                    </TableCell>
+                                                );
+                                            })}
+                                        </TableRow>
+                                        <TableRow>
+                                            {employees.map(emp => {
+                                                const summary = daySummaries.find(s => s.employeeId === emp.id);
+                                                const singleEntry = summary?.entries.length === 1 ? summary.entries[0] : null;
+                                                return (
+                                                    <TableCell key={`${emp.id}-out`} className="text-center tabular-nums h-8 cursor-pointer" onClick={() => handleCellClick(summary)}>
+                                                         <span className="text-xs text-muted-foreground mr-2">Out:</span>
+                                                        {summary ? (summary.entries.length > 1 ? 'Multiple' : singleEntry?.timeOut ? format(singleEntry.timeOut.toDate(), 'p') : (singleEntry?.timeIn ? <span className="text-accent font-semibold">ACTIVE</span> : '-')) : '-'}
+                                                    </TableCell>
+                                                );
+                                            })}
+                                        </TableRow>
+                                         <TableRow>
+                                            {employees.map(emp => {
+                                                const summary = daySummaries.find(s => s.employeeId === emp.id);
+                                                return (
+                                                    <TableCell key={`${emp.id}-total`} className="text-center font-semibold tabular-nums h-8 border-b cursor-pointer" onClick={() => handleCellClick(summary)}>
+                                                        <span className="text-xs text-muted-foreground font-normal mr-2">Total:</span>
+                                                        {summary && summary.totalHours > 0 ? `${summary.totalHours.toFixed(2)}` : '-'}
+                                                    </TableCell>
+                                                );
+                                            })}
+                                        </TableRow>
+                                    </React.Fragment>
+                                );
+                            })}
                         </TableBody>
                          <TableFooter>
                             <TableRow>
-                                <TableCell colSpan={4} className="text-right font-bold">Total Hours</TableCell>
-                                <TableCell className="text-right font-bold text-primary tabular-nums">
-                                    {totalHoursForAll.toFixed(2)}
-                                </TableCell>
+                                <TableCell className="text-right font-bold">Total Hours</TableCell>
+                                {employees.map(emp => (
+                                     <TableCell key={emp.id} className="text-center font-bold text-primary tabular-nums">
+                                        {(employeeTotals.get(emp.id) || 0).toFixed(2)}
+                                     </TableCell>
+                                ))}
                             </TableRow>
                         </TableFooter>
                     </Table>
                 </div>
             ) : (
                 <div className="text-center py-10 text-muted-foreground">
-                    No time entries found for the selected period.
+                    No employees found. Add an employee to get started.
                 </div>
             )
            )}
