@@ -712,10 +712,10 @@ export default function TimesheetPage() {
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead className="w-[120px] font-bold sticky left-0 top-0 bg-card z-30 shadow-sm">Date</TableHead>
-                                <TableHead className="w-[80px] font-bold sticky left-[120px] top-0 bg-card z-30 shadow-sm">Metric</TableHead>
+                                <TableHead className="w-[120px] font-bold sticky top-0 bg-card z-10">Date</TableHead>
+                                <TableHead className="w-[80px] font-bold sticky top-0 bg-card z-10">Metric</TableHead>
                                 {employees.map(emp => (
-                                    <TableHead key={emp.id} className="text-center font-bold min-w-[150px] sticky top-0 bg-card z-10 shadow-sm">{emp.firstName}</TableHead>
+                                    <TableHead key={emp.id} className="text-center font-bold min-w-[150px] sticky top-0 bg-card z-10">{emp.firstName}</TableHead>
                                 ))}
                             </TableRow>
                         </TableHeader>
@@ -725,10 +725,10 @@ export default function TimesheetPage() {
                                 return (
                                     <React.Fragment key={day.toISOString()}>
                                         <TableRow>
-                                            <TableCell rowSpan={3} className="font-medium align-top pt-3 border-b sticky left-0 bg-background z-20">
+                                            <TableCell rowSpan={3} className="font-medium align-top pt-3 border-b">
                                                 {format(day, 'eee, MMM dd')}
                                             </TableCell>
-                                            <TableCell className="font-semibold text-muted-foreground p-2 sticky left-[120px] bg-background z-20">In:</TableCell>
+                                            <TableCell className="font-semibold text-muted-foreground p-2">In:</TableCell>
                                             {employees.map(emp => {
                                                 const summary = daySummaries.find(s => s.employeeId === emp.id);
                                                 return (
@@ -739,7 +739,7 @@ export default function TimesheetPage() {
                                             })}
                                         </TableRow>
                                         <TableRow>
-                                            <TableCell className="font-semibold text-muted-foreground p-2 sticky left-[120px] bg-background z-20">Out:</TableCell>
+                                            <TableCell className="font-semibold text-muted-foreground p-2">Out:</TableCell>
                                              {employees.map(emp => {
                                                 const summary = daySummaries.find(s => s.employeeId === emp.id);
                                                 return (
@@ -750,7 +750,7 @@ export default function TimesheetPage() {
                                             })}
                                         </TableRow>
                                          <TableRow>
-                                            <TableCell className="font-bold border-b p-2 sticky left-[120px] bg-background z-20">Total:</TableCell>
+                                            <TableCell className="font-bold border-b p-2">Total:</TableCell>
                                             {employees.map(emp => {
                                                 const summary = daySummaries.find(s => s.employeeId === emp.id);
                                                 return (
@@ -766,9 +766,9 @@ export default function TimesheetPage() {
                         </TableBody>
                          <TableFooter>
                             <TableRow>
-                                <TableCell colSpan={2} className="text-right font-bold p-2 sticky left-0 bg-card z-20">Total Hours</TableCell>
+                                <TableCell colSpan={2} className="text-right font-bold p-2">Total Hours</TableCell>
                                 {employees.map(emp => (
-                                     <TableCell key={emp.id} className="text-center font-bold text-primary tabular-nums p-2 bg-card">
+                                     <TableCell key={emp.id} className="text-center font-bold text-primary tabular-nums p-2">
                                         {(employeeTotals.get(emp.id) || 0).toFixed(2)}
                                      </TableCell>
                                 ))}
@@ -819,5 +819,3 @@ export default function TimesheetPage() {
     </div>
   );
 }
-
-    
