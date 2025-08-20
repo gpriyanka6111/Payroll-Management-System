@@ -3,7 +3,7 @@
 
 import * as React from 'react';
 import { useSearchParams } from 'next/navigation';
-import { format } from 'date-fns';
+import { format, addDays } from 'date-fns';
 import Link from 'next/link';
 
 import { PayrollCalculation } from '@/components/payroll/payroll-calculation';
@@ -28,16 +28,30 @@ function RunPayrollPageContent() {
   const [from, setFrom] = React.useState<Date | undefined>();
   const [to, setTo] = React.useState<Date | undefined>();
   const [initialData, setInitialData] = React.useState<Payroll | null>(null);
-  const [isLoading, setIsLoading] = React.useState(!!payrollId);
+  const [isLoading, setIsLoading] = React.useState(true);
   const [isFetchingRanges, setIsFetchingRanges] = React.useState(true);
   const [disabledDateRanges, setDisabledDateRanges] = React.useState<{ from: Date; to: Date }[]>([]);
   const [lastPayrollDate, setLastPayrollDate] = React.useState<string | null>(null);
 
   const isEditMode = !!payrollId;
 
+  // Set default date range on mount
+  React.useEffect(() => {
+    if (!isEditMode) {
+      const lastPayrollEndDateStr = localStorage.getItem('lastPayrollEndDate');
+      if (lastPayrollEndDateStr) {
+        const lastEndDate = new Date(lastPayrollEndDateStr);
+        const newStartDate = addDays(lastEndDate, 1);
+        const newEndDate = addDays(newStartDate, 13);
+        setFrom(newStartDate);
+        setTo(newEndDate);
+      }
+    }
+  }, [isEditMode]);
+
   // Fetch existing payroll ranges to disable dates and get the last payroll date
   React.useEffect(() => {
-    if (!user || isEditMode) {
+    if (!user) {
         setIsFetchingRanges(false);
         return;
     };
@@ -81,7 +95,7 @@ function RunPayrollPageContent() {
     };
 
     fetchPayrollData();
-  }, [user, isEditMode]);
+  }, [user]);
 
 
   React.useEffect(() => {

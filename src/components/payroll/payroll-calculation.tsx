@@ -149,30 +149,58 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
         toDateWithTime.setHours(23, 59, 59, 999);
 
        try {
-        for (let i = 0; i < employeesToFetch.length; i++) {
-            const employee = employeesToFetch[i];
-            if (employee.payMethod === 'Salaried') continue; // Skip salaried employees
+        const hourlyEmployeeIndices: number[] = [];
+        const employeesToQuery = employeesToFetch.filter((emp, index) => {
+            if (emp.payMethod === 'Hourly') {
+                hourlyEmployeeIndices.push(index);
+                return true;
+            }
+            return false;
+        });
 
-            const timeEntriesRef = collection(db, 'users', user.uid, 'employees', employee.employeeId, 'timeEntries');
+        if (employeesToQuery.length === 0) {
+            toast({ title: "No Hourly Employees", description: "Skipping hour fetch.", variant: 'default' });
+            return;
+        }
+
+        const employeeIds = employeesToQuery.map(e => e.employeeId);
+        
+        // Firestore 'in' query is limited to 30 items.
+        // We'll process in chunks if needed.
+        const chunkSize = 30;
+        for (let i = 0; i < employeeIds.length; i += chunkSize) {
+            const chunkIds = employeeIds.slice(i, i + chunkSize);
+            const timeEntriesRef = collection(db, 'users', user.uid, 'timeEntries'); // Simplified path if entries are global for a user
             const q = query(
                 timeEntriesRef,
+                where('employeeId', 'in', chunkIds),
                 where('timeIn', '>=', from),
                 where('timeIn', '<=', toDateWithTime)
             );
-            const snapshot = await getDocs(q);
-            const totalMinutes = snapshot.docs.reduce((acc, doc) => {
-                const data = doc.data();
-                if (data.timeOut) {
-                    const diff = differenceInMinutes(data.timeOut.toDate(), data.timeIn.toDate());
-                    return acc + (diff > 0 ? diff : 0);
-                }
-                return acc;
-            }, 0);
             
-            const totalHours = totalMinutes / 60;
-            const roundedHours = parseFloat(totalHours.toFixed(1));
-            setValue(`employees.${i}.totalHoursWorked`, roundedHours, { shouldValidate: true, shouldDirty: true });
-            setValue(`employees.${i}.checkHours`, roundedHours, { shouldValidate: true, shouldDirty: true });
+            const snapshot = await getDocs(q);
+            const hoursByEmployee: { [key: string]: number } = {};
+            
+            snapshot.docs.forEach(doc => {
+                 const data = doc.data();
+                 const employeeId = data.employeeId;
+                 if (!hoursByEmployee[employeeId]) {
+                     hoursByEmployee[employeeId] = 0;
+                 }
+                 if (data.timeOut) {
+                    const diff = differenceInMinutes(data.timeOut.toDate(), data.timeIn.toDate());
+                    hoursByEmployee[employeeId] += (diff > 0 ? diff : 0);
+                 }
+            });
+            
+            hourlyEmployeeIndices.slice(i, i + chunkSize).forEach(employeeIndex => {
+                const employee = employeesToFetch[employeeIndex];
+                const totalMinutes = hoursByEmployee[employee.employeeId] || 0;
+                const totalHours = totalMinutes / 60;
+                const roundedHours = parseFloat(totalHours.toFixed(1));
+                setValue(`employees.${employeeIndex}.totalHoursWorked`, roundedHours, { shouldValidate: true, shouldDirty: true });
+                setValue(`employees.${employeeIndex}.checkHours`, roundedHours, { shouldValidate: true, shouldDirty: true });
+            });
         }
          toast({ title: "Hours Fetched", description: "Total hours for hourly employees have been updated.", variant: 'default' });
        } catch (error) {
@@ -451,17 +479,11 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
         });
         await batch.commit();
 
-        // 3. Save to sessionStorage for immediate report viewing
-        sessionStorage.setItem('payrollResultsData', JSON.stringify(payrollResults));
-        sessionStorage.setItem('payrollPeriodData', JSON.stringify({ from, to }));
-        sessionStorage.setItem('payrollInputData', JSON.stringify(currentInputs));
-        sessionStorage.setItem('companyName', companyName);
-        const summaryData = {
-            employee: summaryEmployee,
-            deductions: summaryDeductions,
-            netPay: summaryNetPay,
-        };
-        sessionStorage.setItem('payrollSummaryData', JSON.stringify(summaryData));
+        // 3. Save end date to local storage for next period automation
+        localStorage.setItem('lastPayrollEndDate', to.toISOString());
+        // Remove timesheet-specific saved dates so the new default can take effect
+        localStorage.removeItem('timesheetDateRange');
+
         
         toast({
             title: `Payroll ${isEditMode ? 'Updated' : 'Approved'}`,

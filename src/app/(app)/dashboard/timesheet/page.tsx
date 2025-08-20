@@ -5,7 +5,7 @@ import * as React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Calendar as CalendarIcon, ArrowLeft, Users, Pencil, AlertTriangle, Loader2, FileSpreadsheet, Trash2 } from "lucide-react";
-import { format, differenceInMinutes, startOfDay, isSameDay, subDays, eachDayOfInterval, parse, isValid } from "date-fns";
+import { format, differenceInMinutes, startOfDay, isSameDay, subDays, eachDayOfInterval, parse, isValid, addDays } from "date-fns";
 import { useAuth } from '@/contexts/auth-context';
 import { collection, query, where, getDocs, Timestamp, orderBy, doc, getDoc, updateDoc, addDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -399,14 +399,13 @@ export default function TimesheetPage() {
   const [dailySummaries, setDailySummaries] = React.useState<DailySummary[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   
-  const [dateRange, setDateRange] = React.useState<DateRange | undefined>(() => {
-    const fourteenDaysAgo = subDays(new Date(), 13);
-    return { from: fourteenDaysAgo, to: new Date() };
-  });
+  const [dateRange, setDateRange] = React.useState<DateRange | undefined>();
   const [rememberDates, setRememberDates] = React.useState(false);
 
   React.useEffect(() => {
     const saved = localStorage.getItem('timesheetDateRange');
+    const lastPayrollEndDateStr = localStorage.getItem('lastPayrollEndDate');
+
     if (saved) {
       const { from, to, remembered } = JSON.parse(saved);
       const fromDate = new Date(from);
@@ -414,7 +413,19 @@ export default function TimesheetPage() {
       if (isValid(fromDate) && isValid(toDate) && remembered) {
         setDateRange({ from: fromDate, to: toDate });
         setRememberDates(true);
+        return; // Prioritize saved dates
       }
+    }
+    
+    if (lastPayrollEndDateStr) {
+        const lastEndDate = new Date(lastPayrollEndDateStr);
+        const newStartDate = addDays(lastEndDate, 1);
+        const newEndDate = addDays(newStartDate, 13);
+        setDateRange({ from: newStartDate, to: newEndDate });
+    } else {
+        // Fallback to last 14 days if nothing is stored
+        const fourteenDaysAgo = subDays(new Date(), 13);
+        setDateRange({ from: fourteenDaysAgo, to: new Date() });
     }
   }, []);
 
@@ -754,10 +765,10 @@ export default function TimesheetPage() {
                                 return (
                                     <React.Fragment key={day.toISOString()}>
                                         <TableRow>
-                                            <TableCell rowSpan={3} className="font-medium align-top pt-3 border-b sticky left-0 bg-background z-20">
+                                            <TableCell rowSpan={3} className="font-medium align-top pt-3 border-b sticky left-0 bg-card z-20">
                                                 {format(day, 'eee, MMM dd')}
                                             </TableCell>
-                                            <TableCell className="font-semibold text-muted-foreground p-2 sticky left-[120px] bg-background z-20">In:</TableCell>
+                                            <TableCell className="font-semibold text-muted-foreground p-2 sticky left-[120px] bg-card z-20">In:</TableCell>
                                             {employees.map(emp => {
                                                 const summary = daySummaries.find(s => s.employeeId === emp.id);
                                                 return (
@@ -768,7 +779,7 @@ export default function TimesheetPage() {
                                             })}
                                         </TableRow>
                                         <TableRow>
-                                             <TableCell className="font-semibold text-muted-foreground p-2 sticky left-[120px] bg-background z-20">Out:</TableCell>
+                                             <TableCell className="font-semibold text-muted-foreground p-2 sticky left-[120px] bg-card z-20">Out:</TableCell>
                                              {employees.map(emp => {
                                                 const summary = daySummaries.find(s => s.employeeId === emp.id);
                                                 return (
@@ -779,7 +790,7 @@ export default function TimesheetPage() {
                                             })}
                                         </TableRow>
                                         <TableRow>
-                                             <TableCell className="font-bold p-2 sticky left-[120px] bg-background z-20">Total:</TableCell>
+                                             <TableCell className="font-bold p-2 sticky left-[120px] bg-card z-20">Total:</TableCell>
                                               {employees.map(emp => {
                                                 const summary = daySummaries.find(s => s.employeeId === emp.id);
                                                 return (
@@ -846,5 +857,3 @@ export default function TimesheetPage() {
     </div>
   );
 }
-
-    
