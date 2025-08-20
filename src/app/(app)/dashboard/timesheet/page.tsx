@@ -741,10 +741,10 @@ export default function TimesheetPage() {
                     <Table>
                         <TableHeader>
                           <TableRow>
-                            <TableHead className="w-[120px] font-bold sticky top-0 left-0 bg-card z-30">Date</TableHead>
-                            <TableHead className="w-[80px] font-bold sticky top-0 left-[120px] bg-card z-30">Metric</TableHead>
+                            <TableHead className="w-[120px] font-bold sticky left-0 top-0 bg-card z-30">Date</TableHead>
+                            <TableHead className="w-[80px] font-bold sticky left-[120px] top-0 bg-card z-30">Metric</TableHead>
                              {employees.map(emp => (
-                                <TableHead key={emp.id} className="font-bold sticky top-0 bg-card z-20 min-w-[150px]">{emp.firstName}</TableHead>
+                                <TableHead key={emp.id} className="font-bold sticky top-0 bg-card z-20 min-w-[150px] text-center">{emp.firstName}</TableHead>
                             ))}
                           </TableRow>
                         </TableHeader>
