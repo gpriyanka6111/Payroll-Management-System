@@ -132,7 +132,7 @@ export default function DashboardPage() {
                 id: doc.id, 
                 ...doc.data(),
                 employeeId: selectedEmployeeId,
-                employeeName: selectedEmployee ? `${selectedEmployee.firstName}` : 'Unknown'
+                employeeName: selectedEmployee ? selectedEmployee.firstName : 'Unknown'
             } as TimeEntry);
         } else {
             setActiveTimeEntry(null);
@@ -160,7 +160,7 @@ export default function DashboardPage() {
         timeIn: serverTimestamp(),
         timeOut: null,
         employeeId: selectedEmployeeId,
-        employeeName: `${selectedEmployee.firstName}`,
+        employeeName: selectedEmployee.firstName,
       });
       
       toast({

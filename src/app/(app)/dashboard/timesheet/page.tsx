@@ -203,7 +203,8 @@ function AddTimeEntryDialog({ isOpen, onClose, employee, date, onSave }: { isOpe
                     </Button>
                 </DialogFooter>
             </DialogContent>
-    )
+        </Dialog>
+    );
 }
 
 
@@ -444,7 +445,7 @@ export default function TimesheetPage() {
             entriesByDay.forEach((data, dayKey) => {
                 allSummaries.push({
                     employeeId: employee.id,
-                    employeeName: `${employee.firstName}`,
+                    employeeName: employee.firstName,
                     date: parse(dayKey, 'yyyy-MM-dd', new Date()),
                     totalHours: data.totalMinutes / 60,
                     entries: data.entries.sort((a, b) => a.timeIn.toDate().getTime() - b.timeIn.toDate().getTime()),
