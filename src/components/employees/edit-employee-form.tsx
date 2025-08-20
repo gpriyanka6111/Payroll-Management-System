@@ -33,15 +33,15 @@ const baseEmployeeSchema = z.object({
 
 const hourlyEmployeeSchema = baseEmployeeSchema.extend({
     payMethod: z.literal('Hourly'),
-    payRateCheck: z.coerce.number().positive({ message: 'Pay rate must be a positive number.' }),
+    payRateCheck: z.coerce.number().min(0, { message: 'Pay rate cannot be negative.' }),
     payRateOthers: z.coerce.number().min(0, { message: 'Pay rate cannot be negative' }).optional(),
-    standardCheckHours: z.coerce.number().positive({ message: 'Standard hours must be positive.' }),
+    standardCheckHours: z.coerce.number().min(0, { message: 'Standard hours cannot be negative.' }),
     biWeeklySalary: z.coerce.number().optional(),
 });
 
 const salariedEmployeeSchema = baseEmployeeSchema.extend({
     payMethod: z.literal('Salaried'),
-    biWeeklySalary: z.coerce.number().positive({ message: 'Bi-weekly salary must be a positive number.' }),
+    biWeeklySalary: z.coerce.number().min(0, { message: 'Bi-weekly salary cannot be negative.' }),
     payRateCheck: z.coerce.number().optional(),
     payRateOthers: z.coerce.number().optional(),
     standardCheckHours: z.coerce.number().optional(),
