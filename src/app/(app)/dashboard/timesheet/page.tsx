@@ -38,6 +38,7 @@ interface TimeEntry {
     timeIn: Timestamp;
     timeOut: Timestamp | null;
     employeeId: string;
+    employeeName: string;
 }
 
 interface DailySummary {
@@ -441,7 +442,7 @@ export default function TimesheetPage() {
                 orderBy('timeIn', 'desc')
             );
             const entriesSnapshot = await getDocs(q);
-            const employeeEntries: TimeEntry[] = entriesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), employeeId: employee.id } as TimeEntry));
+            const employeeEntries: TimeEntry[] = entriesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), employeeId: employee.id, employeeName: employee.firstName } as TimeEntry));
 
             const entriesByDay = new Map<string, { totalMinutes: number; entries: TimeEntry[] }>();
             employeeEntries.forEach(entry => {
@@ -707,14 +708,14 @@ export default function TimesheetPage() {
              </div>
            ) : (
             employees.length > 0 ? (
-                <div className="border rounded-lg max-h-[65vh] overflow-auto relative">
+                <div className="border rounded-lg max-h-[65vh] overflow-auto">
                     <Table>
-                        <TableHeader className="sticky top-0 bg-card z-10 shadow-sm">
+                        <TableHeader>
                             <TableRow>
-                                <TableHead className="w-[120px] font-bold">Date</TableHead>
-                                <TableHead className="w-[80px] font-bold">Metric</TableHead>
+                                <TableHead className="w-[120px] font-bold sticky top-0 bg-card z-10 shadow-sm">Date</TableHead>
+                                <TableHead className="w-[80px] font-bold sticky top-0 bg-card z-10 shadow-sm">Metric</TableHead>
                                 {employees.map(emp => (
-                                    <TableHead key={emp.id} className="text-center font-bold min-w-[150px]">{emp.firstName}</TableHead>
+                                    <TableHead key={emp.id} className="text-center font-bold min-w-[150px] sticky top-0 bg-card z-10 shadow-sm">{emp.firstName}</TableHead>
                                 ))}
                             </TableRow>
                         </TableHeader>
@@ -818,5 +819,3 @@ export default function TimesheetPage() {
     </div>
   );
 }
-
-    
