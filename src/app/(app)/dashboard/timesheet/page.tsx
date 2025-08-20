@@ -668,9 +668,9 @@ export default function TimesheetPage() {
              </div>
            ) : (
             employees.length > 0 ? (
-                <div className="overflow-x-auto border rounded-lg">
+                <div className="overflow-x-auto border rounded-lg max-h-[65vh] relative">
                     <Table>
-                        <TableHeader>
+                        <TableHeader className="sticky top-0 bg-card z-10">
                             <TableRow>
                                 <TableHead className="w-[120px] font-bold">Date</TableHead>
                                 <TableHead className="w-[80px] font-bold">Metric</TableHead>
