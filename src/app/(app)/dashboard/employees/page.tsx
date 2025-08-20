@@ -24,7 +24,7 @@ export default function EmployeesPage() {
     if (!user) return;
 
     const employeesCollectionRef = collection(db, 'users', user.uid, 'employees');
-    const q = query(employeesCollectionRef, orderBy('lastName', 'asc'));
+    const q = query(employeesCollectionRef, orderBy('firstName', 'asc'));
 
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const employeesData: Employee[] = querySnapshot.docs.map(doc => ({
@@ -55,7 +55,7 @@ export default function EmployeesPage() {
       await updateDoc(employeeDocRef, employeeData);
       toast({
           title: "Employee Updated",
-          description: `${updatedEmployee.firstName} ${updatedEmployee.lastName}'s information has been saved.`,
+          description: `${updatedEmployee.firstName}'s information has been saved.`,
       });
     } catch (error) {
        console.error("Error updating employee: ", error);
@@ -77,7 +77,7 @@ export default function EmployeesPage() {
       await deleteDoc(employeeDocRef);
       toast({
           title: "Employee Deleted",
-          description: `${employee.firstName} ${employee.lastName} has been removed from the system.`,
+          description: `${employee.firstName} has been removed from the system.`,
           variant: "destructive",
       });
      } catch (error) {

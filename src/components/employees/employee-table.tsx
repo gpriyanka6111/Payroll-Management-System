@@ -81,7 +81,7 @@ export function EmployeeTable({ employees, onUpdate, onDelete }: EmployeeTablePr
         <TableBody>
           {employees.map((employee) => (
             <TableRow key={employee.id}>
-              <TableCell className="font-medium">{`${employee.firstName} ${employee.lastName}`}</TableCell>
+              <TableCell className="font-medium">{`${employee.firstName}`}</TableCell>
               <TableCell>{employee.email || 'N/A'}</TableCell>
               <TableCell>{employee.mobileNumber || 'N/A'}</TableCell>
               <TableCell>{employee.ssn || 'N/A'}</TableCell>
@@ -137,7 +137,7 @@ export function EmployeeTable({ employees, onUpdate, onDelete }: EmployeeTablePr
           <DialogHeader>
             <DialogTitle>Edit Employee</DialogTitle>
             <DialogDescription>
-              Update the information for {employeeToEdit?.firstName} {employeeToEdit?.lastName}.
+              Update the information for {employeeToEdit?.firstName}.
             </DialogDescription>
           </DialogHeader>
           {employeeToEdit && (
@@ -156,7 +156,7 @@ export function EmployeeTable({ employees, onUpdate, onDelete }: EmployeeTablePr
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure you want to delete this employee?</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the record for {employeeToDelete?.firstName} {employeeToDelete?.lastName}.
+              This action cannot be undone. This will permanently delete the record for {employeeToDelete?.firstName}.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

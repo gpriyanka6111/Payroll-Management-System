@@ -197,7 +197,7 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
         }
 
         const employeesCollectionRef = collection(db, 'users', user.uid, 'employees');
-        const q = query(employeesCollectionRef, orderBy('lastName', 'asc'));
+        const q = query(employeesCollectionRef, orderBy('firstName', 'asc'));
         const querySnapshot = await getDocs(q);
         const employeesData: Employee[] = querySnapshot.docs.map(doc => ({
           id: doc.id,
@@ -225,7 +225,7 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
           newEmployees.forEach(emp => {
               formValues.push({
                   employeeId: emp.id,
-                  name: `${emp.firstName} ${emp.lastName}`,
+                  name: `${emp.firstName}`,
                   payMethod: emp.payMethod,
                   payRateCheck: emp.payRateCheck,
                   payRateOthers: emp.payRateOthers ?? 0,
@@ -243,7 +243,7 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
         } else {
           formValues = employeesData.map(emp => ({
               employeeId: emp.id,
-              name: `${emp.firstName} ${emp.lastName}`,
+              name: `${emp.firstName}`,
               payMethod: emp.payMethod,
               payRateCheck: emp.payRateCheck,
               payRateOthers: emp.payRateOthers ?? 0,

@@ -314,7 +314,7 @@ export default function TimesheetPage() {
     setIsLoading(true);
     try {
         const employeesCollectionRef = collection(db, 'users', user.uid, 'employees');
-        const employeesQuery = query(employeesCollectionRef, orderBy('lastName', 'asc'));
+        const employeesQuery = query(employeesCollectionRef, orderBy('firstName', 'asc'));
         const employeeSnapshot = await getDocs(employeesQuery);
         const employeesData: Employee[] = employeeSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
         setEmployees(employeesData);
@@ -351,7 +351,7 @@ export default function TimesheetPage() {
             entriesByDay.forEach((data, dayKey) => {
                 allSummaries.push({
                     employeeId: employee.id,
-                    employeeName: `${employee.firstName} ${employee.lastName}`,
+                    employeeName: `${employee.firstName}`,
                     date: parse(dayKey, 'yyyy-MM-dd', new Date()),
                     totalHours: data.totalMinutes / 60,
                     entries: data.entries.sort((a, b) => a.timeIn.toDate().getTime() - b.timeIn.toDate().getTime()),
@@ -426,7 +426,7 @@ export default function TimesheetPage() {
     let currentRow = 0;
 
     // Header row
-    const headerRow = ['Date', 'Metric', ...employees.map(e => `${e.firstName} ${e.lastName}`)];
+    const headerRow = ['Date', 'Metric', ...employees.map(e => `${e.firstName}`)];
     ws_data.push(headerRow);
     currentRow++;
 
@@ -566,7 +566,7 @@ export default function TimesheetPage() {
                                 <TableHead className="w-[120px] font-bold">Date</TableHead>
                                 <TableHead className="w-[80px] font-bold">Metric</TableHead>
                                 {employees.map(emp => (
-                                    <TableHead key={emp.id} className="text-center font-bold min-w-[150px]">{emp.firstName} {emp.lastName}</TableHead>
+                                    <TableHead key={emp.id} className="text-center font-bold min-w-[150px]">{emp.firstName}</TableHead>
                                 ))}
                             </TableRow>
                         </TableHeader>

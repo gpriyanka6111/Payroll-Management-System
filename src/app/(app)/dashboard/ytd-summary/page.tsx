@@ -49,7 +49,7 @@ export default function YtdSummaryPage() {
       setIsLoading(true);
       
       const employeesCollectionRef = collection(db, 'users', user.uid, 'employees');
-      const employeesQuery = query(employeesCollectionRef, orderBy('lastName', 'asc'));
+      const employeesQuery = query(employeesCollectionRef, orderBy('firstName', 'asc'));
       const employeeSnapshot = await getDocs(employeesQuery);
       const employeesData: Employee[] = employeeSnapshot.docs.map(doc => ({
         id: doc.id,
@@ -71,7 +71,7 @@ export default function YtdSummaryPage() {
       employeesData.forEach(emp => {
           ytdTotals[emp.id] = {
               employeeId: emp.id,
-              employeeName: `${emp.firstName} ${emp.lastName}`,
+              employeeName: `${emp.firstName}`,
               totalGrossPay: 0,
               payPeriods: []
           };

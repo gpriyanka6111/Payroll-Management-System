@@ -41,7 +41,7 @@ export default function PtoTrackerPage() {
       
       // Fetch Employees
       const employeesCollectionRef = collection(db, 'users', user.uid, 'employees');
-      const employeesQuery = query(employeesCollectionRef, orderBy('lastName', 'asc'));
+      const employeesQuery = query(employeesCollectionRef, orderBy('firstName', 'asc'));
       const employeeSnapshot = await getDocs(employeesQuery);
       const employeesData: Employee[] = employeeSnapshot.docs.map(doc => ({
         id: doc.id,
@@ -150,7 +150,7 @@ export default function PtoTrackerPage() {
               <TableBody>
                 {ptoSummary.map(employee => (
                   <TableRow key={employee.id}>
-                    <TableCell className="font-medium">{employee.firstName} {employee.lastName}</TableCell>
+                    <TableCell className="font-medium">{employee.firstName}</TableCell>
                     <TableCell className="text-right tabular-nums">{formatHours(employee.initialBalance)}</TableCell>
                     <TableCell className="text-right tabular-nums text-destructive">({formatHours(employee.usedYTD)})</TableCell>
                     <TableCell className="text-right font-semibold tabular-nums">{formatHours(employee.remainingBalance)}</TableCell>

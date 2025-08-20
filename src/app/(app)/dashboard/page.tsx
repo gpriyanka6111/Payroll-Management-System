@@ -48,7 +48,7 @@ export default function DashboardPage() {
     if (!user) return;
     setIsLoading(true);
     const employeesCollectionRef = collection(db, 'users', user.uid, 'employees');
-    const q = query(employeesCollectionRef, orderBy('lastName', 'asc'));
+    const q = query(employeesCollectionRef, orderBy('firstName', 'asc'));
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
         const employeesData: Employee[] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
@@ -132,7 +132,7 @@ export default function DashboardPage() {
                 id: doc.id, 
                 ...doc.data(),
                 employeeId: selectedEmployeeId,
-                employeeName: selectedEmployee ? `${selectedEmployee.firstName} ${selectedEmployee.lastName}` : 'Unknown'
+                employeeName: selectedEmployee ? `${selectedEmployee.firstName}` : 'Unknown'
             } as TimeEntry);
         } else {
             setActiveTimeEntry(null);
@@ -160,12 +160,12 @@ export default function DashboardPage() {
         timeIn: serverTimestamp(),
         timeOut: null,
         employeeId: selectedEmployeeId,
-        employeeName: `${selectedEmployee.firstName} ${selectedEmployee.lastName}`,
+        employeeName: `${selectedEmployee.firstName}`,
       });
       
       toast({
         title: "Clocked In!",
-        description: `${selectedEmployee?.firstName} ${selectedEmployee?.lastName}'s shift has started at ${format(new Date(), 'p')}.`,
+        description: `${selectedEmployee?.firstName}'s shift has started at ${format(new Date(), 'p')}.`,
       });
     } catch (error) {
       console.error("Error clocking in:", error);
@@ -288,7 +288,7 @@ export default function DashboardPage() {
                                     </SelectTrigger>
                                     <SelectContent>
                                         {employees.map(emp => (
-                                            <SelectItem key={emp.id} value={emp.id}>{emp.firstName} {emp.lastName}</SelectItem>
+                                            <SelectItem key={emp.id} value={emp.id}>{emp.firstName}</SelectItem>
                                         ))}
                                     </SelectContent>
                                 </Select>

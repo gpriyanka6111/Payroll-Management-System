@@ -26,7 +26,7 @@ import { db } from '@/lib/firebase';
 
 const baseEmployeeSchema = z.object({
   firstName: z.string().min(2, { message: 'First name must be at least 2 characters.' }).regex(/^[a-zA-Z' -]+$/, { message: "Name can only contain letters, spaces, hyphens, and apostrophes." }),
-  lastName: z.string().min(2, { message: 'Last name must be at least 2 characters.' }).regex(/^[a-zA-Z' -]+$/, { message: "Name can only contain letters, spaces, hyphens, and apostrophes." }),
+  lastName: z.string().regex(/^[a-zA-Z' -]*$/, { message: "Name can only contain letters, spaces, hyphens, and apostrophes." }).optional(),
   ssn: z.string().regex(/^\d{3}-\d{2}-\d{4}$/, { message: "SSN must be in XXX-XX-XXXX format." }).optional().or(z.literal('')),
   email: z.string().email({ message: 'Invalid email address.' }).optional().or(z.literal('')),
   mobileNumber: z.string().regex(/^\(\d{3}\) \d{3}-\d{4}$/, { message: "Number must be in (XXX) XXX-XXXX format." }).optional().or(z.literal('')),
@@ -94,7 +94,7 @@ export function AddEmployeeForm() {
         await addDoc(employeesCollectionRef, values);
         toast({
             title: 'Employee Added',
-            description: `${values.firstName} ${values.lastName} has been added successfully.`,
+            description: `${values.firstName} has been added successfully.`,
             variant: "default",
         });
         router.push('/dashboard/employees');
@@ -164,7 +164,7 @@ export function AddEmployeeForm() {
             name="lastName"
             render={({ field }) => (
                 <FormItem>
-                <FormLabel>Last Name *</FormLabel>
+                <FormLabel>Last Name</FormLabel>
                 <FormControl>
                     <Input placeholder="e.g., Doe" {...field} disabled={isSubmitting} />
                 </FormControl>
