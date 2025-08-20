@@ -3,10 +3,9 @@
 
 import * as React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Calendar as CalendarIcon, ArrowLeft, Users, Pencil, AlertTriangle, Loader2, FileSpreadsheet, Trash2 } from "lucide-react";
-import { format, differenceInMinutes, startOfDay, isSameDay, subDays, eachDayOfInterval, parse } from "date-fns";
+import { format, differenceInMinutes, startOfDay, isSameDay, subDays, eachDayOfInterval, parse, isValid } from "date-fns";
 import { useAuth } from '@/contexts/auth-context';
 import { collection, query, where, getDocs, Timestamp, orderBy, doc, getDoc, updateDoc, addDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -30,6 +29,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import * as XLSX from 'xlsx';
 
 
@@ -398,11 +398,33 @@ export default function TimesheetPage() {
   const [dailySummaries, setDailySummaries] = React.useState<DailySummary[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   
-  const fourteenDaysAgo = subDays(new Date(), 13);
-  const [dateRange, setDateRange] = React.useState<DateRange | undefined>({
-    from: fourteenDaysAgo,
-    to: new Date(),
+  const [dateRange, setDateRange] = React.useState<DateRange | undefined>(() => {
+    const fourteenDaysAgo = subDays(new Date(), 13);
+    return { from: fourteenDaysAgo, to: new Date() };
   });
+  const [rememberDates, setRememberDates] = React.useState(false);
+
+  React.useEffect(() => {
+    const saved = localStorage.getItem('timesheetDateRange');
+    if (saved) {
+      const { from, to, remembered } = JSON.parse(saved);
+      const fromDate = new Date(from);
+      const toDate = new Date(to);
+      if (isValid(fromDate) && isValid(toDate) && remembered) {
+        setDateRange({ from: fromDate, to: toDate });
+        setRememberDates(true);
+      }
+    }
+  }, []);
+
+  React.useEffect(() => {
+    if (rememberDates && dateRange?.from && dateRange?.to) {
+      localStorage.setItem('timesheetDateRange', JSON.stringify({ from: dateRange.from, to: dateRange.to, remembered: true }));
+    } else {
+      localStorage.removeItem('timesheetDateRange');
+    }
+  }, [dateRange, rememberDates]);
+
 
   const [isDetailsDialogOpen, setIsDetailsDialogOpen] = React.useState(false);
   const [selectedCellDetails, setSelectedCellDetails] = React.useState<{ date: Date | null; summary: DailySummary | null }>({ date: null, summary: null });
@@ -655,7 +677,7 @@ export default function TimesheetPage() {
                         Displaying time entries for the selected period.
                     </CardDescription>
                 </div>
-                <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
+                <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto items-center">
                     <Popover>
                         <PopoverTrigger asChild>
                         <Button
@@ -692,9 +714,15 @@ export default function TimesheetPage() {
                         />
                         </PopoverContent>
                     </Popover>
+                    <div className="flex items-center space-x-2">
+                        <Checkbox id="remember-dates" checked={rememberDates} onCheckedChange={(checked) => setRememberDates(!!checked)} />
+                        <Label htmlFor="remember-dates" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                            Remember these dates
+                        </Label>
+                    </div>
                     <Button variant="outline" onClick={handleExportToExcel}>
                         <FileSpreadsheet className="mr-2 h-4 w-4" />
-                        Export to XLSX
+                        Export
                     </Button>
                 </div>
             </div>
@@ -708,73 +736,75 @@ export default function TimesheetPage() {
              </div>
            ) : (
             employees.length > 0 ? (
-                <div className="border rounded-lg max-h-[65vh] overflow-auto">
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead className="w-[120px] font-bold sticky top-0 left-0 bg-card z-30">Date</TableHead>
-                                <TableHead className="w-[80px] font-bold sticky top-0 left-[120px] bg-card z-30">Metric</TableHead>
-                                {employees.map(emp => (
-                                    <TableHead key={emp.id} className="text-center font-bold min-w-[150px] sticky top-0 bg-card z-10">{emp.firstName}</TableHead>
-                                ))}
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {days.map(day => {
-                                const daySummaries = dailySummaries.filter(s => isSameDay(s.date, day));
-                                return (
-                                    <React.Fragment key={day.toISOString()}>
-                                        <TableRow>
-                                            <TableCell rowSpan={3} className="font-medium align-top pt-3 border-b sticky left-0 bg-background z-20">
-                                                {format(day, 'eee, MMM dd')}
-                                            </TableCell>
-                                            <TableCell className="font-semibold text-muted-foreground p-2 sticky left-[120px] bg-background z-20">In:</TableCell>
-                                            {employees.map(emp => {
-                                                const summary = daySummaries.find(s => s.employeeId === emp.id);
-                                                return (
-                                                    <TableCell key={`${emp.id}-in`} className="text-center tabular-nums cursor-pointer p-2" onClick={() => handleCellClick(emp, day)}>
-                                                        {summary ? (summary.entries.length > 1 ? 'Multiple' : (summary.entries[0]?.timeIn ? format(summary.entries[0].timeIn.toDate(), 'p') : '-')) : '-'}
-                                                    </TableCell>
-                                                );
-                                            })}
-                                        </TableRow>
-                                        <TableRow>
-                                            <TableCell className="font-semibold text-muted-foreground p-2 sticky left-[120px] bg-background z-20">Out:</TableCell>
-                                             {employees.map(emp => {
-                                                const summary = daySummaries.find(s => s.employeeId === emp.id);
-                                                return (
-                                                    <TableCell key={`${emp.id}-out`} className="text-center tabular-nums cursor-pointer p-2" onClick={() => handleCellClick(emp, day)}>
-                                                        {summary ? (summary.entries.length > 1 ? 'Multiple' : (summary.entries[0]?.timeOut ? format(summary.entries[0].timeOut.toDate(), 'p') : (summary.entries[0]?.timeIn ? <span className="text-accent font-semibold">ACTIVE</span> : '-'))) : '-'}
-                                                    </TableCell>
-                                                );
-                                            })}
-                                        </TableRow>
-                                         <TableRow>
-                                            <TableCell className="font-bold border-b p-2 sticky left-[120px] bg-background z-20">Total:</TableCell>
-                                            {employees.map(emp => {
-                                                const summary = daySummaries.find(s => s.employeeId === emp.id);
-                                                return (
-                                                    <TableCell key={`${emp.id}-total`} className="text-center font-bold tabular-nums border-b cursor-pointer p-2" onClick={() => handleCellClick(emp, day)}>
-                                                        {summary && summary.totalHours > 0 ? `${summary.totalHours.toFixed(2)}` : '-'}
-                                                    </TableCell>
-                                                );
-                                            })}
-                                        </TableRow>
-                                    </React.Fragment>
-                                );
-                            })}
-                        </TableBody>
-                         <TableFooter>
-                            <TableRow>
-                                <TableCell colSpan={2} className="text-right font-bold p-2 sticky bottom-0 left-0 bg-card z-30">Total Hours</TableCell>
-                                {employees.map(emp => (
-                                     <TableCell key={emp.id} className="text-center font-bold text-primary tabular-nums p-2 sticky bottom-0 bg-card z-10">
-                                        {(employeeTotals.get(emp.id) || 0).toFixed(2)}
-                                     </TableCell>
-                                ))}
-                            </TableRow>
-                        </TableFooter>
-                    </Table>
+                <div 
+                    className="border rounded-lg max-h-[65vh] overflow-auto" 
+                    style={{
+                        gridTemplateColumns: `120px 80px repeat(${employees.length}, minmax(150px, 1fr))`,
+                    }}
+                >
+                    <div className="relative grid">
+                        {/* Header Row */}
+                        <div className="sticky top-0 left-0 bg-card z-30 font-bold p-2 text-center border-b border-r flex items-center justify-center">Date</div>
+                        <div className="sticky top-0 left-[120px] bg-card z-30 font-bold p-2 text-center border-b border-r flex items-center justify-center">Metric</div>
+                        {employees.map(emp => (
+                            <div key={emp.id} className="sticky top-0 bg-card z-20 font-bold p-2 text-center border-b flex items-center justify-center">{emp.firstName}</div>
+                        ))}
+
+                        {/* Data Rows */}
+                        {days.map((day, dayIndex) => {
+                             const daySummaries = dailySummaries.filter(s => isSameDay(s.date, day));
+                            return (
+                                <React.Fragment key={day.toISOString()}>
+                                    {/* Subgrid for each day */}
+                                    <div className="contents" style={{gridRow: `${(dayIndex * 3) + 2} / span 3`}}>
+                                        <div className="sticky left-0 bg-background z-20 font-medium p-2 border-r border-b flex items-center justify-center text-center">
+                                             {format(day, 'eee, MMM dd')}
+                                        </div>
+                                    </div>
+                                    
+                                    {/* In Row */}
+                                    <div className="sticky left-[120px] bg-background z-20 font-semibold p-2 border-r border-b text-muted-foreground flex items-center">In:</div>
+                                    {employees.map(emp => {
+                                        const summary = daySummaries.find(s => s.employeeId === emp.id);
+                                        return (
+                                            <div key={`${emp.id}-in`} className="text-center tabular-nums cursor-pointer p-2 border-b" onClick={() => handleCellClick(emp, day)}>
+                                                {summary ? (summary.entries.length > 1 ? 'Multiple' : (summary.entries[0]?.timeIn ? format(summary.entries[0].timeIn.toDate(), 'p') : '-')) : '-'}
+                                            </div>
+                                        );
+                                    })}
+
+                                    {/* Out Row */}
+                                    <div className="sticky left-[120px] bg-background z-20 font-semibold p-2 border-r border-b text-muted-foreground flex items-center">Out:</div>
+                                    {employees.map(emp => {
+                                        const summary = daySummaries.find(s => s.employeeId === emp.id);
+                                        return (
+                                            <div key={`${emp.id}-out`} className="text-center tabular-nums cursor-pointer p-2 border-b" onClick={() => handleCellClick(emp, day)}>
+                                                {summary ? (summary.entries.length > 1 ? 'Multiple' : (summary.entries[0]?.timeOut ? format(summary.entries[0].timeOut.toDate(), 'p') : (summary.entries[0]?.timeIn ? <span className="text-accent font-semibold">ACTIVE</span> : '-'))) : '-'}
+                                            </div>
+                                        );
+                                    })}
+
+                                    {/* Total Row */}
+                                     <div className="sticky left-[120px] bg-background z-20 font-bold p-2 border-r border-b flex items-center">Total:</div>
+                                     {employees.map(emp => {
+                                        const summary = daySummaries.find(s => s.employeeId === emp.id);
+                                        return (
+                                            <div key={`${emp.id}-total`} className="text-center font-bold tabular-nums cursor-pointer p-2 border-b" onClick={() => handleCellClick(emp, day)}>
+                                                {summary && summary.totalHours > 0 ? `${summary.totalHours.toFixed(2)}` : '-'}
+                                            </div>
+                                        );
+                                    })}
+                                </React.Fragment>
+                            )
+                        })}
+                        {/* Footer Row */}
+                        <div className="sticky bottom-0 left-0 bg-card z-30 font-bold p-2 border-r border-t flex items-center justify-end col-span-2">Total Hours</div>
+                        {employees.map(emp => (
+                            <div key={emp.id} className="sticky bottom-0 bg-card z-20 font-bold text-primary tabular-nums p-2 border-t flex items-center justify-center">
+                                {(employeeTotals.get(emp.id) || 0).toFixed(2)}
+                            </div>
+                        ))}
+                    </div>
                 </div>
             ) : (
                 <div className="text-center py-10 text-muted-foreground">
