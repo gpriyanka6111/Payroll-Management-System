@@ -5,10 +5,10 @@ import * as React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Calendar as CalendarIcon, ArrowLeft, Users, Pencil, AlertTriangle, Loader2, FileSpreadsheet } from "lucide-react";
+import { Calendar as CalendarIcon, ArrowLeft, Users, Pencil, AlertTriangle, Loader2, FileSpreadsheet, Trash2 } from "lucide-react";
 import { format, differenceInMinutes, startOfDay, isSameDay, subDays, eachDayOfInterval, parse } from "date-fns";
 import { useAuth } from '@/contexts/auth-context';
-import { collection, query, where, getDocs, Timestamp, orderBy, doc, getDoc, updateDoc, addDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, Timestamp, orderBy, doc, getDoc, updateDoc, addDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -90,7 +90,7 @@ function PinDialog({ open, onOpenChange, onPinVerified }: { open: boolean, onOpe
                 <DialogHeader>
                     <DialogTitle>Enter Security PIN</DialogTitle>
                     <DialogDescription>
-                        Enter your 4-digit PIN to edit this time entry.
+                        Enter your 4-digit PIN to modify this time entry.
                     </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
@@ -117,6 +117,16 @@ function PinDialog({ open, onOpenChange, onPinVerified }: { open: boolean, onOpe
         </Dialog>
     );
 }
+
+const handleTimeInputChange = (e: React.ChangeEvent<HTMLInputElement>, fieldOnChange: (value: string) => void) => {
+    const rawValue = e.target.value.replace(/[^0-9]/g, '');
+    let formatted = rawValue;
+    if (rawValue.length > 2) {
+        formatted = `${rawValue.slice(0, 2)}:${rawValue.slice(2, 4)}`;
+    }
+    fieldOnChange(formatted);
+};
+
 
 function AddTimeEntryDialog({ isOpen, onClose, employee, date, onSave }: { isOpen: boolean, onClose: () => void, employee: Employee | null, date: Date | null, onSave: () => void }) {
     const { user } = useAuth();
@@ -177,7 +187,7 @@ function AddTimeEntryDialog({ isOpen, onClose, employee, date, onSave }: { isOpe
                         <div className="space-y-2">
                             <Label>Clock In</Label>
                             <div className="flex gap-2">
-                                <Input value={timeIn} onChange={e => setTimeIn(e.target.value)} placeholder="hh:mm" />
+                                <Input value={timeIn} onChange={(e) => handleTimeInputChange(e, setTimeIn)} placeholder="hh:mm" />
                                 <Select value={timeInAmPm} onValueChange={(v: 'AM' | 'PM') => setTimeInAmPm(v)}>
                                     <SelectTrigger><SelectValue /></SelectTrigger>
                                     <SelectContent><SelectItem value="AM">AM</SelectItem><SelectItem value="PM">PM</SelectItem></SelectContent>
@@ -187,7 +197,7 @@ function AddTimeEntryDialog({ isOpen, onClose, employee, date, onSave }: { isOpe
                         <div className="space-y-2">
                              <Label>Clock Out</Label>
                             <div className="flex gap-2">
-                                <Input value={timeOut} onChange={e => setTimeOut(e.target.value)} placeholder="hh:mm" />
+                                <Input value={timeOut} onChange={(e) => handleTimeInputChange(e, setTimeOut)} placeholder="hh:mm" />
                                 <Select value={timeOutAmPm} onValueChange={(v: 'AM' | 'PM') => setTimeOutAmPm(v)}>
                                     <SelectTrigger><SelectValue /></SelectTrigger>
                                     <SelectContent><SelectItem value="AM">AM</SelectItem><SelectItem value="PM">PM</SelectItem></SelectContent>
@@ -208,7 +218,7 @@ function AddTimeEntryDialog({ isOpen, onClose, employee, date, onSave }: { isOpe
 }
 
 
-function EditTimeEntryDialog({ isOpen, onClose, entry, date, onSave }: { isOpen: boolean, onClose: () => void, entry: TimeEntry | null, date: Date | null, onSave: () => void }) {
+function EditTimeEntryDialog({ isOpen, onClose, entry, date, onSave, onDeleteRequest }: { isOpen: boolean, onClose: () => void, entry: TimeEntry | null, date: Date | null, onSave: () => void, onDeleteRequest: (entry: TimeEntry) => void }) {
     const { user } = useAuth();
     const { toast } = useToast();
     const [isSaving, setIsSaving] = React.useState(false);
@@ -289,7 +299,7 @@ function EditTimeEntryDialog({ isOpen, onClose, entry, date, onSave }: { isOpen:
                         <div className="space-y-2">
                             <Label>Clock In</Label>
                             <div className="flex gap-2">
-                                <Input value={timeIn} onChange={e => setTimeIn(e.target.value)} placeholder="hh:mm" />
+                                <Input value={timeIn} onChange={(e) => handleTimeInputChange(e, setTimeIn)} placeholder="hh:mm" />
                                 <Select value={timeInAmPm} onValueChange={(v: 'AM' | 'PM') => setTimeInAmPm(v)}>
                                     <SelectTrigger><SelectValue /></SelectTrigger>
                                     <SelectContent><SelectItem value="AM">AM</SelectItem><SelectItem value="PM">PM</SelectItem></SelectContent>
@@ -299,7 +309,7 @@ function EditTimeEntryDialog({ isOpen, onClose, entry, date, onSave }: { isOpen:
                         <div className="space-y-2">
                              <Label>Clock Out</Label>
                             <div className="flex gap-2">
-                                <Input value={timeOut} onChange={e => setTimeOut(e.target.value)} placeholder="hh:mm" disabled={!isClockedOut} />
+                                <Input value={timeOut} onChange={(e) => handleTimeInputChange(e, setTimeOut)} placeholder="hh:mm" disabled={!isClockedOut} />
                                 <Select value={timeOutAmPm} onValueChange={(v: 'AM' | 'PM') => setTimeOutAmPm(v)} disabled={!isClockedOut}>
                                     <SelectTrigger><SelectValue /></SelectTrigger>
                                     <SelectContent><SelectItem value="AM">AM</SelectItem><SelectItem value="PM">PM</SelectItem></SelectContent>
@@ -314,11 +324,16 @@ function EditTimeEntryDialog({ isOpen, onClose, entry, date, onSave }: { isOpen:
                         </div>
                     </div>
                 </div>
-                <DialogFooter>
-                    <Button variant="outline" onClick={onClose}>Cancel</Button>
-                    <Button onClick={handleSave} disabled={isSaving}>
-                        {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>} Save
+                <DialogFooter className="justify-between">
+                    <Button variant="destructive" onClick={() => onDeleteRequest(entry)}>
+                        <Trash2 className="mr-2 h-4 w-4"/> Delete Entry
                     </Button>
+                    <div className="flex gap-2">
+                      <Button variant="outline" onClick={onClose}>Cancel</Button>
+                      <Button onClick={handleSave} disabled={isSaving}>
+                          {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>} Save
+                      </Button>
+                    </div>
                 </DialogFooter>
             </DialogContent>
         </Dialog>
@@ -396,7 +411,7 @@ export default function TimesheetPage() {
   const [isAddDialogOpen, setIsAddDialogOpen] = React.useState(false);
   const [entryToAdd, setEntryToAdd] = React.useState<{employee: Employee, date: Date} | null>(null);
 
-  const [actionType, setActionType] = React.useState<'edit' | 'add' | null>(null);
+  const [actionType, setActionType] = React.useState<'edit' | 'add' | 'delete' | null>(null);
 
   
   const fetchData = React.useCallback(async () => {
@@ -487,6 +502,27 @@ export default function TimesheetPage() {
         setIsPinDialogOpen(true);
     }
   };
+  
+  const handleDeleteRequest = (entry: TimeEntry) => {
+    setActionType('delete');
+    setEntryToEdit({ entry, date: new Date() }); // date is not important here, just need entry
+    setIsPinDialogOpen(true);
+  }
+
+  const handleDeleteEntry = async () => {
+    if (!user || !entryToEdit) return;
+
+    try {
+        const { entry } = entryToEdit;
+        const entryDocRef = doc(db, 'users', user.uid, 'employees', entry.employeeId, 'timeEntries', entry.id);
+        await deleteDoc(entryDocRef);
+        toast({ title: 'Success', description: 'Time entry deleted.' });
+        handleEditSave(); // This will close dialogs and refetch data
+    } catch (error) {
+        console.error("Error deleting entry:", error);
+        toast({ title: 'Error', description: 'Failed to delete time entry.', variant: 'destructive' });
+    }
+  };
 
   const handlePinVerified = () => {
     setIsPinDialogOpen(false);
@@ -495,6 +531,8 @@ export default function TimesheetPage() {
         setIsEditDialogOpen(true);
     } else if (actionType === 'add' && entryToAdd) {
         setIsAddDialogOpen(true);
+    } else if (actionType === 'delete' && entryToEdit) {
+        handleDeleteEntry();
     }
   };
 
@@ -669,9 +707,9 @@ export default function TimesheetPage() {
              </div>
            ) : (
             employees.length > 0 ? (
-                <div className="overflow-x-auto border rounded-lg max-h-[65vh] relative">
+                <div className="border rounded-lg max-h-[65vh] overflow-auto relative">
                     <Table>
-                        <TableHeader className="sticky top-0 bg-card z-10">
+                        <TableHeader className="sticky top-0 bg-card z-10 shadow-sm">
                             <TableRow>
                                 <TableHead className="w-[120px] font-bold">Date</TableHead>
                                 <TableHead className="w-[80px] font-bold">Metric</TableHead>
@@ -766,6 +804,7 @@ export default function TimesheetPage() {
             entry={entryToEdit?.entry ?? null}
             date={entryToEdit?.date ?? null}
             onSave={handleEditSave}
+            onDeleteRequest={handleDeleteRequest}
         />
 
         <AddTimeEntryDialog
@@ -779,3 +818,5 @@ export default function TimesheetPage() {
     </div>
   );
 }
+
+    
