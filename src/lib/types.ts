@@ -4,7 +4,7 @@ import type { PayrollResult, EmployeePayrollInput } from "@/components/payroll/p
 export type Employee = {
   id: string; // Document ID from Firestore
   firstName: string;
-  lastName: string;
+  lastName?: string;
   email?: string;
   mobileNumber?: string;
   ssn?: string;
