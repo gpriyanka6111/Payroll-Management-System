@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Calendar as CalendarIcon, ArrowLeft, Users, Pencil, AlertTriangle, Loader2, FileSpreadsheet } from "lucide-react";
 import { format, differenceInMinutes, startOfDay, isSameDay, subDays, eachDayOfInterval, parse } from "date-fns";
 import { useAuth } from '@/contexts/auth-context';
-import { collection, query, where, getDocs, Timestamp, orderBy, doc, getDoc, updateDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, Timestamp, orderBy, doc, getDoc, updateDoc, addDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -116,6 +116,94 @@ function PinDialog({ open, onOpenChange, onPinVerified }: { open: boolean, onOpe
             </DialogContent>
         </Dialog>
     );
+}
+
+function AddTimeEntryDialog({ isOpen, onClose, employee, date, onSave }: { isOpen: boolean, onClose: () => void, employee: Employee | null, date: Date | null, onSave: () => void }) {
+    const { user } = useAuth();
+    const { toast } = useToast();
+    const [isSaving, setIsSaving] = React.useState(false);
+    const [error, setError] = React.useState('');
+
+    const [timeIn, setTimeIn] = React.useState('09:00');
+    const [timeInAmPm, setTimeInAmPm] = React.useState<'AM' | 'PM'>('AM');
+    const [timeOut, setTimeOut] = React.useState('05:00');
+    const [timeOutAmPm, setTimeOutAmPm] = React.useState<'AM' | 'PM'>('PM');
+
+    const handleSave = async () => {
+        if (!user || !employee || !date) return;
+        setError('');
+
+        const timeInDate = parse(`${timeIn} ${timeInAmPm}`, 'hh:mm a', date);
+        const timeOutDate = parse(`${timeOut} ${timeOutAmPm}`, 'hh:mm a', date);
+        
+        if (timeOutDate < timeInDate) {
+            setError('Clock-out time cannot be before clock-in time.');
+            return;
+        }
+        
+        setIsSaving(true);
+        try {
+            const timeEntriesRef = collection(db, 'users', user.uid, 'employees', employee.id, 'timeEntries');
+            await addDoc(timeEntriesRef, {
+                timeIn: Timestamp.fromDate(timeInDate),
+                timeOut: Timestamp.fromDate(timeOutDate),
+                employeeId: employee.id,
+                employeeName: employee.firstName,
+            });
+            toast({ title: 'Success', description: 'Time entry created successfully.' });
+            onSave();
+        } catch (err) {
+            console.error('Error creating time entry:', err);
+            toast({ title: 'Error', description: 'Failed to create time entry.', variant: 'destructive' });
+        } finally {
+            setIsSaving(false);
+        }
+    };
+    
+    if (!employee || !date) return null;
+
+    return (
+        <Dialog open={isOpen} onOpenChange={onClose}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Add Time Entry</DialogTitle>
+                    <DialogDescription>
+                        Create a new entry for {employee.firstName} on {format(date, 'PPP')}.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                    {error && <Alert variant="destructive"><AlertTriangle className="h-4 w-4" /><AlertTitle>{error}</AlertTitle></Alert>}
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label>Clock In</Label>
+                            <div className="flex gap-2">
+                                <Input value={timeIn} onChange={e => setTimeIn(e.target.value)} placeholder="hh:mm" />
+                                <Select value={timeInAmPm} onValueChange={(v: 'AM' | 'PM') => setTimeInAmPm(v)}>
+                                    <SelectTrigger><SelectValue /></SelectTrigger>
+                                    <SelectContent><SelectItem value="AM">AM</SelectItem><SelectItem value="PM">PM</SelectItem></SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+                        <div className="space-y-2">
+                             <Label>Clock Out</Label>
+                            <div className="flex gap-2">
+                                <Input value={timeOut} onChange={e => setTimeOut(e.target.value)} placeholder="hh:mm" />
+                                <Select value={timeOutAmPm} onValueChange={(v: 'AM' | 'PM') => setTimeOutAmPm(v)}>
+                                    <SelectTrigger><SelectValue /></SelectTrigger>
+                                    <SelectContent><SelectItem value="AM">AM</SelectItem><SelectItem value="PM">PM</SelectItem></SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <DialogFooter>
+                    <Button variant="outline" onClick={onClose}>Cancel</Button>
+                    <Button onClick={handleSave} disabled={isSaving}>
+                        {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>} Save Entry
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+    )
 }
 
 
@@ -304,6 +392,11 @@ export default function TimesheetPage() {
   const [isPinDialogOpen, setIsPinDialogOpen] = React.useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = React.useState(false);
   const [entryToEdit, setEntryToEdit] = React.useState<{entry: TimeEntry, date: Date} | null>(null);
+  const [isAddDialogOpen, setIsAddDialogOpen] = React.useState(false);
+  const [entryToAdd, setEntryToAdd] = React.useState<{employee: Employee, date: Date} | null>(null);
+
+  const [actionType, setActionType] = React.useState<'edit' | 'add' | null>(null);
+
   
   const fetchData = React.useCallback(async () => {
      if (!user || !dateRange?.from || !dateRange?.to) {
@@ -373,18 +466,22 @@ export default function TimesheetPage() {
     fetchData();
   }, [fetchData]);
 
-  const handleCellClick = (summary: DailySummary | undefined, date: Date) => {
+  const handleCellClick = (employee: Employee, date: Date) => {
+    const summary = dailySummaries.find(s => s.employeeId === employee.id && isSameDay(s.date, date));
     if (summary) {
       setSelectedCellDetails({ date: summary.date, summary: summary });
       setIsDetailsDialogOpen(true);
     } else {
-      setSelectedCellDetails({ date, summary: null });
+      setActionType('add');
+      setEntryToAdd({ employee, date });
+      setIsPinDialogOpen(true);
     }
   };
 
 
   const handleEditRequest = (entry: TimeEntry) => {
     if (selectedCellDetails.date) {
+        setActionType('edit');
         setEntryToEdit({ entry, date: selectedCellDetails.date });
         setIsPinDialogOpen(true);
     }
@@ -392,13 +489,25 @@ export default function TimesheetPage() {
 
   const handlePinVerified = () => {
     setIsPinDialogOpen(false);
-    setIsDetailsDialogOpen(false);
-    setIsEditDialogOpen(true);
+    if (actionType === 'edit' && entryToEdit) {
+        setIsDetailsDialogOpen(false);
+        setIsEditDialogOpen(true);
+    } else if (actionType === 'add' && entryToAdd) {
+        setIsAddDialogOpen(true);
+    }
   };
 
   const handleEditSave = () => {
       setIsEditDialogOpen(false);
       setEntryToEdit(null);
+      setActionType(null);
+      fetchData(); // Refetch data to show updated times
+  }
+
+   const handleAddSave = () => {
+      setIsAddDialogOpen(false);
+      setEntryToAdd(null);
+      setActionType(null);
       fetchData(); // Refetch data to show updated times
   }
 
@@ -583,7 +692,7 @@ export default function TimesheetPage() {
                                             {employees.map(emp => {
                                                 const summary = daySummaries.find(s => s.employeeId === emp.id);
                                                 return (
-                                                    <TableCell key={`${emp.id}-in`} className="text-center tabular-nums cursor-pointer p-2" onClick={() => handleCellClick(summary, day)}>
+                                                    <TableCell key={`${emp.id}-in`} className="text-center tabular-nums cursor-pointer p-2" onClick={() => handleCellClick(emp, day)}>
                                                         {summary ? (summary.entries.length > 1 ? 'Multiple' : (summary.entries[0]?.timeIn ? format(summary.entries[0].timeIn.toDate(), 'p') : '-')) : '-'}
                                                     </TableCell>
                                                 );
@@ -594,7 +703,7 @@ export default function TimesheetPage() {
                                              {employees.map(emp => {
                                                 const summary = daySummaries.find(s => s.employeeId === emp.id);
                                                 return (
-                                                    <TableCell key={`${emp.id}-out`} className="text-center tabular-nums cursor-pointer p-2" onClick={() => handleCellClick(summary, day)}>
+                                                    <TableCell key={`${emp.id}-out`} className="text-center tabular-nums cursor-pointer p-2" onClick={() => handleCellClick(emp, day)}>
                                                         {summary ? (summary.entries.length > 1 ? 'Multiple' : (summary.entries[0]?.timeOut ? format(summary.entries[0].timeOut.toDate(), 'p') : (summary.entries[0]?.timeIn ? <span className="text-accent font-semibold">ACTIVE</span> : '-'))) : '-'}
                                                     </TableCell>
                                                 );
@@ -605,7 +714,7 @@ export default function TimesheetPage() {
                                             {employees.map(emp => {
                                                 const summary = daySummaries.find(s => s.employeeId === emp.id);
                                                 return (
-                                                    <TableCell key={`${emp.id}-total`} className="text-center font-bold tabular-nums border-b cursor-pointer p-2" onClick={() => handleCellClick(summary, day)}>
+                                                    <TableCell key={`${emp.id}-total`} className="text-center font-bold tabular-nums border-b cursor-pointer p-2" onClick={() => handleCellClick(emp, day)}>
                                                         {summary && summary.totalHours > 0 ? `${summary.totalHours.toFixed(2)}` : '-'}
                                                     </TableCell>
                                                 );
@@ -656,6 +765,14 @@ export default function TimesheetPage() {
             entry={entryToEdit?.entry ?? null}
             date={entryToEdit?.date ?? null}
             onSave={handleEditSave}
+        />
+
+        <AddTimeEntryDialog
+            isOpen={isAddDialogOpen}
+            onClose={() => setIsAddDialogOpen(false)}
+            employee={entryToAdd?.employee ?? null}
+            date={entryToAdd?.date ?? null}
+            onSave={handleAddSave}
         />
 
     </div>
