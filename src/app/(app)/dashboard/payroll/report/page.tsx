@@ -420,7 +420,7 @@ function PayrollReportContent() {
         ws['!rows'] = row_heights;
 
         const colWidths = [{ wch: 6.5 }, { wch: 7 }, { wch: 6 }];
-        inputs.forEach(() => colWidths.push({ wch: 12 }));
+        inputs.forEach(() => colWidths.push({ wch: 9 }));
         ws['!cols'] = colWidths;
         
         // --- Cell Styling ---
