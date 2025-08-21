@@ -368,7 +368,7 @@ function PayrollReportContent() {
         ws_data.push([]); 
         row_heights.push({ hpx: 20 });
         currentRow++;
-
+        
         ws_data.push([null, null, null, ...employeeNames]);
         row_heights.push({ hpx: 25 });
         currentRow++;
@@ -393,7 +393,7 @@ function PayrollReportContent() {
         ws_data.push([]); 
         row_heights.push({ hpx: 20 });
         currentRow++;
-        
+
         ws_data.push(['GP', 'EMPLOYER', 'EMPLOYEE', 'DED', 'NET', 'OTHERS']);
         row_heights.push({ hpx: 25 });
         currentRow++;
@@ -409,8 +409,8 @@ function PayrollReportContent() {
         row_heights.push({ hpx: 25 });
         currentRow++;
 
+
         const ws = XLSX.utils.aoa_to_sheet(ws_data);
-        
         ws['!merges'] = merges;
         ws['!rows'] = row_heights;
 
@@ -442,7 +442,7 @@ function PayrollReportContent() {
             
             let applyThickBorder = thickBorderRowLabels.has(String(firstCellValue));
             
-            // Special case for the row after 'GP' which is the value row
+            // Special case for the row with GP values
             if (!applyThickBorder && R > 0) {
                  const prevRowRef = XLSX.utils.encode_cell({ c: 0, r: R - 1 });
                  const prevRowValue = ws[prevRowRef]?.v;
@@ -658,6 +658,8 @@ export default function PayrollReportPage() {
         </React.Suspense>
     )
 }
+
+    
 
     
 
