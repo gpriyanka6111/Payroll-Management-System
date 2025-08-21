@@ -147,11 +147,59 @@ export default function DashboardPage() {
     return () => unsubscribe();
   }, [user, selectedEmployeeId, toast, employees]);
 
+  const getAutoClockOutTime = async (clockInDate: Date): Promise<{ timeOutValue: Date, toastDescription: string }> => {
+    if (!user) throw new Error("User not authenticated.");
+
+    const userSettingsRef = doc(db, 'users', user.uid);
+    const userSettingsSnap = await getDoc(userSettingsRef);
+    
+    let closingTime = '05:00 PM'; // Default
+    if (userSettingsSnap.exists()) {
+        const settings = userSettingsSnap.data();
+        const dayOfWeek = getDay(clockInDate); // Sunday = 0, Monday = 1...
+
+        if (settings.storeTimings) {
+            if (dayOfWeek >= 1 && dayOfWeek <= 5) { // Mon-Fri
+                closingTime = settings.storeTimings.closeWeekdays || '05:00 PM';
+            } else if (dayOfWeek === 6) { // Saturday
+                closingTime = settings.storeTimings.closeSaturday || '05:00 PM';
+            } else { // Sunday
+                if (settings.storeTimings.sundayClosed) {
+                     closingTime = settings.storeTimings.closeWeekdays || '05:00 PM';
+                } else {
+                     closingTime = settings.storeTimings.closeSunday || '05:00 PM';
+                }
+            }
+        }
+    }
+
+    const clockOutDate = parse(closingTime, 'hh:mm a', clockInDate);
+    const employeeName = activeTimeEntry?.employeeName || 'Employee';
+    const toastDescription = `${employeeName} was automatically clocked out for a previous shift at ${format(clockOutDate, 'p')}.`;
+
+    return { timeOutValue: clockOutDate, toastDescription };
+  }
 
   const handleTimeIn = async () => {
     if (!user || !selectedEmployeeId) return;
     setIsSubmitting(true);
+    
     try {
+      // Check if there is a stale clock-in from a previous day
+      if (activeTimeEntry && isBefore(activeTimeEntry.timeIn.toDate(), startOfToday())) {
+          const { timeOutValue, toastDescription } = await getAutoClockOutTime(activeTimeEntry.timeIn.toDate());
+          const staleEntryDocRef = doc(db, 'users', user.uid, 'employees', activeTimeEntry.employeeId, 'timeEntries', activeTimeEntry.id);
+          await updateDoc(staleEntryDocRef, { timeOut: timeOutValue });
+          
+          toast({
+              title: "Previous Shift Closed",
+              description: toastDescription,
+              variant: "destructive"
+          });
+          setActiveTimeEntry(null); // Clear the stale entry
+      }
+
+      // Proceed with the new clock-in
       const selectedEmployee = employees.find(e => e.id === selectedEmployeeId);
       if (!selectedEmployee) return;
 
@@ -167,6 +215,7 @@ export default function DashboardPage() {
         title: "Clocked In!",
         description: `${selectedEmployee?.firstName}'s shift has started at ${format(new Date(), 'p')}.`,
       });
+
     } catch (error) {
       console.error("Error clocking in:", error);
       toast({ title: "Error", description: "Failed to clock in.", variant: "destructive" });
@@ -185,30 +234,9 @@ export default function DashboardPage() {
         let toastDescription = `${activeTimeEntry.employeeName}'s shift has ended.`;
 
         if (isBefore(activeTimeEntry.timeIn.toDate(), startOfToday())) {
-            const userSettingsRef = doc(db, 'users', user.uid);
-            const userSettingsSnap = await getDoc(userSettingsRef);
-            
-            let closingTime = '05:00 PM'; // Default
-            if (userSettingsSnap.exists()) {
-                const settings = userSettingsSnap.data();
-                const clockInDate = activeTimeEntry.timeIn.toDate();
-                const dayOfWeek = getDay(clockInDate); // Sunday = 0, Monday = 1...
-
-                if (settings.storeTimings) {
-                    if (dayOfWeek >= 1 && dayOfWeek <= 5) { // Mon-Fri
-                        closingTime = settings.storeTimings.weekdays || '05:00 PM';
-                    } else if (dayOfWeek === 6) { // Saturday
-                        closingTime = settings.storeTimings.saturday || '05:00 PM';
-                    } else { // Sunday
-                        closingTime = settings.storeTimings.sunday || '05:00 PM';
-                    }
-                }
-            }
-
-            const clockOutDate = parse(closingTime, 'hh:mm a', activeTimeEntry.timeIn.toDate());
-
-            timeOutValue = clockOutDate;
-            toastDescription = `${activeTimeEntry.employeeName} was automatically clocked out for a previous shift at ${format(clockOutDate, 'p')}.`;
+            const autoClockOutResult = await getAutoClockOutTime(activeTimeEntry.timeIn.toDate());
+            timeOutValue = autoClockOutResult.timeOutValue;
+            toastDescription = autoClockOutResult.toastDescription;
         }
 
         await updateDoc(entryDocRef, {
@@ -315,7 +343,7 @@ export default function DashboardPage() {
                         )
                         )}
                         <div className="grid grid-cols-2 gap-4">
-                        <Button size="lg" onClick={handleTimeIn} disabled={!selectedEmployeeId || !!activeTimeEntry || isSubmitting}>
+                        <Button size="lg" onClick={handleTimeIn} disabled={!selectedEmployeeId || (!!activeTimeEntry && !isBefore(activeTimeEntry.timeIn.toDate(), startOfToday())) || isSubmitting}>
                             <LogIn className="mr-2 h-5 w-5" /> Time In
                         </Button>
                         <Button size="lg" variant="destructive" onClick={handleTimeOut} disabled={!selectedEmployeeId || !activeTimeEntry || isSubmitting}>
@@ -405,3 +433,5 @@ export default function DashboardPage() {
     </div>
   );
 }
+
+    
