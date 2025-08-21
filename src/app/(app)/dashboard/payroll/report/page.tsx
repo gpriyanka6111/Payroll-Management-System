@@ -219,12 +219,12 @@ function PayrollReportContent() {
 
     const handleExportToExcel = async () => {
         if (!period || !results.length || !user) return;
-
+    
         // 1. Fetch all time entries for the period for all employees
         const toDateEnd = new Date(period.to);
         toDateEnd.setHours(23, 59, 59, 999);
         const employeeHours: EmployeeDailyHours = {};
-
+    
         for (const input of inputs) {
             employeeHours[input.employeeId] = [];
             const timeEntriesRef = collection(db, 'users', user.uid, 'employees', input.employeeId, 'timeEntries');
@@ -243,7 +243,7 @@ function PayrollReportContent() {
                     dailyMinutes[dateKey] = (dailyMinutes[dateKey] || 0) + minutes;
                 }
             });
-
+    
             for (const dateKey in dailyMinutes) {
                 employeeHours[input.employeeId].push({
                     date: new Date(dateKey + 'T12:00:00'), // Use noon to avoid timezone issues
@@ -251,32 +251,30 @@ function PayrollReportContent() {
                 });
             }
         }
-
-
+    
         // 2. Build the Excel sheet
         const wb = XLSX.utils.book_new();
         const ws_data: (string | number | null)[][] = [];
-
+    
         // Header Row
         ws_data.push([`${companyName} - Pay Period: ${format(period.from, 'LLL dd, yyyy')} - ${format(period.to, 'LLL dd, yyyy')}`]);
         ws_data.push([]); // Spacer
-
+    
         // Employee Header Row
         const employeeNames = inputs.map(i => i.name);
-        ws_data.push([null, null, null, ...employeeNames]);
-
+        ws_data.push(['Date', 'Day', ...employeeNames]);
+    
         const daysInPeriod = eachDayOfInterval({ start: period.from, end: period.to });
         let weeklyTotals: number[] = Array(inputs.length).fill(0);
         const grandTotals: number[] = Array(inputs.length).fill(0);
-
+    
         daysInPeriod.forEach((day, index) => {
             const dayOfWeek = getDay(day); // Sunday is 0
-
+    
             // Daily hours row
             const row: (string | number | null)[] = [
-                getWeek(day, { weekStartsOn: 1 }), // Week number
+                format(day, 'MM/dd/yyyy'),
                 format(day, 'EEE').toUpperCase(),
-                'Hours'
             ];
             inputs.forEach((input, i) => {
                 const dayData = employeeHours[input.employeeId]?.find(d => isSameDay(d.date, day));
@@ -286,10 +284,10 @@ function PayrollReportContent() {
                 grandTotals[i] += hours;
             });
             ws_data.push(row);
-
+    
             // Check if it's the end of the week (Saturday) or the last day of the period
             if (dayOfWeek === 6 || index === daysInPeriod.length - 1) {
-                const weeklyTotalRow: (string | number | null)[] = [null, null, 'Total Hrs of this week'];
+                const weeklyTotalRow: (string | number | null)[] = [null, 'Total Hrs of this week'];
                 weeklyTotals.forEach(total => {
                     weeklyTotalRow.push(total > 0 ? parseFloat(total.toFixed(2)) : null);
                 });
@@ -297,18 +295,23 @@ function PayrollReportContent() {
                 weeklyTotals = Array(inputs.length).fill(0); // Reset for next week
             }
         });
-
+    
         // Grand Total Row
         ws_data.push([]);
-        const grandTotalRow: (string | number | null)[] = [null, null, 'Total Hours'];
+        const grandTotalRow: (string | number | null)[] = [null, 'Total Hours'];
         grandTotals.forEach(total => {
             grandTotalRow.push(total > 0 ? parseFloat(total.toFixed(2)) : null);
         });
         ws_data.push(grandTotalRow);
-
+    
         const ws = XLSX.utils.aoa_to_sheet(ws_data);
+        
+        // Set row heights
+        const row_heights = ws_data.map(() => ({ hpx: 25 }));
+        ws['!rows'] = row_heights;
+        
         XLSX.utils.book_append_sheet(wb, ws, "Timesheet Report");
-
+    
         const fileName = `Payroll_Timesheet_${format(period.from, 'yyyy-MM-dd')}_to_${format(period.to, 'yyyy-MM-dd')}.xlsx`;
         XLSX.writeFile(wb, fileName);
     };
