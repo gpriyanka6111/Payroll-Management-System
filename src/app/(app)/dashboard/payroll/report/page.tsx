@@ -270,7 +270,7 @@ function PayrollReportContent() {
         row_heights.push({ hpx: 25 });
         currentRow++;
     
-        const employeeNames = inputs.map(i => i.name);
+        const employeeNames = inputs.map(i => i.name.toUpperCase());
         ws_data.push(['Date', 'Day', 'HRS', ...employeeNames]);
         row_heights.push({ hpx: 25 });
         currentRow++;
@@ -413,26 +413,39 @@ function PayrollReportContent() {
         // Helper to get cell address
         const getCellAddress = (r: number, c: number) => XLSX.utils.encode_cell({ r, c });
 
-        // Style Header
-        for (let C = 0; C < ws_data[2].length; C++) {
-            const cellAddress = getCellAddress(2, C);
-            if (!ws[cellAddress]) ws[cellAddress] = { t: 's', v: ws_data[2][C] };
-            ws[cellAddress].s = { fill: lightGrayFill, font: { bold: true } };
-        }
-
-        // Style Summary Rows
+        // Apply styles
         ws_data.forEach((row, r) => {
-           if (typeof row[0] === 'string') {
-             if (row[0].startsWith('Total')) {
-                const cellAddress = getCellAddress(r, 0);
-                if (!ws[cellAddress]) ws[cellAddress] = { t: 's', v: row[0] };
-                ws[cellAddress].s = { fill: lightGrayFill, font: { bold: true }, alignment: centerAlign };
-             } else if (row[0].endsWith('$') || row[0].match(/^[A-Z\s/]+$/)) {
-                const cellAddress = getCellAddress(r, 0);
-                if (!ws[cellAddress]) ws[cellAddress] = { t: 's', v: row[0] };
-                ws[cellAddress].s = { alignment: centerAlign };
-             }
-           }
+            row.forEach((cell, c) => {
+                const cellAddress = getCellAddress(r, c);
+                if (!ws[cellAddress]) ws[cellAddress] = { t: 's', v: cell };
+                let currentStyle = ws[cellAddress].s || {};
+
+                // Center align all data columns
+                if (c >= 3) {
+                    currentStyle.alignment = { ...currentStyle.alignment, ...centerAlign };
+                }
+                
+                const rowText = typeof row[0] === 'string' ? row[0] : '';
+
+                // Header row
+                if (r === 2) {
+                    currentStyle.fill = lightGrayFill;
+                    currentStyle.font = { ...currentStyle.font, bold: true };
+                }
+                // Weekly total and grand total rows
+                else if (rowText.startsWith('Total')) {
+                    currentStyle.fill = lightGrayFill;
+                    currentStyle.font = { ...currentStyle.font, bold: true };
+                    // Apply to merged area too
+                    if (c === 0) ws[getCellAddress(r,0)].s = { ...ws[getCellAddress(r,0)].s, alignment: centerAlign };
+                }
+                // Financial summary labels
+                else if (r > grandTotals.length + 3 && c === 0 && rowText.match(/^[A-Z\s/$-]+$/)) {
+                     ws[getCellAddress(r,0)].s = { ...ws[getCellAddress(r,0)].s, alignment: centerAlign };
+                }
+
+                ws[cellAddress].s = currentStyle;
+            });
         });
 
         XLSX.utils.book_append_sheet(wb, ws, "Timesheet Report");
@@ -643,5 +656,7 @@ export default function PayrollReportPage() {
 
 
 
+
+    
 
     
