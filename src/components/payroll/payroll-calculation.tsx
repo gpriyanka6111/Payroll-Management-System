@@ -45,6 +45,7 @@ const employeePayrollInputSchema = z.object({
   otherHours: z.coerce.number().min(0).default(0),
   ptoUsed: z.coerce.number().min(0, { message: 'PTO hours must be non-negative.' }).default(0),
   ptoBalance: z.number().optional(),
+  standardCheckHours: z.number().optional(),
   comment: z.string().optional(),
 }).refine(data => {
     if (data.payMethod === 'Hourly') {
@@ -179,8 +180,14 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
 
             const totalHours = totalMinutes / 60;
             const roundedHours = parseFloat(totalHours.toFixed(1));
+            const standardHours = employee.standardCheckHours ?? 0;
+
+            const checkHours = Math.min(roundedHours, standardHours);
+            const otherHours = Math.max(0, roundedHours - standardHours);
+
             setValue(`employees.${employee.index}.totalHoursWorked`, roundedHours, { shouldValidate: true, shouldDirty: true });
-            setValue(`employees.${employee.index}.checkHours`, roundedHours, { shouldValidate: true, shouldDirty: true });
+            setValue(`employees.${employee.index}.checkHours`, parseFloat(checkHours.toFixed(1)), { shouldValidate: true, shouldDirty: true });
+            setValue(`employees.${employee.index}.otherHours`, parseFloat(otherHours.toFixed(1)), { shouldValidate: true, shouldDirty: true });
         }));
         
          toast({ title: "Hours Fetched", description: "Total hours for hourly employees have been updated.", variant: 'default' });
@@ -240,6 +247,7 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
                   payRateOthers: emp.payRateOthers ?? 0,
                   biWeeklySalary: emp.biWeeklySalary ?? 0,
                   ptoBalance: emp.ptoBalance,
+                  standardCheckHours: emp.standardCheckHours ?? 0,
                   totalHoursWorked: 0,
                   checkHours: 0,
                   otherHours: 0,
@@ -258,6 +266,7 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
               payRateOthers: emp.payRateOthers ?? 0,
               biWeeklySalary: emp.biWeeklySalary ?? 0,
               ptoBalance: emp.ptoBalance,
+              standardCheckHours: emp.standardCheckHours ?? 0,
               totalHoursWorked: 0,
               checkHours: 0,
               otherHours: 0,
