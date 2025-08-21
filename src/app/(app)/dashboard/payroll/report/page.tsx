@@ -8,7 +8,7 @@ import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import type { PayrollResult, EmployeePayrollInput } from '@/components/payroll/payroll-calculation';
 import { Payslip } from '@/components/payroll/payslip';
-import { format, startOfYear, eachDayOfInterval, isSameDay, getWeek, getDay } from 'date-fns';
+import { format, startOfYear, eachDayOfInterval, isSameDay, getWeek, getDay, isValid, parseISO } from 'date-fns';
 import { ArrowLeft, Users, Pencil, FileSpreadsheet } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -123,9 +123,16 @@ function PayrollReportContent() {
                     const parsedPeriod = JSON.parse(periodData);
                     fromDate = new Date(parsedPeriod.from);
                     toDate = new Date(parsedPeriod.to);
+
+                     if (!isValid(fromDate) || !isValid(toDate)) {
+                        router.replace('/dashboard/payroll/run');
+                        return;
+                    }
+
                     currentPayrollData = {
                         results: JSON.parse(resultsData),
                         inputs: JSON.parse(inputData),
+                        fromDate: format(fromDate, 'yyyy-MM-dd')
                     }
                     setResults(currentPayrollData.results);
                     setInputs(currentPayrollData.inputs);
@@ -248,10 +255,13 @@ function PayrollReportContent() {
             });
     
             for (const dateKey in dailyMinutes) {
-                employeeHours[input.employeeId].push({
-                    date: new Date(dateKey + 'T12:00:00'),
-                    hours: dailyMinutes[dateKey] / 60
-                });
+                 const dateWithTimezone = parseISO(dateKey + 'T12:00:00');
+                 if(isValid(dateWithTimezone)) {
+                    employeeHours[input.employeeId].push({
+                        date: dateWithTimezone,
+                        hours: dailyMinutes[dateKey] / 60
+                    });
+                 }
             }
         }
     
@@ -267,7 +277,7 @@ function PayrollReportContent() {
         currentRow++;
     
         ws_data.push([]);
-        row_heights.push({ hpx: 25 });
+        row_heights.push({ hpx: 20 });
         currentRow++;
     
         const employeeNames = inputs.map(i => i.name.toUpperCase());
@@ -291,7 +301,7 @@ function PayrollReportContent() {
                 inputs.forEach((input, i) => {
                     const dayData = employeeHours[input.employeeId]?.find(d => isSameDay(d.date, day));
                     const hours = dayData ? parseFloat(dayData.hours.toFixed(2)) : 0;
-                    row.push(hours > 0 ? hours : null);
+                    row.push(hours > 0 ? hours : '');
                     weeklyTotals[i] += hours;
                     grandTotals[i] += hours;
                 });
@@ -306,7 +316,7 @@ function PayrollReportContent() {
             if ((isSaturday || isLastDay) && weeklyTotals.some(t => t > 0)) {
                 const weeklyTotalRow: (string | number | null)[] = ['Total Hrs of this week', null, null];
                 weeklyTotals.forEach(total => {
-                    weeklyTotalRow.push(total > 0 ? parseFloat(total.toFixed(2)) : null);
+                    weeklyTotalRow.push(total > 0 ? parseFloat(total.toFixed(2)) : '');
                 });
                 ws_data.push(weeklyTotalRow);
                 merges.push({ s: { r: currentRow, c: 0 }, e: { r: currentRow, c: 2 } });
@@ -318,7 +328,7 @@ function PayrollReportContent() {
     
         const grandTotalRow: (string | number | null)[] = ['Total Hours', null, null];
         grandTotals.forEach(total => {
-            grandTotalRow.push(total > 0 ? parseFloat(total.toFixed(2)) : null);
+            grandTotalRow.push(total > 0 ? parseFloat(total.toFixed(2)) : '');
         });
         ws_data.push(grandTotalRow);
         merges.push({ s: { r: currentRow, c: 0 }, e: { r: currentRow, c: 2 } });
@@ -337,15 +347,19 @@ function PayrollReportContent() {
         ];
 
         summaryMetrics.forEach(metric => {
-            const row = [metric.label, null, null];
+            const row: (string | number | null)[] = [metric.label, null, null];
             inputs.forEach(input => {
                 const source = metric.type === 'input' ? input : results.find(r => r.employeeId === input.employeeId);
-                let value = source ? (source as any)[metric.key] : null;
+                let value: any = source ? (source as any)[metric.key] : undefined;
 
-                if (metric.format === 'currency') value = formatCurrency(value);
-                else if (metric.format === 'hours') value = formatHours(value);
+                if (value !== undefined && value !== null && value !== '') {
+                    if (metric.format === 'currency') value = formatCurrency(value);
+                    else if (metric.format === 'hours') value = formatHours(value);
+                } else {
+                    value = ''; // Ensure null/undefined becomes an empty cell
+                }
                 
-                row.push(value ?? null);
+                row.push(value);
             });
             ws_data.push(row);
             merges.push({ s: { r: currentRow, c: 0 }, e: { r: currentRow, c: 2 } });
@@ -354,7 +368,7 @@ function PayrollReportContent() {
         });
 
         ws_data.push([]); // Empty row
-        row_heights.push({ hpx: 25 });
+        row_heights.push({ hpx: 20 });
         currentRow++;
 
         const grossMetrics = [
@@ -363,7 +377,7 @@ function PayrollReportContent() {
         ];
 
         grossMetrics.forEach(metric => {
-            const row = [metric.label, null, null];
+            const row: (string | number | null)[] = [metric.label, null, null];
             results.forEach(result => {
                 row.push(formatCurrency((result as any)[metric.key]));
             });
@@ -374,7 +388,7 @@ function PayrollReportContent() {
         });
         
         ws_data.push([]); // Empty row
-        row_heights.push({ hpx: 25 });
+        row_heights.push({ hpx: 20 });
         currentRow++;
 
         // Final Payroll Summary
@@ -417,7 +431,7 @@ function PayrollReportContent() {
         ws_data.forEach((row, r) => {
             row.forEach((cell, c) => {
                 const cellAddress = getCellAddress(r, c);
-                if (!ws[cellAddress]) ws[cellAddress] = { t: 's', v: cell };
+                if (!ws[cellAddress]) ws[cellAddress] = { t: typeof cell === 'number' ? 'n' : 's', v: cell };
                 let currentStyle = ws[cellAddress].s || {};
 
                 // Center align all data columns
@@ -436,12 +450,11 @@ function PayrollReportContent() {
                 else if (rowText.startsWith('Total')) {
                     currentStyle.fill = lightGrayFill;
                     currentStyle.font = { ...currentStyle.font, bold: true };
-                    // Apply to merged area too
-                    if (c === 0) ws[getCellAddress(r,0)].s = { ...ws[getCellAddress(r,0)].s, alignment: centerAlign };
+                    if (ws[getCellAddress(r,0)]) ws[getCellAddress(r,0)].s = { ...ws[getCellAddress(r,0)].s, alignment: centerAlign };
                 }
                 // Financial summary labels
                 else if (r > grandTotals.length + 3 && c === 0 && rowText.match(/^[A-Z\s/$-]+$/)) {
-                     ws[getCellAddress(r,0)].s = { ...ws[getCellAddress(r,0)].s, alignment: centerAlign };
+                     if (ws[getCellAddress(r,0)]) ws[getCellAddress(r,0)].s = { ...ws[getCellAddress(r,0)].s, alignment: centerAlign };
                 }
 
                 ws[cellAddress].s = currentStyle;
@@ -511,7 +524,7 @@ function PayrollReportContent() {
                 <section className="mb-8">
                     <h2 className="text-xl font-semibold mb-4">Payroll Inputs</h2>
                     <div className="overflow-x-auto border rounded-lg">
-                        <Table className="w-auto">
+                        <Table className="min-w-max">
                             <TableHeader>
                                 <TableRow>
                                     <TableHead className="font-bold min-w-[200px]">Metric</TableHead>
@@ -545,7 +558,7 @@ function PayrollReportContent() {
                  <section className="mb-8">
                     <h2 className="text-xl font-semibold mb-4">Payroll Results</h2>
                      <div className="overflow-x-auto border rounded-lg">
-                        <Table className="w-auto">
+                        <Table className="min-w-max">
                             <TableHeader>
                                 <TableRow>
                                     <TableHead className="font-bold min-w-[200px]">Metric</TableHead>
@@ -643,20 +656,3 @@ export default function PayrollReportPage() {
         </React.Suspense>
     )
 }
-
-    
-
-    
-
-
-
-    
-
-    
-
-
-
-
-    
-
-    
