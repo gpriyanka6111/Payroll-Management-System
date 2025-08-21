@@ -275,7 +275,7 @@ function PayrollReportContent() {
             const row: (string | number | null)[] = [
                 format(day, 'MM/dd'),
                 format(day, 'EEE').toUpperCase(),
-                null,
+                "HRS",
             ];
             inputs.forEach((input, i) => {
                 const dayData = employeeHours[input.employeeId]?.find(d => isSameDay(d.date, day));
@@ -512,5 +512,7 @@ export default function PayrollReportPage() {
     
 
 
+
+    
 
     
