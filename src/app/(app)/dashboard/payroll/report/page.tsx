@@ -370,7 +370,7 @@ function PayrollReportContent() {
         });
 
         ws_data.push([null, null, null, ...employeeNames]);
-        row_heights.push({ hpx: 20 });
+        row_heights.push({ hpx: 25 });
         currentRow++;
 
         const grossMetrics = [
@@ -427,38 +427,29 @@ function PayrollReportContent() {
         ws['!cols'] = colWidths;
         
         // --- Cell Styling ---
-        const lightGrayFill = { fgColor: { rgb: "F0F0F0" } };
-        const leftAlign = { horizontal: 'left', vertical: 'center' };
-        const thickBorder = {
-            top: { style: 'thick' },
-            bottom: { style: 'thick' },
-            left: { style: 'thick' },
-            right: { style: 'thick' },
+        const leftAlignStyle = { alignment: { horizontal: 'left', vertical: 'center' } };
+        const thickBorderStyle = { 
+            border: {
+                top: { style: 'thick' },
+                bottom: { style: 'thick' },
+                left: { style: 'thick' },
+                right: { style: 'thick' },
+            }
         };
-        
+
         ws_data.forEach((row, r) => {
             row.forEach((cell, c) => {
                 const cellRef = XLSX.utils.encode_cell({ r, c });
                 if (!ws[cellRef]) ws[cellRef] = { t: 's', v: cell };
                 if (cell === null || cell === '') ws[cellRef].v = '';
 
-                let style = ws[cellRef].s || {};
-                style.alignment = leftAlign;
-
-                const rowText = typeof row[0] === 'string' ? row[0] : '';
-                const isHeaderRow = r === 2;
-                const isWeeklyTotalRow = rowText === 'Total Hrs of this week';
+                // Start with a base style including left alignment
+                ws[cellRef].s = { ...leftAlignStyle };
                 
-                if (isHeaderRow || isWeeklyTotalRow) {
-                    style.fill = lightGrayFill;
-                    style.font = { ...style.font, bold: true };
-                }
-                
+                // Add conditional styles
                 if (financialSummaryStartRow !== -1 && r >= financialSummaryStartRow) {
-                    style.border = thickBorder;
+                    ws[cellRef].s = { ...ws[cellRef].s, ...thickBorderStyle };
                 }
-
-                ws[cellRef].s = style;
             });
         });
 
@@ -657,7 +648,3 @@ export default function PayrollReportPage() {
         </React.Suspense>
     )
 }
-
-    
-
-    
