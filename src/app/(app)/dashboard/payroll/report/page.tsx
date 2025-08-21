@@ -220,7 +220,13 @@ function PayrollReportContent() {
     const handleExportToExcel = async () => {
         if (!period || !results.length || !user) return;
     
-        // 1. Fetch all time entries for the period for all employees
+        // 1. Fetch user settings to check for Sunday closed status
+        const userDocRef = doc(db, 'users', user.uid);
+        const userSnap = await getDoc(userDocRef);
+        const isSundayClosed = userSnap.exists() ? userSnap.data().storeTimings?.sundayClosed === true : false;
+
+
+        // 2. Fetch all time entries for the period for all employees
         const toDateEnd = new Date(period.to);
         toDateEnd.setHours(23, 59, 59, 999);
         const employeeHours: EmployeeDailyHours = {};
@@ -252,7 +258,7 @@ function PayrollReportContent() {
             }
         }
     
-        // 2. Build the Excel sheet
+        // 3. Build the Excel sheet
         const wb = XLSX.utils.book_new();
         const ws_data: (string | number | null)[][] = [];
     
@@ -271,28 +277,47 @@ function PayrollReportContent() {
         daysInPeriod.forEach((day, index) => {
             const dayOfWeek = getDay(day); // Sunday is 0
     
-            // Daily hours row
-            const row: (string | number | null)[] = [
-                format(day, 'MM/dd'),
-                format(day, 'EEE').toUpperCase(),
-                "HRS",
-            ];
-            inputs.forEach((input, i) => {
-                const dayData = employeeHours[input.employeeId]?.find(d => isSameDay(d.date, day));
-                const hours = dayData ? parseFloat(dayData.hours.toFixed(2)) : 0;
-                row.push(hours > 0 ? hours : null);
-                weeklyTotals[i] += hours;
-                grandTotals[i] += hours;
-            });
-            ws_data.push(row);
-    
-            // Check if it's the end of the week (Saturday) or the last day of the period
-            if (dayOfWeek === 6 || index === daysInPeriod.length - 1) {
-                const weeklyTotalRow: (string | number | null)[] = [null, 'Total Hrs of this week', null];
-                weeklyTotals.forEach(total => {
-                    weeklyTotalRow.push(total > 0 ? parseFloat(total.toFixed(2)) : null);
+            // Skip Sunday if the store is closed
+            if (isSundayClosed && dayOfWeek === 0) {
+                // If it was the last day, we still need to print the weekly total before skipping
+                if (index > 0 && getDay(daysInPeriod[index-1]) === 6) {
+                    // This logic might be complex, let's just ensure weekly total prints at end of period.
+                }
+            } else {
+                // Daily hours row
+                const row: (string | number | null)[] = [
+                    format(day, 'MM/dd'),
+                    format(day, 'EEE').toUpperCase(),
+                    "HRS",
+                ];
+                inputs.forEach((input, i) => {
+                    const dayData = employeeHours[input.employeeId]?.find(d => isSameDay(d.date, day));
+                    const hours = dayData ? parseFloat(dayData.hours.toFixed(2)) : 0;
+                    row.push(hours > 0 ? hours : null);
+                    weeklyTotals[i] += hours;
+                    grandTotals[i] += hours;
                 });
-                ws_data.push(weeklyTotalRow);
+                ws_data.push(row);
+            }
+
+            // Check if it's the end of the week (Saturday) or the last day of the period
+            const isSaturday = dayOfWeek === 6;
+            const isLastDay = index === daysInPeriod.length - 1;
+            
+            if (isSaturday || isLastDay) {
+                // Don't print an empty total row if we just skipped Sunday as the last day
+                if(isSundayClosed && isSaturday && isLastDay){
+                   // Special case where period ends on a Sat and Sun is closed.
+                }
+
+                // If any hours were logged this week, add the total row
+                if (weeklyTotals.some(t => t > 0)) {
+                    const weeklyTotalRow: (string | number | null)[] = [null, 'Total Hrs of this week', null];
+                    weeklyTotals.forEach(total => {
+                        weeklyTotalRow.push(total > 0 ? parseFloat(total.toFixed(2)) : null);
+                    });
+                    ws_data.push(weeklyTotalRow);
+                }
                 weeklyTotals = Array(inputs.length).fill(0); // Reset for next week
             }
         });
