@@ -258,16 +258,21 @@ function PayrollReportContent() {
         const wb = XLSX.utils.book_new();
         const ws_data: (string | number | null)[][] = [];
         const merges: XLSX.Range[] = [];
+        const row_heights: { hpx: number }[] = [];
         let currentRow = 0;
     
         ws_data.push([`${companyName} - Pay Period: ${format(period.from, 'LLL dd, yyyy')} - ${format(period.to, 'LLL dd, yyyy')}`]);
-        merges.push({ s: { r: 0, c: 0 }, e: { r: 0, c: 2 + inputs.length } });
+        merges.push({ s: { r: currentRow, c: 0 }, e: { r: currentRow, c: 2 + inputs.length } });
+        row_heights.push({ hpx: 25 });
         currentRow++;
-        ws_data.push([]); 
+    
+        ws_data.push([]);
+        row_heights.push({ hpx: 25 });
         currentRow++;
     
         const employeeNames = inputs.map(i => i.name);
         ws_data.push(['Date', 'Day', 'HRS', ...employeeNames]);
+        row_heights.push({ hpx: 25 });
         currentRow++;
     
         const daysInPeriod = eachDayOfInterval({ start: period.from, end: period.to });
@@ -291,6 +296,7 @@ function PayrollReportContent() {
                     grandTotals[i] += hours;
                 });
                 ws_data.push(row);
+                row_heights.push({ hpx: 20 });
                 currentRow++;
             }
 
@@ -304,6 +310,7 @@ function PayrollReportContent() {
                 });
                 ws_data.push(weeklyTotalRow);
                 merges.push({ s: { r: currentRow, c: 0 }, e: { r: currentRow, c: 2 } });
+                row_heights.push({ hpx: 25 });
                 currentRow++;
                 weeklyTotals = Array(inputs.length).fill(0);
             }
@@ -315,19 +322,91 @@ function PayrollReportContent() {
         });
         ws_data.push(grandTotalRow);
         merges.push({ s: { r: currentRow, c: 0 }, e: { r: currentRow, c: 2 } });
-    
+        row_heights.push({ hpx: 25 });
+        currentRow++;
+
+        // --- Start of Financial Summary ---
+
+        const summaryMetrics: { label: string; key: keyof EmployeePayrollInput | keyof PayrollResult; type: 'input' | 'result'; format?: 'currency' | 'hours' }[] = [
+            { label: 'COMMENTS', key: 'comment', type: 'input' },
+            { label: 'CHECK HOURS', key: 'checkHours', type: 'input', format: 'hours' },
+            { label: 'OTHER HOURS', key: 'otherHours', type: 'input', format: 'hours' },
+            { label: 'RATE/CHECK', key: 'payRateCheck', type: 'result', format: 'currency' },
+            { label: 'RATE/OTHERS', key: 'payRateOthers', type: 'result', format: 'currency' },
+            { label: 'OTHER-ADJ$', key: 'otherAdjustment', type: 'result', format: 'currency' },
+        ];
+
+        summaryMetrics.forEach(metric => {
+            const row = [metric.label, null, null];
+            inputs.forEach(input => {
+                const source = metric.type === 'input' ? input : results.find(r => r.employeeId === input.employeeId);
+                let value = source ? (source as any)[metric.key] : null;
+
+                if (metric.format === 'currency') value = formatCurrency(value);
+                else if (metric.format === 'hours') value = formatHours(value);
+                
+                row.push(value ?? null);
+            });
+            ws_data.push(row);
+            merges.push({ s: { r: currentRow, c: 0 }, e: { r: currentRow, c: 2 } });
+            row_heights.push({ hpx: 25 });
+            currentRow++;
+        });
+
+        ws_data.push([]); // Empty row
+        row_heights.push({ hpx: 25 });
+        currentRow++;
+
+        const grossMetrics = [
+            { label: 'GROSS CHECK AMOUNT', key: 'grossCheckAmount' },
+            { label: 'GROSS OTHER AMOUNT', key: 'grossOtherAmount' },
+        ];
+
+        grossMetrics.forEach(metric => {
+            const row = [metric.label, null, null];
+            results.forEach(result => {
+                row.push(formatCurrency((result as any)[metric.key]));
+            });
+            ws_data.push(row);
+            merges.push({ s: { r: currentRow, c: 0 }, e: { r: currentRow, c: 2 } });
+            row_heights.push({ hpx: 25 });
+            currentRow++;
+        });
+        
+        ws_data.push([]); // Empty row
+        row_heights.push({ hpx: 25 });
+        currentRow++;
+
+        // Final Payroll Summary
+        ws_data.push(['Payroll Summary', null, null, 'GP', 'EMPLOYER', 'EMPLOYEE', 'DED', 'NET', 'OTHERS']);
+        merges.push({ s: { r: currentRow, c: 0 }, e: { r: currentRow, c: 2 } });
+        row_heights.push({ hpx: 25 });
+        currentRow++;
+
+        ws_data.push([null, null, null,
+            formatCurrency(totals.totalNetPay),
+            summaryData.employer || '-',
+            summaryData.employee || '-',
+            summaryData.deductions || '-',
+            summaryData.netPay || '-',
+            formatCurrency(totals.totalOtherPay)
+        ]);
+        row_heights.push({ hpx: 25 });
+        currentRow++;
+
+        // --- End of Financial Summary ---
+
         const ws = XLSX.utils.aoa_to_sheet(ws_data);
         
         ws['!merges'] = merges;
         
         ws_data.forEach((row, r) => {
-           if (row[0] === 'Total Hrs of this week' || row[0] === 'Total Hours') {
+           if (typeof row[0] === 'string' && (row[0].startsWith('Total') || row[0].endsWith('$') || row[0].match(/^[A-Z\s/]+$/))) {
              if (!ws[`A${r + 1}`]) ws[`A${r + 1}`] = { t: 's', v: row[0] };
              ws[`A${r + 1}`].s = { alignment: { horizontal: 'center' } };
            }
         });
 
-        const row_heights = ws_data.map(() => ({ hpx: 25 }));
         ws['!rows'] = row_heights;
         
         XLSX.utils.book_append_sheet(wb, ws, "Timesheet Report");
@@ -535,4 +614,5 @@ export default function PayrollReportPage() {
     
 
     
+
 
