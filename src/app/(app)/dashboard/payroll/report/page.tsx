@@ -17,7 +17,7 @@ import { useAuth } from '@/contexts/auth-context';
 import { doc, getDoc, collection, getDocs, query, where, orderBy, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import Link from 'next/link';
-import *s XLSX from 'xlsx';
+import * as XLSX from 'xlsx';
 
 const formatCurrency = (amount: unknown) => {
     const num = Number(amount);
@@ -511,3 +511,6 @@ export default function PayrollReportPage() {
 
     
 
+
+
+    
