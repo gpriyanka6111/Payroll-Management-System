@@ -435,6 +435,7 @@ function PayrollReportContent() {
             row.forEach((cell, c) => {
                 const cellAddress = getCellAddress(r, c);
                 if (!ws[cellAddress]) ws[cellAddress] = { t: typeof cell === 'number' ? 'n' : 's', v: cell };
+                
                 let currentStyle = ws[cellAddress].s || {};
 
                 // Center align all data columns
@@ -446,15 +447,17 @@ function PayrollReportContent() {
                 const isHeaderRow = r === 2;
                 const isWeeklyTotalRow = rowText === 'Total Hrs of this week';
                 const isGrandTotalRow = rowText === 'Total Hours';
+                const isFinancialHeader = r > grandTotals.length + 3 && c === 0 && rowText.match(/^[A-Z\s/$-]+$/) && row.length > 1;
 
-                // Header row
+                // Header and total rows
                 if (isHeaderRow || isWeeklyTotalRow || isGrandTotalRow) {
                     currentStyle.fill = lightGrayFill;
                     currentStyle.font = { ...currentStyle.font, bold: true };
+                    // Center the merged cells
                     if (ws[getCellAddress(r,0)]) ws[getCellAddress(r,0)].s = { ...ws[getCellAddress(r,0)].s, alignment: centerAlign };
                 }
                 // Financial summary labels
-                else if (r > grandTotals.length + 3 && c === 0 && rowText.match(/^[A-Z\s/$-]+$/)) {
+                else if (isFinancialHeader) {
                      if (ws[getCellAddress(r,0)]) ws[getCellAddress(r,0)].s = { ...ws[getCellAddress(r,0)].s, alignment: centerAlign };
                 }
 
@@ -657,3 +660,5 @@ export default function PayrollReportPage() {
         </React.Suspense>
     )
 }
+
+    
