@@ -8,7 +8,7 @@ import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import type { PayrollResult, EmployeePayrollInput } from '@/components/payroll/payroll-calculation';
 import { Payslip } from '@/components/payroll/payslip';
-import { format, startOfYear, eachDayOfInterval, isSameDay, getWeek, getDay, isValid, parseISO } from 'date-fns';
+import { format, startOfYear, eachDayOfInterval, isSameDay, getDay, isValid, parseISO } from 'date-fns';
 import { ArrowLeft, Users, Pencil, FileSpreadsheet } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -356,7 +356,7 @@ function PayrollReportContent() {
                     if (metric.format === 'currency') value = formatCurrency(value);
                     else if (metric.format === 'hours') value = formatHours(value);
                 } else {
-                    value = ''; // Ensure null/undefined becomes an empty cell
+                    value = '';
                 }
                 
                 row.push(value);
@@ -367,7 +367,7 @@ function PayrollReportContent() {
             currentRow++;
         });
 
-        ws_data.push([]); // Empty row
+        ws_data.push([null, null, null, ...employeeNames]);
         row_heights.push({ hpx: 20 });
         currentRow++;
 
@@ -392,8 +392,12 @@ function PayrollReportContent() {
         currentRow++;
 
         // Final Payroll Summary
-        ws_data.push(['Payroll Summary', null, null, 'GP', 'EMPLOYER', 'EMPLOYEE', 'DED', 'NET', 'OTHERS']);
+        ws_data.push(['Payroll Summary', null, null]);
         merges.push({ s: { r: currentRow, c: 0 }, e: { r: currentRow, c: 2 } });
+        row_heights.push({ hpx: 25 });
+        currentRow++;
+
+        ws_data.push([null, null, null, 'GP', 'EMPLOYER', 'EMPLOYEE', 'DED', 'NET', 'OTHERS']);
         row_heights.push({ hpx: 25 });
         currentRow++;
 
@@ -407,7 +411,6 @@ function PayrollReportContent() {
         ]);
         row_heights.push({ hpx: 25 });
         currentRow++;
-
         // --- End of Financial Summary ---
 
         const ws = XLSX.utils.aoa_to_sheet(ws_data);
@@ -440,14 +443,12 @@ function PayrollReportContent() {
                 }
                 
                 const rowText = typeof row[0] === 'string' ? row[0] : '';
+                const isHeaderRow = r === 2;
+                const isWeeklyTotalRow = rowText === 'Total Hrs of this week';
+                const isGrandTotalRow = rowText === 'Total Hours';
 
                 // Header row
-                if (r === 2) {
-                    currentStyle.fill = lightGrayFill;
-                    currentStyle.font = { ...currentStyle.font, bold: true };
-                }
-                // Weekly total and grand total rows
-                else if (rowText.startsWith('Total')) {
+                if (isHeaderRow || isWeeklyTotalRow || isGrandTotalRow) {
                     currentStyle.fill = lightGrayFill;
                     currentStyle.font = { ...currentStyle.font, bold: true };
                     if (ws[getCellAddress(r,0)]) ws[getCellAddress(r,0)].s = { ...ws[getCellAddress(r,0)].s, alignment: centerAlign };
