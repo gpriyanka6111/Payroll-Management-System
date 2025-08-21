@@ -149,53 +149,39 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
         toDateWithTime.setHours(23, 59, 59, 999);
 
        try {
-        const hoursByEmployee: { [key: string]: number } = {};
-        const hourlyEmployeeIndices: { [employeeId: string]: number } = {};
-        
-        employeesToFetch.forEach((emp, index) => {
-            if (emp.payMethod === 'Hourly') {
-                hoursByEmployee[emp.employeeId] = 0;
-                hourlyEmployeeIndices[emp.employeeId] = index;
-            }
-        });
-        
-        const hourlyEmployeeIds = Object.keys(hourlyEmployeeIndices);
+        const hourlyEmployees = employeesToFetch
+          .map((emp, index) => ({ ...emp, index }))
+          .filter(emp => emp.payMethod === 'Hourly');
 
-        if (hourlyEmployeeIds.length === 0) {
+        if (hourlyEmployees.length === 0) {
             toast({ title: "No Hourly Employees", description: "Skipping hour fetch.", variant: 'default' });
             setIsFetchingHours(false);
             return;
         }
 
-        const timeEntriesQuery = query(
-            collectionGroup(db, 'timeEntries'),
-            where('employeeId', 'in', hourlyEmployeeIds),
-            where('timeIn', '>=', from),
-            where('timeIn', '<=', toDateWithTime)
-        );
-        
-        const snapshot = await getDocs(timeEntriesQuery);
+        await Promise.all(hourlyEmployees.map(async (employee) => {
+            let totalMinutes = 0;
+            const timeEntriesRef = collection(db, 'users', user.uid, 'employees', employee.employeeId, 'timeEntries');
+            const q = query(
+                timeEntriesRef,
+                where('timeIn', '>=', from),
+                where('timeIn', '<=', toDateWithTime)
+            );
 
-        snapshot.forEach(doc => {
-            const data = doc.data();
-            // Additional check to ensure the entry belongs to the current user's data
-            if (doc.ref.path.startsWith(`users/${user.uid}/employees/`)) {
-                const employeeId = data.employeeId;
-                if (data.timeOut && employeeId in hoursByEmployee) {
+            const snapshot = await getDocs(q);
+            snapshot.forEach(doc => {
+                const data = doc.data();
+                if (data.timeOut) {
                     const diff = differenceInMinutes(data.timeOut.toDate(), data.timeIn.toDate());
-                    hoursByEmployee[employeeId] += (diff > 0 ? diff : 0);
+                    totalMinutes += (diff > 0 ? diff : 0);
                 }
-            }
-        });
-        
-        for (const employeeId in hoursByEmployee) {
-            const employeeIndex = hourlyEmployeeIndices[employeeId];
-            const totalMinutes = hoursByEmployee[employeeId] || 0;
+            });
+
             const totalHours = totalMinutes / 60;
             const roundedHours = parseFloat(totalHours.toFixed(1));
-            setValue(`employees.${employeeIndex}.totalHoursWorked`, roundedHours, { shouldValidate: true, shouldDirty: true });
-            setValue(`employees.${employeeIndex}.checkHours`, roundedHours, { shouldValidate: true, shouldDirty: true });
-        }
+            setValue(`employees.${employee.index}.totalHoursWorked`, roundedHours, { shouldValidate: true, shouldDirty: true });
+            setValue(`employees.${employee.index}.checkHours`, roundedHours, { shouldValidate: true, shouldDirty: true });
+        }));
         
          toast({ title: "Hours Fetched", description: "Total hours for hourly employees have been updated.", variant: 'default' });
        } catch (error) {
