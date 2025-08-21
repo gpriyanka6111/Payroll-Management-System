@@ -17,7 +17,7 @@ import { useAuth } from '@/contexts/auth-context';
 import { doc, getDoc, collection, getDocs, query, where, orderBy, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import Link from 'next/link';
-import * as XLSX from 'xlsx';
+import * as XLSX from 'xlsx-js-style';
 
 const formatCurrency = (amount: unknown) => {
     const num = Number(amount);
@@ -267,27 +267,13 @@ function PayrollReportContent() {
     
         const wb = XLSX.utils.book_new();
         const ws_data: (string | number | null)[][] = [];
-        const merges: XLSX.Range[] = [];
-        const row_heights: { hpx: number }[] = [];
-        let currentRow = 0;
-    
-        // HEADER ROW - Spanning multiple columns
+        
         ws_data.push([`${companyName} - Pay Period: ${format(period.from, 'LLL dd, yyyy')} - ${format(period.to, 'LLL dd, yyyy')}`]);
-        merges.push({ s: { r: currentRow, c: 0 }, e: { r: 1, c: 2 + inputs.length } }); // Merge rows 0 and 1
-        row_heights.push({ hpx: 25 });
-        currentRow++;
-        ws_data.push([]); // Empty row for the merge
-        row_heights.push({ hpx: 25 });
-        currentRow++;
-    
-        ws_data.push([]);
-        row_heights.push({ hpx: 20 });
-        currentRow++;
+        ws_data.push([]); // Empty row for merge
+        ws_data.push([]); // Spacer row
     
         const employeeNames = inputs.map(i => i.name.toUpperCase());
         ws_data.push(['Date', 'Day', 'HRS', ...employeeNames]);
-        row_heights.push({ hpx: 25 });
-        currentRow++;
     
         const daysInPeriod = eachDayOfInterval({ start: period.from, end: period.to });
         let weeklyTotals: number[] = Array(inputs.length).fill(0);
@@ -310,8 +296,6 @@ function PayrollReportContent() {
                     grandTotals[i] += hours;
                 });
                 ws_data.push(row);
-                row_heights.push({ hpx: 20 });
-                currentRow++;
             }
 
             const isSaturday = dayOfWeek === 6;
@@ -323,9 +307,6 @@ function PayrollReportContent() {
                     weeklyTotalRow.push(total > 0 ? parseFloat(total.toFixed(2)) : '');
                 });
                 ws_data.push(weeklyTotalRow);
-                merges.push({ s: { r: currentRow, c: 0 }, e: { r: currentRow, c: 2 } });
-                row_heights.push({ hpx: 25 });
-                currentRow++;
                 weeklyTotals = Array(inputs.length).fill(0);
             }
         });
@@ -335,9 +316,6 @@ function PayrollReportContent() {
             grandTotalRow.push(total > 0 ? parseFloat(total.toFixed(2)) : '');
         });
         ws_data.push(grandTotalRow);
-        merges.push({ s: { r: currentRow, c: 0 }, e: { r: currentRow, c: 2 } });
-        row_heights.push({ hpx: 25 });
-        currentRow++;
 
         const summaryMetrics: { label: string; key: keyof EmployeePayrollInput | keyof PayrollResult; type: 'input' | 'result'; format?: 'currency' | 'hours' }[] = [
             { label: 'COMMENTS', key: 'comment', type: 'input' },
@@ -364,18 +342,10 @@ function PayrollReportContent() {
                 row.push(value);
             });
             ws_data.push(row);
-            merges.push({ s: { r: currentRow, c: 0 }, e: { r: currentRow, c: 2 } });
-            row_heights.push({ hpx: 25 });
-            currentRow++;
         });
 
-        ws_data.push([]); 
-        row_heights.push({ hpx: 20 });
-        currentRow++;
-        
+        ws_data.push([]); // Spacer row
         ws_data.push([null, null, null, ...employeeNames]);
-        row_heights.push({ hpx: 25 });
-        currentRow++;
 
         const grossMetrics = [
             { label: 'GROSS CHECK AMOUNT', key: 'grossCheckAmount' },
@@ -389,19 +359,11 @@ function PayrollReportContent() {
                 row.push(typeof rawValue === 'number' ? formatCurrency(rawValue) : '');
             });
             ws_data.push(row);
-            merges.push({ s: { r: currentRow, c: 0 }, e: { r: currentRow, c: 2 } });
-            row_heights.push({ hpx: 25 });
-            currentRow++;
         });
         
-        ws_data.push([]); 
-        row_heights.push({ hpx: 20 });
-        currentRow++;
+        ws_data.push([]); // Spacer row
         
         ws_data.push(['GP', 'EMPLOYER', 'EMPLOYEE', 'DED', 'NET', 'OTHERS']);
-        row_heights.push({ hpx: 25 });
-        currentRow++;
-
         ws_data.push([
             formatCurrency(totals.totalNetPay),
             summaryData.employer || '',
@@ -410,30 +372,60 @@ function PayrollReportContent() {
             summaryData.netPay || '',
             formatCurrency(totals.totalOtherPay)
         ]);
-        row_heights.push({ hpx: 25 });
-        currentRow++;
-
-
-        const ws = XLSX.utils.aoa_to_sheet(ws_data);
-        ws['!merges'] = merges;
-        ws['!rows'] = row_heights;
-
-        const colWidths = [{ wch: 9 }, { wch: 9 }, { wch: 9 }, ...inputs.map(() => ({ wch: 9 }))];
-        ws['!cols'] = colWidths;
         
-        // Apply styles
+        const ws = XLSX.utils.aoa_to_sheet(ws_data);
+        
+        // --- STYLING ---
         const headerStyle = { font: { bold: true, sz: 14 }, alignment: { horizontal: 'center', vertical: 'center' } };
+        const leftAlignStyle = { alignment: { horizontal: 'left', vertical: 'center' } };
+        const thickBorderStyle = {
+            border: {
+                top: { style: "thick" }, bottom: { style: "thick" },
+                left: { style: "thick" }, right: { style: "thick" }
+            },
+            alignment: { horizontal: 'left', vertical: 'center' }
+        };
+        
+        const rowsToBorder = new Set([
+            'Total Hrs of this week', 'Total Hours', 'COMMENTS', 'CHECK HOURS',
+            'OTHER HOURS', 'RATE/CHECK', 'RATE/OTHERS', 'OTHER-ADJ$',
+            'GROSS CHECK AMOUNT', 'GROSS OTHER AMOUNT', 'GP'
+        ]);
 
-        // Apply style to the merged header cell
-        const headerCellRef = XLSX.utils.encode_cell({ c: 0, r: 0 });
-        if (ws[headerCellRef]) {
-            ws[headerCellRef].s = headerStyle;
-        } else {
-            ws[headerCellRef] = { t: 's', v: ws_data[0][0], s: headerStyle };
+        ws['!merges'] = [
+            { s: { r: 0, c: 0 }, e: { r: 1, c: 2 + inputs.length } },
+            ...ws_data.map((row, r) => ({ s: { r, c: 0 }, e: { r, c: 2 } }))
+                     .filter((_, r) => ws_data[r] && (ws_data[r][0] === 'Total Hrs of this week' || ws_data[r][0] === 'Total Hours' || summaryMetrics.some(m => m.label === ws_data[r][0]) || grossMetrics.some(m => m.label === ws_data[r][0])))
+        ];
+
+        // Apply styles
+        const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+        for (let R = range.s.r; R <= range.e.r; ++R) {
+            for (let C = range.s.c; C <= range.e.c; ++C) {
+                const cell_address = { c: C, r: R };
+                const cell_ref = XLSX.utils.encode_cell(cell_address);
+                if (!ws[cell_ref]) continue;
+
+                const firstCellInRow = ws[XLSX.utils.encode_cell({c:0, r:R})];
+                if (R === 0) { // Header row
+                    ws[cell_ref].s = headerStyle;
+                } else if (firstCellInRow && rowsToBorder.has(firstCellInRow.v as string)) {
+                    ws[cell_ref].s = thickBorderStyle;
+                } else if (ws_data[R]?.[0] === 'GP' && ws_data[R+1]) { // Final summary row values
+                    ws[XLSX.utils.encode_cell({c:C, r:R+1})].s = thickBorderStyle;
+                }
+                else {
+                    ws[cell_ref].s = leftAlignStyle;
+                }
+            }
         }
         
+        ws['!cols'] = [
+            { wch: 9 }, { wch: 9 }, { wch: 9 },
+            ...inputs.map(() => ({ wch: 9 }))
+        ];
+
         XLSX.utils.book_append_sheet(wb, ws, "Timesheet Report");
-    
         const fileName = `Payroll_Timesheet_${format(period.from, 'yyyy-MM-dd')}_to_${format(period.to, 'yyyy-MM-dd')}.xlsx`;
         XLSX.writeFile(wb, fileName);
     };
@@ -633,3 +625,4 @@ export default function PayrollReportPage() {
     
 
     
+
