@@ -28,7 +28,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { Textarea } from '../ui/textarea';
 import type { Employee, Payroll } from '@/lib/types';
 import { useAuth } from '@/contexts/auth-context';
-import { collection, getDocs, query, orderBy, addDoc, doc, updateDoc, writeBatch, getDoc, where, Timestamp } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, addDoc, doc, updateDoc, writeBatch, getDoc, where, Timestamp, collectionGroup } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Skeleton } from '../ui/skeleton';
 import { Label } from '../ui/label';
@@ -149,59 +149,54 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
         toDateWithTime.setHours(23, 59, 59, 999);
 
        try {
-        const hourlyEmployeeIndices: number[] = [];
-        const employeesToQuery = employeesToFetch.filter((emp, index) => {
+        const hoursByEmployee: { [key: string]: number } = {};
+        const hourlyEmployeeIndices: { [employeeId: string]: number } = {};
+        
+        employeesToFetch.forEach((emp, index) => {
             if (emp.payMethod === 'Hourly') {
-                hourlyEmployeeIndices.push(index);
-                return true;
+                hoursByEmployee[emp.employeeId] = 0;
+                hourlyEmployeeIndices[emp.employeeId] = index;
             }
-            return false;
         });
+        
+        const hourlyEmployeeIds = Object.keys(hourlyEmployeeIndices);
 
-        if (employeesToQuery.length === 0) {
+        if (hourlyEmployeeIds.length === 0) {
             toast({ title: "No Hourly Employees", description: "Skipping hour fetch.", variant: 'default' });
+            setIsFetchingHours(false);
             return;
         }
 
-        const employeeIds = employeesToQuery.map(e => e.employeeId);
+        const timeEntriesQuery = query(
+            collectionGroup(db, 'timeEntries'),
+            where('employeeId', 'in', hourlyEmployeeIds),
+            where('timeIn', '>=', from),
+            where('timeIn', '<=', toDateWithTime)
+        );
         
-        // Firestore 'in' query is limited to 30 items.
-        // We'll process in chunks if needed.
-        const chunkSize = 30;
-        for (let i = 0; i < employeeIds.length; i += chunkSize) {
-            const chunkIds = employeeIds.slice(i, i + chunkSize);
-            const timeEntriesRef = collection(db, 'users', user.uid, 'timeEntries'); // Simplified path if entries are global for a user
-            const q = query(
-                timeEntriesRef,
-                where('employeeId', 'in', chunkIds),
-                where('timeIn', '>=', from),
-                where('timeIn', '<=', toDateWithTime)
-            );
-            
-            const snapshot = await getDocs(q);
-            const hoursByEmployee: { [key: string]: number } = {};
-            
-            snapshot.docs.forEach(doc => {
-                 const data = doc.data();
-                 const employeeId = data.employeeId;
-                 if (!hoursByEmployee[employeeId]) {
-                     hoursByEmployee[employeeId] = 0;
-                 }
-                 if (data.timeOut) {
+        const snapshot = await getDocs(timeEntriesQuery);
+
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            // Additional check to ensure the entry belongs to the current user's data
+            if (doc.ref.path.startsWith(`users/${user.uid}/employees/`)) {
+                const employeeId = data.employeeId;
+                if (data.timeOut && employeeId in hoursByEmployee) {
                     const diff = differenceInMinutes(data.timeOut.toDate(), data.timeIn.toDate());
                     hoursByEmployee[employeeId] += (diff > 0 ? diff : 0);
-                 }
-            });
-            
-            hourlyEmployeeIndices.slice(i, i + chunkSize).forEach(employeeIndex => {
-                const employee = employeesToFetch[employeeIndex];
-                const totalMinutes = hoursByEmployee[employee.employeeId] || 0;
-                const totalHours = totalMinutes / 60;
-                const roundedHours = parseFloat(totalHours.toFixed(1));
-                setValue(`employees.${employeeIndex}.totalHoursWorked`, roundedHours, { shouldValidate: true, shouldDirty: true });
-                setValue(`employees.${employeeIndex}.checkHours`, roundedHours, { shouldValidate: true, shouldDirty: true });
-            });
+                }
+            }
+        });
+        
+        for (const employeeId in hoursByEmployee) {
+            const employeeIndex = hourlyEmployeeIndices[employeeId];
+            const totalMinutes = hoursByEmployee[employeeId] || 0;
+            const totalHours = totalMinutes / 60;
+            const roundedHours = parseFloat(totalHours.toFixed(1));
+            setValue(`employees.${employeeIndex}.totalHoursWorked`, roundedHours, { shouldValidate: true, shouldDirty: true });
+            setValue(`employees.${employeeIndex}.checkHours`, roundedHours, { shouldValidate: true, shouldDirty: true });
         }
+        
          toast({ title: "Hours Fetched", description: "Total hours for hourly employees have been updated.", variant: 'default' });
        } catch (error) {
            console.error("Error fetching hours:", error);
