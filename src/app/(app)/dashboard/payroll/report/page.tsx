@@ -8,7 +8,7 @@ import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import type { PayrollResult, EmployeePayrollInput } from '@/components/payroll/payroll-calculation';
 import { Payslip } from '@/components/payroll/payslip';
-import { format, startOfYear } from 'date-fns';
+import { format, startOfYear, eachDayOfInterval, isSameDay, getWeek, getDay } from 'date-fns';
 import { ArrowLeft, Users, Pencil, FileSpreadsheet } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -41,6 +41,15 @@ interface YtdData {
     };
 }
 
+interface DailyHours {
+    date: Date;
+    hours: number;
+}
+
+interface EmployeeDailyHours {
+    [employeeId: string]: DailyHours[];
+}
+
 function PayrollReportContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -66,6 +75,7 @@ function PayrollReportContent() {
 
             let currentPayrollData: any;
             let fromDate: Date;
+            let toDate: Date;
 
             if (payrollId) {
                  try {
@@ -83,10 +93,11 @@ function PayrollReportContent() {
                         const [fromY, fromM, fromD] = currentPayrollData.fromDate.split('-').map(Number);
                         const [toY, toM, toD] = currentPayrollData.toDate.split('-').map(Number);
                         fromDate = new Date(fromY, fromM - 1, fromD);
+                        toDate = new Date(toY, toM - 1, toD);
 
                         setResults(currentPayrollData.results);
                         setInputs(currentPayrollData.inputs);
-                        setPeriod({ from: fromDate, to: new Date(toY, toM - 1, toD) });
+                        setPeriod({ from: fromDate, to: toDate });
                         setSummaryData({
                             employer: currentPayrollData.summaryEmployer,
                             employee: currentPayrollData.summaryEmployee,
@@ -111,13 +122,14 @@ function PayrollReportContent() {
                  if (resultsData && periodData && inputData) {
                     const parsedPeriod = JSON.parse(periodData);
                     fromDate = new Date(parsedPeriod.from);
+                    toDate = new Date(parsedPeriod.to);
                     currentPayrollData = {
                         results: JSON.parse(resultsData),
                         inputs: JSON.parse(inputData),
                     }
                     setResults(currentPayrollData.results);
                     setInputs(currentPayrollData.inputs);
-                    setPeriod({ from: fromDate, to: new Date(parsedPeriod.to) });
+                    setPeriod({ from: fromDate, to: toDate });
                     if (summaryJSON) setSummaryData(JSON.parse(summaryJSON));
                     if (companyData) setCompanyName(companyData);
                     
@@ -205,82 +217,99 @@ function PayrollReportContent() {
         totalEmployees: results.length,
     };
 
-    const handleExportToExcel = () => {
-        if (!period || !results.length) return;
-    
-        const wb = XLSX.utils.book_new();
-        const ws_data: (string | number)[][] = [];
+    const handleExportToExcel = async () => {
+        if (!period || !results.length || !user) return;
 
-        // Header
-        ws_data.push([companyName]);
-        ws_data.push([`Pay Period: ${format(period.from, 'LLL dd, yyyy')} - ${format(period.to, 'LLL dd, yyyy')}`]);
-        ws_data.push([]); // Empty row for spacing
+        // 1. Fetch all time entries for the period for all employees
+        const toDateEnd = new Date(period.to);
+        toDateEnd.setHours(23, 59, 59, 999);
+        const employeeHours: EmployeeDailyHours = {};
 
-        // Main table headers
-        const headerRow = ['Metric', ...results.map(r => r.name)];
-        ws_data.push(headerRow);
-
-        const employeeIds = results.map(r => r.employeeId);
-    
-        // Main table rows
-        const resultMetricsForExport = [
-            { label: 'TOTAL HOURS WORKED', getValue: (r: PayrollResult) => formatHours(r.totalHoursWorked).toString() },
-            { label: 'CHECK HOURS', getValue: (r: PayrollResult) => formatHours(r.checkHours).toString() },
-            { label: 'OTHER HOURS', getValue: (r: PayrollResult) => formatHours(r.otherHours).toString() },
-            { label: 'PTO USED', getValue: (r: PayrollResult) => formatHours(r.ptoUsed).toString() },
-            { label: 'RATE/CHECK', getValue: (r: PayrollResult) => r.payRateCheck.toFixed(2) },
-            { label: 'RATE/OTHERS', getValue: (r: PayrollResult) => r.payRateOthers.toFixed(2) },
-            { label: 'OTHERS-ADJ ($)', getValue: (r: PayrollResult) => r.otherAdjustment.toFixed(2) },
-            { label: 'GROSS CHECK AMOUNT', getValue: (r: PayrollResult) => r.grossCheckAmount.toFixed(2) },
-            { label: 'GROSS OTHER AMOUNT', getValue: (r: PayrollResult) => r.grossOtherAmount.toFixed(2) },
-            { label: 'NEW PTO BALANCE', getValue: (r: PayrollResult) => formatHours(r.newPtoBalance).toString() },
-        ];
-        
-        resultMetricsForExport.forEach(metric => {
-            const rowData: (string | number)[] = [metric.label];
-            employeeIds.forEach(id => {
-                const result = results.find(r => r.employeeId === id);
-                rowData.push(result ? metric.getValue(result) : '');
+        for (const input of inputs) {
+            employeeHours[input.employeeId] = [];
+            const timeEntriesRef = collection(db, 'users', user.uid, 'employees', input.employeeId, 'timeEntries');
+            const q = query(
+                timeEntriesRef,
+                where('timeIn', '>=', period.from),
+                where('timeIn', '<=', toDateEnd)
+            );
+            const snapshot = await getDocs(q);
+            const dailyMinutes: { [key: string]: number } = {};
+            snapshot.forEach(doc => {
+                const entry = doc.data();
+                if (entry.timeOut) {
+                    const dateKey = format(entry.timeIn.toDate(), 'yyyy-MM-dd');
+                    const minutes = Math.round((entry.timeOut.toDate().getTime() - entry.timeIn.toDate().getTime()) / 60000);
+                    dailyMinutes[dateKey] = (dailyMinutes[dateKey] || 0) + minutes;
+                }
             });
-            ws_data.push(rowData);
+
+            for (const dateKey in dailyMinutes) {
+                employeeHours[input.employeeId].push({
+                    date: new Date(dateKey + 'T12:00:00'), // Use noon to avoid timezone issues
+                    hours: dailyMinutes[dateKey] / 60
+                });
+            }
+        }
+
+
+        // 2. Build the Excel sheet
+        const wb = XLSX.utils.book_new();
+        const ws_data: (string | number | null)[][] = [];
+
+        // Header Row
+        ws_data.push([`${companyName} - Pay Period: ${format(period.from, 'LLL dd, yyyy')} - ${format(period.to, 'LLL dd, yyyy')}`]);
+        ws_data.push([]); // Spacer
+
+        // Employee Header Row
+        const employeeNames = inputs.map(i => i.name);
+        ws_data.push([null, null, null, ...employeeNames]);
+
+        const daysInPeriod = eachDayOfInterval({ start: period.from, end: period.to });
+        let weeklyTotals: number[] = Array(inputs.length).fill(0);
+        const grandTotals: number[] = Array(inputs.length).fill(0);
+
+        daysInPeriod.forEach((day, index) => {
+            const dayOfWeek = getDay(day); // Sunday is 0
+
+            // Daily hours row
+            const row: (string | number | null)[] = [
+                getWeek(day, { weekStartsOn: 1 }), // Week number
+                format(day, 'EEE').toUpperCase(),
+                'Hours'
+            ];
+            inputs.forEach((input, i) => {
+                const dayData = employeeHours[input.employeeId]?.find(d => isSameDay(d.date, day));
+                const hours = dayData ? parseFloat(dayData.hours.toFixed(2)) : 0;
+                row.push(hours > 0 ? hours : null);
+                weeklyTotals[i] += hours;
+                grandTotals[i] += hours;
+            });
+            ws_data.push(row);
+
+            // Check if it's the end of the week (Saturday) or the last day of the period
+            if (dayOfWeek === 6 || index === daysInPeriod.length - 1) {
+                const weeklyTotalRow: (string | number | null)[] = [null, null, 'Total Hrs of this week'];
+                weeklyTotals.forEach(total => {
+                    weeklyTotalRow.push(total > 0 ? parseFloat(total.toFixed(2)) : null);
+                });
+                ws_data.push(weeklyTotalRow);
+                weeklyTotals = Array(inputs.length).fill(0); // Reset for next week
+            }
         });
 
-        // Spacing before summary
-        ws_data.push([]); 
-        ws_data.push([]); 
+        // Grand Total Row
+        ws_data.push([]);
+        const grandTotalRow: (string | number | null)[] = [null, null, 'Total Hours'];
+        grandTotals.forEach(total => {
+            grandTotalRow.push(total > 0 ? parseFloat(total.toFixed(2)) : null);
+        });
+        ws_data.push(grandTotalRow);
 
-        // Summary
-        ws_data.push(['PAYROLL SUMMARY']);
-        ws_data.push(['GP', 'EMPLOYER', 'EMPLOYEE', 'DED', 'NET', 'OTHERS']);
-        ws_data.push([
-            totals.totalNetPay.toFixed(2),
-            summaryData.employer || '',
-            summaryData.employee || '',
-            summaryData.deductions || '',
-            summaryData.netPay || '',
-            totals.totalOtherPay.toFixed(2),
-        ]);
-        
         const ws = XLSX.utils.aoa_to_sheet(ws_data);
+        XLSX.utils.book_append_sheet(wb, ws, "Timesheet Report");
 
-        // Apply formatting
-        ws['!cols'] = [{ wch: 30 }, ...results.map(() => ({ wch: 20 }))];
-
-        const rowHeights = [
-            { hpt: 24 }, // Company Name
-            { hpt: 18 }, // Pay Period
-            {}, // Spacer
-            { hpt: 20 }, // Header Row
-        ];
-        // Default height for data rows
-        resultMetricsForExport.forEach(() => rowHeights.push({ hpt: 15 }));
-        // Spacers and summary rows
-        rowHeights.push({}, {}, { hpt: 20 }, { hpt: 15 }, { hpt: 15 });
-        ws['!rows'] = rowHeights;
-    
-        XLSX.utils.book_append_sheet(wb, ws, "Payroll Report");
-    
-        const fileName = `Payroll_Report_${format(period.from, 'yyyy-MM-dd')}_to_${format(period.to, 'yyyy-MM-dd')}.xlsx`;
+        const fileName = `Payroll_Timesheet_${format(period.from, 'yyyy-MM-dd')}_to_${format(period.to, 'yyyy-MM-dd')}.xlsx`;
         XLSX.writeFile(wb, fileName);
     };
 
@@ -473,5 +502,7 @@ export default function PayrollReportPage() {
         </React.Suspense>
     )
 }
+
+    
 
     
