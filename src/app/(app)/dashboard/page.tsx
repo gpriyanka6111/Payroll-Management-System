@@ -153,7 +153,7 @@ export default function DashboardPage() {
     const userSettingsRef = doc(db, 'users', user.uid);
     const userSettingsSnap = await getDoc(userSettingsRef);
     
-    let closingTime = '05:00 PM'; // Default
+    let closingTime = '05:00 PM'; // Default fallback
     if (userSettingsSnap.exists()) {
         const settings = userSettingsSnap.data();
         const dayOfWeek = getDay(clockInDate); // Sunday = 0, Monday = 1...
@@ -163,9 +163,9 @@ export default function DashboardPage() {
                 closingTime = settings.storeTimings.closeWeekdays || '05:00 PM';
             } else if (dayOfWeek === 6) { // Saturday
                 closingTime = settings.storeTimings.closeSaturday || '05:00 PM';
-            } else { // Sunday
+            } else { // Sunday (dayOfWeek === 0)
                 if (settings.storeTimings.sundayClosed) {
-                     closingTime = settings.storeTimings.closeWeekdays || '05:00 PM';
+                     closingTime = settings.storeTimings.closeWeekdays || '05:00 PM'; // Fallback to weekday close if Sunday is marked closed
                 } else {
                      closingTime = settings.storeTimings.closeSunday || '05:00 PM';
                 }
@@ -231,7 +231,7 @@ export default function DashboardPage() {
         const entryDocRef = doc(db, 'users', user.uid, 'employees', selectedEmployeeId, 'timeEntries', activeTimeEntry.id);
         
         let timeOutValue: Date | Timestamp = serverTimestamp() as Timestamp;
-        let toastDescription = `${activeTimeEntry.employeeName}'s shift has ended.`;
+        let toastDescription = `${activeTimeEntry.employeeName}'s shift has ended at ${format(new Date(), 'p')}.`;
 
         if (isBefore(activeTimeEntry.timeIn.toDate(), startOfToday())) {
             const autoClockOutResult = await getAutoClockOutTime(activeTimeEntry.timeIn.toDate());
@@ -433,5 +433,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-
-    
