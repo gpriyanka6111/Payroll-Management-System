@@ -401,6 +401,9 @@ export default function TimesheetPage() {
   
   const [dateRange, setDateRange] = React.useState<DateRange | undefined>();
   const [rememberDates, setRememberDates] = React.useState(false);
+  
+  const headerRef = React.useRef<HTMLDivElement>(null);
+  const bodyRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
     const saved = localStorage.getItem('timesheetDateRange');
@@ -668,6 +671,12 @@ export default function TimesheetPage() {
     const fileName = `timesheet (${format(dateRange.from, 'yyyy-MM-dd')} to ${format(dateRange.to, 'yyyy-MM-dd')}).xlsx`;
     XLSX.writeFile(wb, fileName);
   };
+  
+  const handleScroll = () => {
+    if (headerRef.current && bodyRef.current) {
+        headerRef.current.scrollLeft = bodyRef.current.scrollLeft;
+    }
+  };
 
 
   return (
@@ -748,71 +757,80 @@ export default function TimesheetPage() {
              </div>
            ) : (
             employees.length > 0 ? (
-                <div className="border rounded-lg max-h-[65vh] overflow-auto">
-                    <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead className="w-[120px] font-bold sticky left-0 top-0 bg-card z-30">Date</TableHead>
-                            <TableHead className="w-[80px] font-bold sticky left-[120px] top-0 bg-card z-30">Metric</TableHead>
-                             {employees.map(emp => (
-                                <TableHead key={emp.id} className="font-bold sticky top-0 bg-card z-20 min-w-[150px] text-center">{emp.firstName}</TableHead>
-                            ))}
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {days.map(day => {
-                                const daySummaries = dailySummaries.filter(s => isSameDay(s.date, day));
-                                return (
-                                    <React.Fragment key={day.toISOString()}>
-                                        <TableRow>
-                                            <TableCell rowSpan={3} className="font-medium align-top pt-3 border-b sticky left-0 bg-card z-20">
-                                                {format(day, 'eee, MMM dd')}
-                                            </TableCell>
-                                            <TableCell className="font-semibold text-muted-foreground p-2 sticky left-[120px] bg-card z-20">In:</TableCell>
-                                            {employees.map(emp => {
-                                                const summary = daySummaries.find(s => s.employeeId === emp.id);
-                                                return (
-                                                    <TableCell key={`${emp.id}-in`} className="text-center tabular-nums cursor-pointer p-2" onClick={() => handleCellClick(emp, day)}>
-                                                        {summary ? (summary.entries.length > 1 ? 'Multiple' : (summary.entries[0]?.timeIn ? format(summary.entries[0].timeIn.toDate(), 'p') : '-')) : '-'}
-                                                    </TableCell>
-                                                );
-                                            })}
-                                        </TableRow>
-                                        <TableRow>
-                                             <TableCell className="font-semibold text-muted-foreground p-2 sticky left-[120px] bg-card z-20">Out:</TableCell>
-                                             {employees.map(emp => {
-                                                const summary = daySummaries.find(s => s.employeeId === emp.id);
-                                                return (
-                                                    <TableCell key={`${emp.id}-out`} className="text-center tabular-nums cursor-pointer p-2" onClick={() => handleCellClick(emp, day)}>
-                                                        {summary ? (summary.entries.length > 1 ? 'Multiple' : (summary.entries[0]?.timeOut ? format(summary.entries[0].timeOut.toDate(), 'p') : (summary.entries[0]?.timeIn ? <span className="text-accent font-semibold">ACTIVE</span> : '-'))) : '-'}
-                                                    </TableCell>
-                                                );
-                                            })}
-                                        </TableRow>
-                                        <TableRow>
-                                             <TableCell className="font-bold p-2 sticky left-[120px] bg-card z-20">Total:</TableCell>
-                                              {employees.map(emp => {
-                                                const summary = daySummaries.find(s => s.employeeId === emp.id);
-                                                return (
-                                                    <TableCell key={`${emp.id}-total`} className="text-center font-bold tabular-nums cursor-pointer p-2" onClick={() => handleCellClick(emp, day)}>
-                                                        {summary && summary.totalHours > 0 ? `${summary.totalHours.toFixed(2)}` : '-'}
-                                                    </TableCell>
-                                                );
-                                            })}
-                                        </TableRow>
-                                    </React.Fragment>
-                                )
-                            })}
-                             <TableRow>
-                                <TableCell colSpan={2} className="sticky bottom-0 left-0 bg-card z-30 font-bold p-2 text-right">Total Hours</TableCell>
-                                {employees.map(emp => (
-                                    <TableCell key={emp.id} className="sticky bottom-0 bg-card z-20 font-bold text-primary tabular-nums p-2 text-center">
-                                        {(employeeTotals.get(emp.id) || 0).toFixed(2)}
-                                    </TableCell>
-                                ))}
-                            </TableRow>
-                        </TableBody>
-                    </Table>
+                <div className="border rounded-lg">
+                    {/* Synced Sticky Header */}
+                    <div className="relative overflow-hidden" ref={headerRef}>
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead className="w-[120px] sticky left-0 bg-card z-20">Date</TableHead>
+                                    <TableHead className="w-[80px] sticky left-[120px] bg-card z-20">Metric</TableHead>
+                                    {employees.map(emp => (
+                                        <TableHead key={emp.id} className="min-w-[150px] text-center">{emp.firstName}</TableHead>
+                                    ))}
+                                </TableRow>
+                            </TableHeader>
+                        </Table>
+                    </div>
+                    {/* Scrolling Body */}
+                    <div className="max-h-[60vh] overflow-auto" ref={bodyRef} onScroll={handleScroll}>
+                        <Table>
+                            <TableBody>
+                                {days.map(day => {
+                                    const daySummaries = dailySummaries.filter(s => isSameDay(s.date, day));
+                                    return (
+                                        <React.Fragment key={day.toISOString()}>
+                                            <TableRow>
+                                                <TableCell rowSpan={3} className="font-medium align-top pt-3 border-b sticky left-0 bg-card z-10 w-[120px]">
+                                                    {format(day, 'eee, MMM dd')}
+                                                </TableCell>
+                                                <TableCell className="font-semibold text-muted-foreground p-2 sticky left-[120px] bg-card z-10 w-[80px]">In:</TableCell>
+                                                {employees.map(emp => {
+                                                    const summary = daySummaries.find(s => s.employeeId === emp.id);
+                                                    return (
+                                                        <TableCell key={`${emp.id}-in`} className="text-center tabular-nums cursor-pointer p-2 min-w-[150px]" onClick={() => handleCellClick(emp, day)}>
+                                                            {summary ? (summary.entries.length > 1 ? 'Multiple' : (summary.entries[0]?.timeIn ? format(summary.entries[0].timeIn.toDate(), 'p') : '-')) : '-'}
+                                                        </TableCell>
+                                                    );
+                                                })}
+                                            </TableRow>
+                                            <TableRow>
+                                                <TableCell className="font-semibold text-muted-foreground p-2 sticky left-[120px] bg-card z-10 w-[80px]">Out:</TableCell>
+                                                {employees.map(emp => {
+                                                    const summary = daySummaries.find(s => s.employeeId === emp.id);
+                                                    return (
+                                                        <TableCell key={`${emp.id}-out`} className="text-center tabular-nums cursor-pointer p-2 min-w-[150px]" onClick={() => handleCellClick(emp, day)}>
+                                                            {summary ? (summary.entries.length > 1 ? 'Multiple' : (summary.entries[0]?.timeOut ? format(summary.entries[0].timeOut.toDate(), 'p') : (summary.entries[0]?.timeIn ? <span className="text-accent font-semibold">ACTIVE</span> : '-'))) : '-'}
+                                                        </TableCell>
+                                                    );
+                                                })}
+                                            </TableRow>
+                                            <TableRow>
+                                                <TableCell className="font-bold p-2 sticky left-[120px] bg-card z-10 w-[80px]">Total:</TableCell>
+                                                {employees.map(emp => {
+                                                    const summary = daySummaries.find(s => s.employeeId === emp.id);
+                                                    return (
+                                                        <TableCell key={`${emp.id}-total`} className="text-center font-bold tabular-nums cursor-pointer p-2 min-w-[150px]" onClick={() => handleCellClick(emp, day)}>
+                                                            {summary && summary.totalHours > 0 ? `${summary.totalHours.toFixed(2)}` : '-'}
+                                                        </TableCell>
+                                                    );
+                                                })}
+                                            </TableRow>
+                                        </React.Fragment>
+                                    )
+                                })}
+                                {/* Footer Row */}
+                                <TableRow>
+                                     <TableCell colSpan={2} className="sticky left-0 bg-card z-10 font-bold p-2 text-right w-[200px]">Total Hours</TableCell>
+                                     {employees.map(emp => (
+                                        <TableCell key={emp.id} className="font-bold text-primary tabular-nums p-2 text-center min-w-[150px]">
+                                            {(employeeTotals.get(emp.id) || 0).toFixed(2)}
+                                        </TableCell>
+                                    ))}
+                                </TableRow>
+                            </TableBody>
+                        </Table>
+                    </div>
                 </div>
             ) : (
                 <div className="text-center py-10 text-muted-foreground">
