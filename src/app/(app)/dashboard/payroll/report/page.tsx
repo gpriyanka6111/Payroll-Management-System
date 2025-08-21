@@ -288,6 +288,7 @@ function PayrollReportContent() {
         const daysInPeriod = eachDayOfInterval({ start: period.from, end: period.to });
         let weeklyTotals: number[] = Array(inputs.length).fill(0);
         const grandTotals: number[] = Array(inputs.length).fill(0);
+        let financialSummaryStartRow = -1;
     
         daysInPeriod.forEach((day, index) => {
             const dayOfWeek = getDay(day);
@@ -333,6 +334,7 @@ function PayrollReportContent() {
         ws_data.push(grandTotalRow);
         merges.push({ s: { r: currentRow, c: 0 }, e: { r: currentRow, c: 2 } });
         row_heights.push({ hpx: 25 });
+        financialSummaryStartRow = currentRow;
         currentRow++;
 
         // --- Start of Financial Summary ---
@@ -403,10 +405,10 @@ function PayrollReportContent() {
 
         ws_data.push([null, null, null,
             formatCurrency(totals.totalNetPay),
-            summaryData.employer || '-',
-            summaryData.employee || '-',
-            summaryData.deductions || '-',
-            summaryData.netPay || '-',
+            summaryData.employer || '',
+            summaryData.employee || '',
+            summaryData.deductions || '',
+            summaryData.netPay || '',
             formatCurrency(totals.totalOtherPay)
         ]);
         row_heights.push({ hpx: 25 });
@@ -425,43 +427,37 @@ function PayrollReportContent() {
         
         // --- Cell Styling ---
         const lightGrayFill = { fgColor: { rgb: "F0F0F0" } };
-        const centerAlign = { horizontal: 'center' };
-
-        // Helper to get cell address
-        const getCellAddress = (r: number, c: number) => XLSX.utils.encode_cell({ r, c });
-
-        // Apply styles
+        const leftAlign = { horizontal: 'left', vertical: 'center' };
+        const thickBorder = {
+            top: { style: 'thick' },
+            bottom: { style: 'thick' },
+            left: { style: 'thick' },
+            right: { style: 'thick' },
+        };
+        
         ws_data.forEach((row, r) => {
             row.forEach((cell, c) => {
-                const cellAddress = getCellAddress(r, c);
-                if (!ws[cellAddress]) ws[cellAddress] = { t: typeof cell === 'number' ? 'n' : 's', v: cell };
-                
-                let currentStyle = ws[cellAddress].s || {};
+                const cellRef = XLSX.utils.encode_cell({ r, c });
+                if (!ws[cellRef]) ws[cellRef] = { t: 's', v: cell };
+                if (cell === null) ws[cellRef].v = '';
 
-                // Center align all data columns
-                if (c >= 3) {
-                    currentStyle.alignment = { ...currentStyle.alignment, ...centerAlign };
-                }
-                
+                let style = ws[cellRef].s || {};
+                style.alignment = { ...style.alignment, ...leftAlign };
+
                 const rowText = typeof row[0] === 'string' ? row[0] : '';
                 const isHeaderRow = r === 2;
                 const isWeeklyTotalRow = rowText === 'Total Hrs of this week';
-                const isGrandTotalRow = rowText === 'Total Hours';
-                const isFinancialHeader = r > grandTotals.length + 3 && c === 0 && rowText.match(/^[A-Z\s/$-]+$/) && row.length > 1;
-
-                // Header and total rows
-                if (isHeaderRow || isWeeklyTotalRow || isGrandTotalRow) {
-                    currentStyle.fill = lightGrayFill;
-                    currentStyle.font = { ...currentStyle.font, bold: true };
-                    // Center the merged cells
-                    if (ws[getCellAddress(r,0)]) ws[getCellAddress(r,0)].s = { ...ws[getCellAddress(r,0)].s, alignment: centerAlign };
-                }
-                // Financial summary labels
-                else if (isFinancialHeader) {
-                     if (ws[getCellAddress(r,0)]) ws[getCellAddress(r,0)].s = { ...ws[getCellAddress(r,0)].s, alignment: centerAlign };
+                
+                if (isHeaderRow || isWeeklyTotalRow) {
+                    style.fill = lightGrayFill;
+                    style.font = { ...style.font, bold: true };
                 }
 
-                ws[cellAddress].s = currentStyle;
+                if (financialSummaryStartRow !== -1 && r >= financialSummaryStartRow) {
+                    style.border = thickBorder;
+                }
+
+                ws[cellRef].s = style;
             });
         });
 
@@ -607,10 +603,10 @@ function PayrollReportContent() {
                             <TableBody>
                                 <TableRow>
                                     <TableCell className="font-semibold tabular-nums">{formatCurrency(totals.totalNetPay)}</TableCell>
-                                    <TableCell>{summaryData.employer || '-'}</TableCell>
-                                    <TableCell>{summaryData.employee || '-'}</TableCell>
-                                    <TableCell>{summaryData.deductions || '-'}</TableCell>
-                                    <TableCell>{summaryData.netPay || '-'}</TableCell>
+                                    <TableCell>{summaryData.employer || ''}</TableCell>
+                                    <TableCell>{summaryData.employee || ''}</TableCell>
+                                    <TableCell>{summaryData.deductions || ''}</TableCell>
+                                    <TableCell>{summaryData.netPay || ''}</TableCell>
                                     <TableCell className="font-semibold tabular-nums">{formatCurrency(totals.totalOtherPay)}</TableCell>
                                 </TableRow>
                             </TableBody>
