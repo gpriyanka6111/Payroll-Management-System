@@ -365,6 +365,10 @@ function PayrollReportContent() {
             currentRow++;
         });
 
+        ws_data.push([]); 
+        row_heights.push({ hpx: 20 });
+        currentRow++;
+
         ws_data.push([null, null, null, ...employeeNames]);
         row_heights.push({ hpx: 25 });
         currentRow++;
@@ -390,16 +394,11 @@ function PayrollReportContent() {
         row_heights.push({ hpx: 20 });
         currentRow++;
 
-        ws_data.push(['Payroll Summary', null, null]);
-        merges.push({ s: { r: currentRow, c: 0 }, e: { r: currentRow, c: 2 } });
+        ws_data.push(['GP', 'EMPLOYER', 'EMPLOYEE', 'DED', 'NET', 'OTHERS']);
         row_heights.push({ hpx: 25 });
         currentRow++;
 
-        ws_data.push([null, null, null, 'GP', 'EMPLOYER', 'EMPLOYEE', 'DED', 'NET', 'OTHERS']);
-        row_heights.push({ hpx: 25 });
-        currentRow++;
-
-        ws_data.push([null, null, null,
+        ws_data.push([
             formatCurrency(totals.totalNetPay),
             summaryData.employer || '',
             summaryData.employee || '',
@@ -415,8 +414,7 @@ function PayrollReportContent() {
         ws['!merges'] = merges;
         ws['!rows'] = row_heights;
 
-        const colWidths = [{ wch: 6.5 }, { wch: 7 }, { wch: 6 }];
-        inputs.forEach(() => colWidths.push({ wch: 9 }));
+        const colWidths = [{ wch: 6.5 }, { wch: 7 }, { wch: 6 }, ...inputs.map(() => ({ wch: 9 }))];
         ws['!cols'] = colWidths;
         
         const leftAlignStyle = { alignment: { horizontal: 'left', vertical: 'center' } };
@@ -433,7 +431,7 @@ function PayrollReportContent() {
         const thickBorderRowLabels = [
             'Total Hrs of this week', 'Total Hours', 'COMMENTS', 'CHECK HOURS',
             'OTHER HOURS', 'RATE/CHECK', 'RATE/OTHERS', 'OTHER-ADJ$',
-            'GROSS CHECK AMOUNT', 'GROSS OTHER AMOUNT', 'Payroll Summary'
+            'GROSS CHECK AMOUNT', 'GROSS OTHER AMOUNT', 'GP'
         ];
 
         const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
@@ -441,21 +439,18 @@ function PayrollReportContent() {
             const firstCell_ref = XLSX.utils.encode_cell({ c: 0, r: R });
             const firstCellValue = ws[firstCell_ref]?.v;
             
-            let applyThickBorder = thickBorderRowLabels.includes(firstCellValue);
-
-            // Special check for the payroll summary data rows
-            if (R > 0) {
-                 const prevRow_ref = XLSX.utils.encode_cell({c: 0, r: R-1});
+            let applyThickBorder = thickBorderRowLabels.includes(String(firstCellValue));
+            
+            if (!applyThickBorder && R > 0) {
+                 const prevRow_ref = XLSX.utils.encode_cell({ c: 0, r: R - 1 });
                  const prevRowValue = ws[prevRow_ref]?.v;
-                 if (prevRowValue === 'Payroll Summary' || (ws_data[R-1] && ws_data[R-1][3] === 'GP')) {
+                 if (prevRowValue === 'GP') {
                      applyThickBorder = true;
                  }
             }
-
-
+            
             for (let C = range.s.c; C <= range.e.c; ++C) {
-                const cell_address = { c: C, r: R };
-                const cell_ref = XLSX.utils.encode_cell(cell_address);
+                const cell_ref = XLSX.utils.encode_cell({ c: C, r: R });
                 if (!ws[cell_ref]) continue;
 
                 if (applyThickBorder) {
@@ -661,3 +656,5 @@ export default function PayrollReportPage() {
         </React.Suspense>
     )
 }
+
+    
