@@ -220,13 +220,10 @@ function PayrollReportContent() {
     const handleExportToExcel = async () => {
         if (!period || !results.length || !user) return;
     
-        // 1. Fetch user settings to check for Sunday closed status
         const userDocRef = doc(db, 'users', user.uid);
         const userSnap = await getDoc(userDocRef);
         const isSundayClosed = userSnap.exists() ? userSnap.data().storeTimings?.sundayClosed === true : false;
 
-
-        // 2. Fetch all time entries for the period for all employees
         const toDateEnd = new Date(period.to);
         toDateEnd.setHours(23, 59, 59, 999);
         const employeeHours: EmployeeDailyHours = {};
@@ -252,39 +249,35 @@ function PayrollReportContent() {
     
             for (const dateKey in dailyMinutes) {
                 employeeHours[input.employeeId].push({
-                    date: new Date(dateKey + 'T12:00:00'), // Use noon to avoid timezone issues
+                    date: new Date(dateKey + 'T12:00:00'),
                     hours: dailyMinutes[dateKey] / 60
                 });
             }
         }
     
-        // 3. Build the Excel sheet
         const wb = XLSX.utils.book_new();
         const ws_data: (string | number | null)[][] = [];
+        const merges: XLSX.Range[] = [];
+        let currentRow = 0;
     
-        // Header Row
         ws_data.push([`${companyName} - Pay Period: ${format(period.from, 'LLL dd, yyyy')} - ${format(period.to, 'LLL dd, yyyy')}`]);
-        ws_data.push([]); // Spacer
+        merges.push({ s: { r: 0, c: 0 }, e: { r: 0, c: 2 + inputs.length } });
+        currentRow++;
+        ws_data.push([]); 
+        currentRow++;
     
-        // Employee Header Row
         const employeeNames = inputs.map(i => i.name);
         ws_data.push(['Date', 'Day', 'HRS', ...employeeNames]);
+        currentRow++;
     
         const daysInPeriod = eachDayOfInterval({ start: period.from, end: period.to });
         let weeklyTotals: number[] = Array(inputs.length).fill(0);
         const grandTotals: number[] = Array(inputs.length).fill(0);
     
         daysInPeriod.forEach((day, index) => {
-            const dayOfWeek = getDay(day); // Sunday is 0
+            const dayOfWeek = getDay(day);
     
-            // Skip Sunday if the store is closed
-            if (isSundayClosed && dayOfWeek === 0) {
-                // If it was the last day, we still need to print the weekly total before skipping
-                if (index > 0 && getDay(daysInPeriod[index-1]) === 6) {
-                    // This logic might be complex, let's just ensure weekly total prints at end of period.
-                }
-            } else {
-                // Daily hours row
+            if (!(isSundayClosed && dayOfWeek === 0)) {
                 const row: (string | number | null)[] = [
                     format(day, 'MM/dd'),
                     format(day, 'EEE').toUpperCase(),
@@ -298,41 +291,42 @@ function PayrollReportContent() {
                     grandTotals[i] += hours;
                 });
                 ws_data.push(row);
+                currentRow++;
             }
 
-            // Check if it's the end of the week (Saturday) or the last day of the period
             const isSaturday = dayOfWeek === 6;
             const isLastDay = index === daysInPeriod.length - 1;
             
-            if (isSaturday || isLastDay) {
-                // Don't print an empty total row if we just skipped Sunday as the last day
-                if(isSundayClosed && isSaturday && isLastDay){
-                   // Special case where period ends on a Sat and Sun is closed.
-                }
-
-                // If any hours were logged this week, add the total row
-                if (weeklyTotals.some(t => t > 0)) {
-                    const weeklyTotalRow: (string | number | null)[] = [null, 'Total Hrs of this week', null];
-                    weeklyTotals.forEach(total => {
-                        weeklyTotalRow.push(total > 0 ? parseFloat(total.toFixed(2)) : null);
-                    });
-                    ws_data.push(weeklyTotalRow);
-                }
-                weeklyTotals = Array(inputs.length).fill(0); // Reset for next week
+            if ((isSaturday || isLastDay) && weeklyTotals.some(t => t > 0)) {
+                const weeklyTotalRow: (string | number | null)[] = ['Total Hrs of this week', null, null];
+                weeklyTotals.forEach(total => {
+                    weeklyTotalRow.push(total > 0 ? parseFloat(total.toFixed(2)) : null);
+                });
+                ws_data.push(weeklyTotalRow);
+                merges.push({ s: { r: currentRow, c: 0 }, e: { r: currentRow, c: 2 } });
+                currentRow++;
+                weeklyTotals = Array(inputs.length).fill(0);
             }
         });
     
-        // Grand Total Row
-        ws_data.push([]);
-        const grandTotalRow: (string | number | null)[] = [null, 'Total Hours', null];
+        const grandTotalRow: (string | number | null)[] = ['Total Hours', null, null];
         grandTotals.forEach(total => {
             grandTotalRow.push(total > 0 ? parseFloat(total.toFixed(2)) : null);
         });
         ws_data.push(grandTotalRow);
+        merges.push({ s: { r: currentRow, c: 0 }, e: { r: currentRow, c: 2 } });
     
         const ws = XLSX.utils.aoa_to_sheet(ws_data);
         
-        // Set row heights
+        ws['!merges'] = merges;
+        
+        ws_data.forEach((row, r) => {
+           if (row[0] === 'Total Hrs of this week' || row[0] === 'Total Hours') {
+             if (!ws[`A${r + 1}`]) ws[`A${r + 1}`] = { t: 's', v: row[0] };
+             ws[`A${r + 1}`].s = { alignment: { horizontal: 'center' } };
+           }
+        });
+
         const row_heights = ws_data.map(() => ({ hpx: 25 }));
         ws['!rows'] = row_heights;
         
@@ -541,3 +535,4 @@ export default function PayrollReportPage() {
     
 
     
+
