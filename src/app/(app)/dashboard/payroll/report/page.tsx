@@ -516,12 +516,12 @@ function PayrollReportContent() {
                 <section className="mb-8">
                     <h2 className="text-xl font-semibold mb-4">Payroll Inputs</h2>
                     <div className="overflow-x-auto border rounded-lg">
-                        <Table className="min-w-max">
+                        <Table>
                             <TableHeader>
                                 <TableRow>
                                     <TableHead className="font-bold min-w-[200px]">Metric</TableHead>
                                     {inputs.map((input) => (
-                                        <TableHead key={input.employeeId} className="text-right">{input.name}</TableHead>
+                                        <TableHead key={input.employeeId} className="text-right min-w-[150px]">{input.name}</TableHead>
                                     ))}
                                 </TableRow>
                             </TableHeader>
@@ -550,12 +550,12 @@ function PayrollReportContent() {
                  <section className="mb-8">
                     <h2 className="text-xl font-semibold mb-4">Payroll Results</h2>
                      <div className="overflow-x-auto border rounded-lg">
-                        <Table className="min-w-max">
+                        <Table>
                             <TableHeader>
                                 <TableRow>
                                     <TableHead className="font-bold min-w-[200px]">Metric</TableHead>
                                     {results.map((result) => (
-                                        <TableHead key={result.employeeId} className="text-right">{result.name}</TableHead>
+                                        <TableHead key={result.employeeId} className="text-right min-w-[150px]">{result.name}</TableHead>
                                     ))}
                                 </TableRow>
                             </TableHeader>
