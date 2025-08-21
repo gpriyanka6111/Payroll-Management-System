@@ -400,15 +400,41 @@ function PayrollReportContent() {
         
         ws['!merges'] = merges;
         
+        ws['!rows'] = row_heights;
+
+        const colWidths = [{ wch: 6.5 }, { wch: 7 }, { wch: 6 }];
+        inputs.forEach(() => colWidths.push({ wch: 12 }));
+        ws['!cols'] = colWidths;
+        
+        // --- Cell Styling ---
+        const lightGrayFill = { fgColor: { rgb: "F0F0F0" } };
+        const centerAlign = { horizontal: 'center' };
+
+        // Helper to get cell address
+        const getCellAddress = (r: number, c: number) => XLSX.utils.encode_cell({ r, c });
+
+        // Style Header
+        for (let C = 0; C < ws_data[2].length; C++) {
+            const cellAddress = getCellAddress(2, C);
+            if (!ws[cellAddress]) ws[cellAddress] = { t: 's', v: ws_data[2][C] };
+            ws[cellAddress].s = { fill: lightGrayFill, font: { bold: true } };
+        }
+
+        // Style Summary Rows
         ws_data.forEach((row, r) => {
-           if (typeof row[0] === 'string' && (row[0].startsWith('Total') || row[0].endsWith('$') || row[0].match(/^[A-Z\s/]+$/))) {
-             if (!ws[`A${r + 1}`]) ws[`A${r + 1}`] = { t: 's', v: row[0] };
-             ws[`A${r + 1}`].s = { alignment: { horizontal: 'center' } };
+           if (typeof row[0] === 'string') {
+             if (row[0].startsWith('Total')) {
+                const cellAddress = getCellAddress(r, 0);
+                if (!ws[cellAddress]) ws[cellAddress] = { t: 's', v: row[0] };
+                ws[cellAddress].s = { fill: lightGrayFill, font: { bold: true }, alignment: centerAlign };
+             } else if (row[0].endsWith('$') || row[0].match(/^[A-Z\s/]+$/)) {
+                const cellAddress = getCellAddress(r, 0);
+                if (!ws[cellAddress]) ws[cellAddress] = { t: 's', v: row[0] };
+                ws[cellAddress].s = { alignment: centerAlign };
+             }
            }
         });
 
-        ws['!rows'] = row_heights;
-        
         XLSX.utils.book_append_sheet(wb, ws, "Timesheet Report");
     
         const fileName = `Payroll_Timesheet_${format(period.from, 'yyyy-MM-dd')}_to_${format(period.to, 'yyyy-MM-dd')}.xlsx`;
@@ -616,3 +642,6 @@ export default function PayrollReportPage() {
     
 
 
+
+
+    
