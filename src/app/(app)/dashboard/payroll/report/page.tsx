@@ -52,7 +52,7 @@ function PayrollReportContent() {
     const [period, setPeriod] = React.useState<{ from: Date; to: Date } | null>(null);
     const [isLoading, setIsLoading] = React.useState(true);
     const [companyName, setCompanyName] = React.useState("My Small Business");
-    const [summaryData, setSummaryData] = React.useState<{ employee?: string; deductions?: string; netPay?: string }>({});
+    const [summaryData, setSummaryData] = React.useState<{ employer?: string; employee?: string; deductions?: string; netPay?: string }>({});
     const [ytdData, setYtdData] = React.useState<YtdData>({});
 
 
@@ -88,6 +88,7 @@ function PayrollReportContent() {
                         setInputs(currentPayrollData.inputs);
                         setPeriod({ from: fromDate, to: new Date(toY, toM - 1, toD) });
                         setSummaryData({
+                            employer: currentPayrollData.summaryEmployer,
                             employee: currentPayrollData.summaryEmployee,
                             deductions: currentPayrollData.summaryDeductions,
                             netPay: currentPayrollData.summaryNetPay,
@@ -250,9 +251,10 @@ function PayrollReportContent() {
 
         // Summary
         ws_data.push(['PAYROLL SUMMARY']);
-        ws_data.push(['GP', 'EMPLOYEE', 'DED', 'NET', 'OTHERS']);
+        ws_data.push(['GP', 'EMPLOYER', 'EMPLOYEE', 'DED', 'NET', 'OTHERS']);
         ws_data.push([
             totals.totalNetPay.toFixed(2),
+            summaryData.employer || '',
             summaryData.employee || '',
             summaryData.deductions || '',
             summaryData.netPay || '',
@@ -408,6 +410,7 @@ function PayrollReportContent() {
                             <TableHeader>
                                 <TableRow>
                                     <TableHead>GP</TableHead>
+                                    <TableHead>EMPLOYER</TableHead>
                                     <TableHead>EMPLOYEE</TableHead>
                                     <TableHead>DED</TableHead>
                                     <TableHead>NET</TableHead>
@@ -417,6 +420,7 @@ function PayrollReportContent() {
                             <TableBody>
                                 <TableRow>
                                     <TableCell className="font-semibold tabular-nums">{formatCurrency(totals.totalNetPay)}</TableCell>
+                                    <TableCell>{summaryData.employer || '-'}</TableCell>
                                     <TableCell>{summaryData.employee || '-'}</TableCell>
                                     <TableCell>{summaryData.deductions || '-'}</TableCell>
                                     <TableCell>{summaryData.netPay || '-'}</TableCell>

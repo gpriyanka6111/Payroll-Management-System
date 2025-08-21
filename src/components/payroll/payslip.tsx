@@ -121,7 +121,7 @@ export function Payslip({ companyName, payPeriod, result, input, ytdGrossPay }: 
             </CardContent>
             <CardFooter>
                  <div className="flex justify-between w-full p-3 bg-muted/50 rounded-lg">
-                    <span className="text-lg font-bold">Net Pay</span>
+                    <span className="text-lg font-bold">Gross Pay</span>
                     <span className="text-lg font-bold tabular-nums">{formatCurrency(currentGrossPay)}</span>
                  </div>
             </CardFooter>

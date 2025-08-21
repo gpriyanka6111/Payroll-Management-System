@@ -87,7 +87,6 @@ export type PayrollResult = {
   otherAdjustment: number;
   grossCheckAmount: number;
   grossOtherAmount: number;
-  netPay: number;
   newPtoBalance: number;
 };
 
@@ -117,6 +116,7 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
   const [showResults, setShowResults] = React.useState(false);
   const [companyName, setCompanyName] = React.useState("My Small Business");
 
+  const [summaryEmployer, setSummaryEmployer] = React.useState('');
   const [summaryEmployee, setSummaryEmployee] = React.useState('');
   const [summaryDeductions, setSummaryDeductions] = React.useState('');
   const [summaryNetPay, setSummaryNetPay] = React.useState('');
@@ -232,6 +232,7 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
               };
           });
           
+          setSummaryEmployer(initialPayrollData.summaryEmployer || '');
           setSummaryEmployee(initialPayrollData.summaryEmployee || '');
           setSummaryDeductions(initialPayrollData.summaryDeductions || '');
           setSummaryNetPay(initialPayrollData.summaryNetPay || '');
@@ -352,7 +353,6 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
           otherAdjustment: 0,
           grossCheckAmount: biWeeklySalary, // Salaried pay is fixed
           grossOtherAmount: 0,
-          netPay: biWeeklySalary,
         };
       } else { // Hourly
         const totalHoursWorked = safeGetNumber(emp.totalHoursWorked);
@@ -369,8 +369,6 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
         const otherPay = payRateOthers * otherHours;
         const grossOtherAmount = otherPay + otherAdjustment;
 
-        const netPay = grossCheckAmount; 
-
         result = {
           employeeId: emp.employeeId,
           name: emp.name,
@@ -385,7 +383,6 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
           otherAdjustment,
           grossCheckAmount,
           grossOtherAmount,
-          netPay,
         };
       }
       
@@ -444,6 +441,7 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
             status: 'Completed',
             results: payrollResults,
             inputs: currentInputs,
+            summaryEmployer: summaryEmployer,
             summaryEmployee: summaryEmployee,
             summaryDeductions: summaryDeductions,
             summaryNetPay: summaryNetPay,
@@ -690,7 +688,6 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
                         <TableRow><TableCell>Others-ADJ $</TableCell>{payrollResults.map(r => <TableCell key={r.employeeId} className="text-left"><Input type="number" step="0.01" className="h-8 w-28" value={r.otherAdjustment} onChange={(e) => handleResultAdjustmentChange(r.employeeId, e.target.value)} disabled={r.payMethod === 'Salaried'} /></TableCell>)}</TableRow>
                         <TableRow><TableCell className="font-semibold">Gross Check Amount</TableCell>{payrollResults.map(r => <TableCell key={r.employeeId} className="font-semibold text-left tabular-nums">{formatCurrency(r.grossCheckAmount)}</TableCell>)}</TableRow>
                         <TableRow><TableCell className="font-semibold">Gross Other Amount</TableCell>{payrollResults.map(r => <TableCell key={r.employeeId} className="font-semibold text-left tabular-nums">{formatCurrency(r.grossOtherAmount)}</TableCell>)}</TableRow>
-                        <TableRow><TableCell className="font-semibold">Net Pay</TableCell>{payrollResults.map(r => <TableCell key={r.employeeId} className="font-semibold text-left tabular-nums">{formatCurrency(r.netPay)}</TableCell>)}</TableRow>
                         
                         <TableRow><TableCell colSpan={payrollResults.length + 1} className="p-2 bg-muted/20 font-semibold text-muted-foreground">PTO Balance</TableCell></TableRow>
                         <TableRow><TableCell>New PTO Balance</TableCell>{payrollResults.map(r => <TableCell key={r.employeeId} className="text-left tabular-nums">({formatHours(r.newPtoBalance)})</TableCell>)}</TableRow>
@@ -702,9 +699,13 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
 
              <div className="space-y-4">
                 <h3 className="text-lg font-medium">Payroll Summary</h3>
-                <div className="grid grid-cols-1 gap-6 md:grid-cols-5">
+                <div className="grid grid-cols-1 gap-6 md:grid-cols-6">
                     <div className="space-y-2">
                        <Label>GP <span className="font-bold">{formatCurrency(payrollResults.reduce((s, r) => s + r.grossCheckAmount, 0))}</span></Label>
+                    </div>
+                    <div className="space-y-2">
+                       <Label>EMPLOYER</Label>
+                       <Input value={summaryEmployer} onChange={(e) => setSummaryEmployer(e.target.value)} />
                     </div>
                     <div className="space-y-2">
                        <Label>EMPLOYEE</Label>
