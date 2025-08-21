@@ -429,6 +429,7 @@ function PayrollReportContent() {
         // --- Cell Styling ---
         const leftAlignStyle = { alignment: { horizontal: 'left', vertical: 'center' } };
         const thickBorderStyle = { 
+            alignment: { horizontal: 'left', vertical: 'center' },
             border: {
                 top: { style: 'thick' },
                 bottom: { style: 'thick' },
@@ -437,21 +438,21 @@ function PayrollReportContent() {
             }
         };
 
-        ws_data.forEach((row, r) => {
-            row.forEach((cell, c) => {
-                const cellRef = XLSX.utils.encode_cell({ r, c });
-                if (!ws[cellRef]) ws[cellRef] = { t: 's', v: cell };
-                if (cell === null || cell === '') ws[cellRef].v = '';
+        const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+        for (let R = range.s.r; R <= range.e.r; ++R) {
+            for (let C = range.s.c; C <= range.e.c; ++C) {
+                const cell_address = { c: C, r: R };
+                const cell_ref = XLSX.utils.encode_cell(cell_address);
+                if (!ws[cell_ref]) continue;
 
-                // Start with a base style including left alignment
-                ws[cellRef].s = { ...leftAlignStyle };
-                
-                // Add conditional styles
-                if (financialSummaryStartRow !== -1 && r >= financialSummaryStartRow) {
-                    ws[cellRef].s = { ...ws[cellRef].s, ...thickBorderStyle };
+                if (R >= financialSummaryStartRow) {
+                    ws[cell_ref].s = thickBorderStyle;
+                } else {
+                    ws[cell_ref].s = leftAlignStyle;
                 }
-            });
-        });
+            }
+        }
+
 
         XLSX.utils.book_append_sheet(wb, ws, "Timesheet Report");
     
