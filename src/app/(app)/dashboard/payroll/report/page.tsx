@@ -381,7 +381,8 @@ function PayrollReportContent() {
         grossMetrics.forEach(metric => {
             const row: (string | number | null)[] = [metric.label, null, null];
             results.forEach(result => {
-                row.push(formatCurrency((result as any)[metric.key]));
+                const rawValue = (result as any)[metric.key];
+                row.push(typeof rawValue === 'number' ? formatCurrency(rawValue) : '');
             });
             ws_data.push(row);
             merges.push({ s: { r: currentRow, c: 0 }, e: { r: currentRow, c: 2 } });
@@ -439,10 +440,10 @@ function PayrollReportContent() {
             row.forEach((cell, c) => {
                 const cellRef = XLSX.utils.encode_cell({ r, c });
                 if (!ws[cellRef]) ws[cellRef] = { t: 's', v: cell };
-                if (cell === null) ws[cellRef].v = '';
+                if (cell === null || cell === '') ws[cellRef].v = '';
 
                 let style = ws[cellRef].s || {};
-                style.alignment = { ...style.alignment, ...leftAlign };
+                style.alignment = leftAlign;
 
                 const rowText = typeof row[0] === 'string' ? row[0] : '';
                 const isHeaderRow = r === 2;
@@ -452,7 +453,7 @@ function PayrollReportContent() {
                     style.fill = lightGrayFill;
                     style.font = { ...style.font, bold: true };
                 }
-
+                
                 if (financialSummaryStartRow !== -1 && r >= financialSummaryStartRow) {
                     style.border = thickBorder;
                 }
@@ -656,5 +657,7 @@ export default function PayrollReportPage() {
         </React.Suspense>
     )
 }
+
+    
 
     
