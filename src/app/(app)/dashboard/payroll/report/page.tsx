@@ -17,7 +17,7 @@ import { useAuth } from '@/contexts/auth-context';
 import { doc, getDoc, collection, getDocs, query, where, orderBy, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import Link from 'next/link';
-import * as XLSX from 'xlsx';
+import *s XLSX from 'xlsx';
 
 const formatCurrency = (amount: unknown) => {
     const num = Number(amount);
@@ -262,7 +262,7 @@ function PayrollReportContent() {
     
         // Employee Header Row
         const employeeNames = inputs.map(i => i.name);
-        ws_data.push(['Date', 'Day', ...employeeNames]);
+        ws_data.push(['Date', 'Day', 'HRS', ...employeeNames]);
     
         const daysInPeriod = eachDayOfInterval({ start: period.from, end: period.to });
         let weeklyTotals: number[] = Array(inputs.length).fill(0);
@@ -273,8 +273,9 @@ function PayrollReportContent() {
     
             // Daily hours row
             const row: (string | number | null)[] = [
-                format(day, 'MM/dd/yyyy'),
+                format(day, 'MM/dd'),
                 format(day, 'EEE').toUpperCase(),
+                null,
             ];
             inputs.forEach((input, i) => {
                 const dayData = employeeHours[input.employeeId]?.find(d => isSameDay(d.date, day));
@@ -287,7 +288,7 @@ function PayrollReportContent() {
     
             // Check if it's the end of the week (Saturday) or the last day of the period
             if (dayOfWeek === 6 || index === daysInPeriod.length - 1) {
-                const weeklyTotalRow: (string | number | null)[] = [null, 'Total Hrs of this week'];
+                const weeklyTotalRow: (string | number | null)[] = [null, 'Total Hrs of this week', null];
                 weeklyTotals.forEach(total => {
                     weeklyTotalRow.push(total > 0 ? parseFloat(total.toFixed(2)) : null);
                 });
@@ -298,7 +299,7 @@ function PayrollReportContent() {
     
         // Grand Total Row
         ws_data.push([]);
-        const grandTotalRow: (string | number | null)[] = [null, 'Total Hours'];
+        const grandTotalRow: (string | number | null)[] = [null, 'Total Hours', null];
         grandTotals.forEach(total => {
             grandTotalRow.push(total > 0 ? parseFloat(total.toFixed(2)) : null);
         });
@@ -509,3 +510,4 @@ export default function PayrollReportPage() {
     
 
     
+
