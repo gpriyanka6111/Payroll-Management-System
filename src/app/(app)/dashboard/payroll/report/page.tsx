@@ -343,7 +343,7 @@ function PayrollReportContent() {
             { label: 'RATE/OTHERS', key: 'payRateOthers', type: 'result', format: 'currency' },
             { label: 'OTHER-ADJ$', key: 'otherAdjustment', type: 'result', format: 'currency' },
         ];
-
+        
         summaryMetrics.forEach(metric => {
             const row: (string | number | null)[] = [metric.label, null, null];
             inputs.forEach(input => {
@@ -393,7 +393,7 @@ function PayrollReportContent() {
         ws_data.push([]); 
         row_heights.push({ hpx: 20 });
         currentRow++;
-
+        
         ws_data.push(['GP', 'EMPLOYER', 'EMPLOYEE', 'DED', 'NET', 'OTHERS']);
         row_heights.push({ hpx: 25 });
         currentRow++;
@@ -417,6 +417,7 @@ function PayrollReportContent() {
         const colWidths = [{ wch: 6.5 }, { wch: 7 }, { wch: 6 }, ...inputs.map(() => ({ wch: 9 }))];
         ws['!cols'] = colWidths;
         
+        // Define styles
         const leftAlignStyle = { alignment: { horizontal: 'left', vertical: 'center' } };
         const thickBorderStyle = { 
             alignment: { horizontal: 'left', vertical: 'center' },
@@ -428,27 +429,28 @@ function PayrollReportContent() {
             }
         };
 
-        const thickBorderRowLabels = [
+        const thickBorderRowLabels = new Set([
             'Total Hrs of this week', 'Total Hours', 'COMMENTS', 'CHECK HOURS',
             'OTHER HOURS', 'RATE/CHECK', 'RATE/OTHERS', 'OTHER-ADJ$',
             'GROSS CHECK AMOUNT', 'GROSS OTHER AMOUNT', 'GP'
-        ];
+        ]);
 
         const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
         for (let R = range.s.r; R <= range.e.r; ++R) {
-            const firstCell_ref = XLSX.utils.encode_cell({ c: 0, r: R });
-            const firstCellValue = ws[firstCell_ref]?.v;
+            const firstCellRef = XLSX.utils.encode_cell({ c: 0, r: R });
+            const firstCellValue = ws[firstCellRef]?.v;
             
-            let applyThickBorder = thickBorderRowLabels.includes(String(firstCellValue));
+            let applyThickBorder = thickBorderRowLabels.has(String(firstCellValue));
             
+            // Special case for the row after 'GP' which is the value row
             if (!applyThickBorder && R > 0) {
-                 const prevRow_ref = XLSX.utils.encode_cell({ c: 0, r: R - 1 });
-                 const prevRowValue = ws[prevRow_ref]?.v;
+                 const prevRowRef = XLSX.utils.encode_cell({ c: 0, r: R - 1 });
+                 const prevRowValue = ws[prevRowRef]?.v;
                  if (prevRowValue === 'GP') {
                      applyThickBorder = true;
                  }
             }
-            
+
             for (let C = range.s.c; C <= range.e.c; ++C) {
                 const cell_ref = XLSX.utils.encode_cell({ c: C, r: R });
                 if (!ws[cell_ref]) continue;
@@ -460,7 +462,7 @@ function PayrollReportContent() {
                 }
             }
         }
-
+        
         XLSX.utils.book_append_sheet(wb, ws, "Timesheet Report");
     
         const fileName = `Payroll_Timesheet_${format(period.from, 'yyyy-MM-dd')}_to_${format(period.to, 'yyyy-MM-dd')}.xlsx`;
@@ -656,5 +658,7 @@ export default function PayrollReportPage() {
         </React.Suspense>
     )
 }
+
+    
 
     
