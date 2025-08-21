@@ -271,8 +271,12 @@ function PayrollReportContent() {
         const row_heights: { hpx: number }[] = [];
         let currentRow = 0;
     
+        // HEADER ROW - Spanning multiple columns
         ws_data.push([`${companyName} - Pay Period: ${format(period.from, 'LLL dd, yyyy')} - ${format(period.to, 'LLL dd, yyyy')}`]);
-        merges.push({ s: { r: currentRow, c: 0 }, e: { r: currentRow, c: 2 + inputs.length } });
+        merges.push({ s: { r: currentRow, c: 0 }, e: { r: 1, c: 2 + inputs.length } }); // Merge rows 0 and 1
+        row_heights.push({ hpx: 25 });
+        currentRow++;
+        ws_data.push([]); // Empty row for the merge
         row_heights.push({ hpx: 25 });
         currentRow++;
     
@@ -350,7 +354,7 @@ function PayrollReportContent() {
                 const source = metric.type === 'input' ? input : results.find(r => r.employeeId === input.employeeId);
                 let value: any = source ? (source as any)[metric.key] : undefined;
 
-                if (value !== undefined && value !== null && value !== '') {
+                 if (value !== undefined && value !== null && value !== '') {
                     if (metric.format === 'currency') value = formatCurrency(value);
                     else if (metric.format === 'hours') value = formatHours(value);
                 } else {
@@ -393,7 +397,7 @@ function PayrollReportContent() {
         ws_data.push([]); 
         row_heights.push({ hpx: 20 });
         currentRow++;
-
+        
         ws_data.push(['GP', 'EMPLOYER', 'EMPLOYEE', 'DED', 'NET', 'OTHERS']);
         row_heights.push({ hpx: 25 });
         currentRow++;
@@ -414,53 +418,18 @@ function PayrollReportContent() {
         ws['!merges'] = merges;
         ws['!rows'] = row_heights;
 
-        const colWidths = [{ wch: 6.5 }, { wch: 7 }, { wch: 6 }, ...inputs.map(() => ({ wch: 9 }))];
+        const colWidths = [{ wch: 9 }, { wch: 9 }, { wch: 9 }, ...inputs.map(() => ({ wch: 9 }))];
         ws['!cols'] = colWidths;
         
-        // Define styles
-        const leftAlignStyle = { alignment: { horizontal: 'left', vertical: 'center' } };
-        const thickBorderStyle = { 
-            alignment: { horizontal: 'left', vertical: 'center' },
-            border: {
-                top: { style: 'thick' },
-                bottom: { style: 'thick' },
-                left: { style: 'thick' },
-                right: { style: 'thick' },
-            }
-        };
+        // Apply styles
+        const headerStyle = { font: { bold: true, sz: 14 }, alignment: { horizontal: 'center', vertical: 'center' } };
 
-        const thickBorderRowLabels = new Set([
-            'Total Hrs of this week', 'Total Hours', 'COMMENTS', 'CHECK HOURS',
-            'OTHER HOURS', 'RATE/CHECK', 'RATE/OTHERS', 'OTHER-ADJ$',
-            'GROSS CHECK AMOUNT', 'GROSS OTHER AMOUNT', 'GP'
-        ]);
-
-        const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
-        for (let R = range.s.r; R <= range.e.r; ++R) {
-            const firstCellRef = XLSX.utils.encode_cell({ c: 0, r: R });
-            const firstCellValue = ws[firstCellRef]?.v;
-            
-            let applyThickBorder = thickBorderRowLabels.has(String(firstCellValue));
-            
-            // Special case for the row with GP values
-            if (!applyThickBorder && R > 0) {
-                 const prevRowRef = XLSX.utils.encode_cell({ c: 0, r: R - 1 });
-                 const prevRowValue = ws[prevRowRef]?.v;
-                 if (prevRowValue === 'GP') {
-                     applyThickBorder = true;
-                 }
-            }
-
-            for (let C = range.s.c; C <= range.e.c; ++C) {
-                const cell_ref = XLSX.utils.encode_cell({ c: C, r: R });
-                if (!ws[cell_ref]) continue;
-
-                if (applyThickBorder) {
-                    ws[cell_ref].s = thickBorderStyle;
-                } else {
-                    ws[cell_ref].s = leftAlignStyle;
-                }
-            }
+        // Apply style to the merged header cell
+        const headerCellRef = XLSX.utils.encode_cell({ c: 0, r: 0 });
+        if (ws[headerCellRef]) {
+            ws[headerCellRef].s = headerStyle;
+        } else {
+            ws[headerCellRef] = { t: 's', v: ws_data[0][0], s: headerStyle };
         }
         
         XLSX.utils.book_append_sheet(wb, ws, "Timesheet Report");
