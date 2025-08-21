@@ -288,7 +288,6 @@ function PayrollReportContent() {
         const daysInPeriod = eachDayOfInterval({ start: period.from, end: period.to });
         let weeklyTotals: number[] = Array(inputs.length).fill(0);
         const grandTotals: number[] = Array(inputs.length).fill(0);
-        let financialSummaryStartRow = -1;
     
         daysInPeriod.forEach((day, index) => {
             const dayOfWeek = getDay(day);
@@ -334,10 +333,7 @@ function PayrollReportContent() {
         ws_data.push(grandTotalRow);
         merges.push({ s: { r: currentRow, c: 0 }, e: { r: currentRow, c: 2 } });
         row_heights.push({ hpx: 25 });
-        financialSummaryStartRow = currentRow;
         currentRow++;
-
-        // --- Start of Financial Summary ---
 
         const summaryMetrics: { label: string; key: keyof EmployeePayrollInput | keyof PayrollResult; type: 'input' | 'result'; format?: 'currency' | 'hours' }[] = [
             { label: 'COMMENTS', key: 'comment', type: 'input' },
@@ -390,11 +386,10 @@ function PayrollReportContent() {
             currentRow++;
         });
         
-        ws_data.push([]); // Empty row
+        ws_data.push([]); 
         row_heights.push({ hpx: 20 });
         currentRow++;
 
-        // Final Payroll Summary
         ws_data.push(['Payroll Summary', null, null]);
         merges.push({ s: { r: currentRow, c: 0 }, e: { r: currentRow, c: 2 } });
         row_heights.push({ hpx: 25 });
@@ -414,19 +409,16 @@ function PayrollReportContent() {
         ]);
         row_heights.push({ hpx: 25 });
         currentRow++;
-        // --- End of Financial Summary ---
 
         const ws = XLSX.utils.aoa_to_sheet(ws_data);
         
         ws['!merges'] = merges;
-        
         ws['!rows'] = row_heights;
 
         const colWidths = [{ wch: 6.5 }, { wch: 7 }, { wch: 6 }];
         inputs.forEach(() => colWidths.push({ wch: 9 }));
         ws['!cols'] = colWidths;
         
-        // --- Cell Styling ---
         const leftAlignStyle = { alignment: { horizontal: 'left', vertical: 'center' } };
         const thickBorderStyle = { 
             alignment: { horizontal: 'left', vertical: 'center' },
@@ -438,21 +430,41 @@ function PayrollReportContent() {
             }
         };
 
+        const thickBorderRowLabels = [
+            'Total Hrs of this week', 'Total Hours', 'COMMENTS', 'CHECK HOURS',
+            'OTHER HOURS', 'RATE/CHECK', 'RATE/OTHERS', 'OTHER-ADJ$',
+            'GROSS CHECK AMOUNT', 'GROSS OTHER AMOUNT', 'Payroll Summary'
+        ];
+
         const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
         for (let R = range.s.r; R <= range.e.r; ++R) {
+            const firstCell_ref = XLSX.utils.encode_cell({ c: 0, r: R });
+            const firstCellValue = ws[firstCell_ref]?.v;
+            
+            let applyThickBorder = thickBorderRowLabels.includes(firstCellValue);
+
+            // Special check for the payroll summary data rows
+            if (R > 0) {
+                 const prevRow_ref = XLSX.utils.encode_cell({c: 0, r: R-1});
+                 const prevRowValue = ws[prevRow_ref]?.v;
+                 if (prevRowValue === 'Payroll Summary' || (ws_data[R-1] && ws_data[R-1][3] === 'GP')) {
+                     applyThickBorder = true;
+                 }
+            }
+
+
             for (let C = range.s.c; C <= range.e.c; ++C) {
                 const cell_address = { c: C, r: R };
                 const cell_ref = XLSX.utils.encode_cell(cell_address);
                 if (!ws[cell_ref]) continue;
 
-                if (R >= financialSummaryStartRow) {
+                if (applyThickBorder) {
                     ws[cell_ref].s = thickBorderStyle;
                 } else {
                     ws[cell_ref].s = leftAlignStyle;
                 }
             }
         }
-
 
         XLSX.utils.book_append_sheet(wb, ws, "Timesheet Report");
     
