@@ -375,19 +375,25 @@ function PayrollReportContent() {
         
         const merges = [
             { s: { r: 0, c: 0 }, e: { r: 0, c: 2 + inputs.length } },
-            ...ws_data.map((row, r) => ({ s: { r, c: 0 }, e: { r, c: 2 } }))
-                     .filter((_, r) => ws_data[r] && (ws_data[r][0] === 'Total Hrs of this week' || ws_data[r][0] === 'Total Hours' || summaryMetrics.some(m => m.label === ws_data[r][0]) || grossMetrics.some(m => m.label === ws_data[r][0])))
         ];
+
+        ws_data.forEach((row, r) => {
+            if (['Total Hrs of this week', 'Total Hours', ...summaryMetrics.map(m => m.label), ...grossMetrics.map(m => m.label)].includes(row[0] as string)) {
+                merges.push({ s: { r, c: 0 }, e: { r, c: 2 } });
+            }
+        });
         ws['!merges'] = merges;
         
-        const headerStyle = { font: { bold: true, sz: 14 }, alignment: { horizontal: 'center', vertical: 'center' } };
         const thickBorderStyle = { 
-            border: { top: { style: "thick" }, bottom: { style: "thick" }, left: { style: "thick" }, right: { style: "thick" } },
-            alignment: { horizontal: 'left', vertical: 'center' }
+            border: { top: { style: "thick" }, bottom: { style: "thick" }, left: { style: "thick" }, right: { style: "thick" } }
         };
         const leftAlignStyle = { alignment: { horizontal: 'left', vertical: 'center' } };
 
-        // Apply styles
+        const rowsWithThickBorder = new Set([
+            'Total Hrs of this week', 'Total Hours', 'COMMENTS', 'CHECK HOURS', 'OTHER HOURS', 'RATE/CHECK', 
+            'RATE/OTHERS', 'OTHER-ADJ$', 'GROSS CHECK AMOUNT', 'GROSS OTHER AMOUNT', 'GP'
+        ]);
+
         const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
         for (let R = range.s.r; R <= range.e.r; ++R) {
             for (let C = range.s.c; C <= range.e.c; ++C) {
@@ -395,14 +401,17 @@ function PayrollReportContent() {
                 const cell_ref = XLSX.utils.encode_cell(cell_address);
                 if (!ws[cell_ref]) ws[cell_ref] = { t: 's', v: '' };
 
-                if (R === 0) {
-                    ws[cell_ref].s = { ...headerStyle, ...thickBorderStyle.border };
+                const firstCellInRow = ws[XLSX.utils.encode_cell({c:0, r:R})];
+                const firstCellValue = firstCellInRow ? firstCellInRow.v : '';
+                
+                if (R === 0 || rowsWithThickBorder.has(firstCellValue as string) || (firstCellValue === null && R === ws_data.length -1)) {
+                    ws[cell_ref].s = { ...ws[cell_ref].s, ...thickBorderStyle };
                 } else {
-                    ws[cell_ref].s = leftAlignStyle;
+                     ws[cell_ref].s = { ...ws[cell_ref].s, ...leftAlignStyle };
                 }
             }
         }
-
+        
         const rowsToHeighten = new Set([
             'Total Hours', 'COMMENTS', 'CHECK HOURS', 'OTHER HOURS', 'RATE/CHECK', 'RATE/OTHERS', 'OTHER-ADJ$',
             'GROSS CHECK AMOUNT', 'GROSS OTHER AMOUNT', 'GP'
@@ -413,14 +422,13 @@ function PayrollReportContent() {
             if (typeof firstCell === 'string' && rowsToHeighten.has(firstCell)) {
                 return { hpt: 20 };
             }
-            if(index === ws_data.length-1){ // Last row under GP
+            if(index === ws_data.length-1){
                  return { hpt: 20 };
             }
             return {};
         });
 
         ws['!rows'] = wsRows;
-
         ws['!cols'] = Array(range.e.c + 1).fill({ wch: 10 });
 
         XLSX.utils.book_append_sheet(wb, ws, "Timesheet Report");
@@ -618,11 +626,3 @@ export default function PayrollReportPage() {
 }
 
     
-
-    
-
-    
-
-
-
-
