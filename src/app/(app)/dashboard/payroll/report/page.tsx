@@ -386,15 +386,6 @@ function PayrollReportContent() {
             border: { right: { style: "thick" } }
         };
         
-        const rowsWithThickBorder = new Set([
-            'Total Hrs of this week', 'Total Hours', 'COMMENTS', 'CHECK HOURS', 'OTHER HOURS', 'RATE/CHECK', 
-            'RATE/OTHERS', 'OTHER-ADJ$', 'GROSS CHECK AMOUNT', 'GROSS OTHER AMOUNT', 'GP'
-        ]);
-        
-        const rowsWithRightBorder = new Set([
-            'Total Hrs of this week', 'Total Hours', 'CHECK HOURS', 'OTHER HOURS'
-        ]);
-
         const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
 
         for (let R = range.s.r; R <= range.e.r; ++R) {
@@ -419,31 +410,46 @@ function PayrollReportContent() {
                 const thirdCellValue = ws[XLSX.utils.encode_cell({ c: 2, r: R })]?.v;
                 
                 if (typeof firstCellValue === 'string' && /^\d{2}\/\d{2}$/.test(firstCellValue)) {
-                     if (C >= 0 && C <= 2) {
-                        currentStyle = { ...currentStyle, ...thickBorderStyle };
+                     for(let i=0; i<3; i++){
+                       const targetCellRef = XLSX.utils.encode_cell({c:i, r:R});
+                       if (!ws[targetCellRef]) ws[targetCellRef] = { t: 's', v: '' };
+                       ws[targetCellRef].s = { ...(ws[targetCellRef].s || {}), ...thickBorderStyle };
                      }
                 }
                 
                 if (thirdCellValue === 'HRS') {
                     currentStyle = { ...currentStyle, ...thickBorderStyle };
                 }
+                
+                const summaryRowLabels = new Set([
+                    'Total Hrs of this week', 'Total Hours', 'COMMENTS', 'CHECK HOURS', 'OTHER HOURS', 'RATE/CHECK', 
+                    'RATE/OTHERS', 'OTHER-ADJ$', 'GROSS CHECK AMOUNT', 'GROSS OTHER AMOUNT', 'GP'
+                ]);
 
-                if (rowsWithThickBorder.has(firstCellValue as string)) {
-                     for(let i = C; i <= range.e.c; i++){
+                if (summaryRowLabels.has(firstCellValue as string)) {
+                     for(let i = 0; i <= range.e.c; i++){
                         const targetCellRef = XLSX.utils.encode_cell({c: i, r: R});
                         if (!ws[targetCellRef]) ws[targetCellRef] = { t: 's', v: '' };
                         ws[targetCellRef].s = { ...(ws[targetCellRef].s || {}), ...thickBorderStyle };
                      }
                 }
                 
+                const rowsWithRightBorder = new Set([
+                    'Total Hrs of this week', 'Total Hours', 'CHECK HOURS', 'OTHER HOURS'
+                ]);
+
                 const isHoursRow = thirdCellValue === "HRS" || rowsWithRightBorder.has(firstCellValue as string);
-                if (isHoursRow && C >= 2) {
+                if (isHoursRow && C >= 3) { // Start from the first employee column
                     currentStyle = { ...currentStyle, ...thickRightBorderStyle };
                 }
 
-                const secondToLastRowLabel = ws[XLSX.utils.encode_cell({c:0, r:ws_data.length - 2})]?.v;
-                if(secondToLastRowLabel === 'GP' && R === ws_data.length - 1){
-                    currentStyle = { ...currentStyle, ...thickBorderStyle };
+                const lastDataRowLabel = ws_data[ws_data.length - 2][0];
+                if(lastDataRowLabel === 'GP' && R === ws_data.length - 1){
+                     for(let i = 0; i <= range.e.c; i++){
+                        const targetCellRef = XLSX.utils.encode_cell({c: i, r: R});
+                        if (!ws[targetCellRef]) ws[targetCellRef] = { t: 's', v: '' };
+                        ws[targetCellRef].s = { ...(ws[targetCellRef].s || {}), ...thickBorderStyle };
+                     }
                 }
                 
                 cell.s = currentStyle;
