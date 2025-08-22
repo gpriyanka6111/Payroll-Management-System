@@ -269,9 +269,7 @@ function PayrollReportContent() {
         const ws_data: (string | number | null)[][] = [];
         
         ws_data.push([`${companyName} - Pay Period: ${format(period.from, 'LLL dd, yyyy')} - ${format(period.to, 'LLL dd, yyyy')}`]);
-    
-        const employeeNames = inputs.map(i => i.name.toUpperCase());
-        ws_data.push(['Date', 'Day', 'HRS', ...employeeNames]);
+        ws_data.push(['Date', 'Day', 'HRS', ...inputs.map(i => i.name.toUpperCase())]);
     
         const daysInPeriod = eachDayOfInterval({ start: period.from, end: period.to });
         let weeklyTotals: number[] = Array(inputs.length).fill(0);
@@ -342,7 +340,7 @@ function PayrollReportContent() {
             ws_data.push(row);
         });
         
-        ws_data.push([null, null, null, ...employeeNames]);
+        ws_data.push([null, null, null, ...inputs.map(i => i.name.toUpperCase())]);
 
         const grossMetrics = [
             { label: 'GROSS CHECK AMOUNT', key: 'grossCheckAmount' },
@@ -384,10 +382,17 @@ function PayrollReportContent() {
         const thickBorderStyle = { 
             border: { top: { style: "thick" }, bottom: { style: "thick" }, left: { style: "thick" }, right: { style: "thick" } }
         };
+        const thickRightBorderStyle = {
+            border: { right: { style: "thick" } }
+        };
         
         const rowsWithThickBorder = new Set([
             'Total Hrs of this week', 'Total Hours', 'COMMENTS', 'CHECK HOURS', 'OTHER HOURS', 'RATE/CHECK', 
             'RATE/OTHERS', 'OTHER-ADJ$', 'GROSS CHECK AMOUNT', 'GROSS OTHER AMOUNT', 'GP'
+        ]);
+
+        const rowsWithRightBorder = new Set([
+            'Total Hrs of this week', 'Total Hours', 'CHECK HOURS', 'OTHER HOURS'
         ]);
 
         const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
@@ -398,38 +403,41 @@ function PayrollReportContent() {
                 const cell_ref = XLSX.utils.encode_cell(cell_address);
                 if (!ws[cell_ref]) ws[cell_ref] = { t: 's', v: '' };
                 const cell = ws[cell_ref];
+                let currentStyle = cell.s || {};
 
                 if (R === 0) {
-                    cell.s = {
+                    currentStyle = {
                         font: { bold: true, sz: 14 },
                         alignment: { horizontal: 'center', vertical: 'center' },
                         ...thickBorderStyle
                     };
-                    continue;
-                }
-                
-                if (R === 1) {
-                    cell.s = { ...cell.s, ...thickBorderStyle };
+                } else if (R === 1) {
+                    currentStyle = { ...currentStyle, ...thickBorderStyle };
                 }
 
                 const firstCellValue = ws[XLSX.utils.encode_cell({c:0, r:R})]?.v;
                 
                 if (typeof firstCellValue === 'string' && /^\d{2}\/\d{2}$/.test(firstCellValue) && C >= 0 && C <= 2) {
-                     cell.s = { ...cell.s, ...thickBorderStyle };
+                     currentStyle = { ...currentStyle, ...thickBorderStyle };
                 }
 
                 if (rowsWithThickBorder.has(firstCellValue as string)) {
-                     for (let i = 0; i <= range.e.c; i++) {
-                        const currentCellRef = XLSX.utils.encode_cell({c: i, r: R});
-                        if (!ws[currentCellRef]) ws[currentCellRef] = { t: 's', v: '' };
-                        ws[currentCellRef].s = { ...ws[currentCellRef].s, ...thickBorderStyle };
-                     }
+                     currentStyle = { ...currentStyle, ...thickBorderStyle };
                 }
                 
+                const hoursValue = ws[XLSX.utils.encode_cell({c:0, r:R-2})]?.v;
+                if(firstCellValue === "HRS" || (typeof hoursValue === 'string' && /^\d{2}\/\d{2}$/.test(hoursValue))){
+                    if(rowsWithRightBorder.has(ws[XLSX.utils.encode_cell({c:0, r:R-2})]?.v as string) || (typeof firstCellValue === 'string' && /^\d{2}\/\d{2}$/.test(firstCellValue))){
+                       currentStyle = { ...currentStyle, ...thickRightBorderStyle };
+                    }
+                }
+
                 const secondToLastRowLabel = ws[XLSX.utils.encode_cell({c:0, r:ws_data.length - 2})]?.v;
                 if(secondToLastRowLabel === 'GP' && R === ws_data.length - 1){
-                    cell.s = { ...cell.s, ...thickBorderStyle };
+                    currentStyle = { ...currentStyle, ...thickBorderStyle };
                 }
+                
+                cell.s = currentStyle;
             }
         }
         
@@ -442,12 +450,13 @@ function PayrollReportContent() {
         const wsRows = ws_data.map((row, index) => {
             if (index === 0) return { hpt: 30 };
             const firstCell = row[0];
-            const isEmployeeNameRow = row.slice(3).every(cell => typeof cell === 'string' && cell === cell.toUpperCase() && !/\d/.test(cell));
-            if ((typeof firstCell === 'string' && rowsToHeighten.has(firstCell)) || (firstCell === null && isEmployeeNameRow)) {
-                return { hpt: 20 };
+            const isEmployeeNameRow = index === ws_data.length - 4 && row[3]; 
+
+            if ((typeof firstCell === 'string' && rowsToHeighten.has(firstCell)) || isEmployeeNameRow) {
+                return { hpt: 25 };
             }
             if(index === ws_data.length - 1){
-                 return { hpt: 20 };
+                 return { hpt: 25 };
             }
             return {};
         });
