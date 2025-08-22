@@ -390,7 +390,7 @@ function PayrollReportContent() {
             'Total Hrs of this week', 'Total Hours', 'COMMENTS', 'CHECK HOURS', 'OTHER HOURS', 'RATE/CHECK', 
             'RATE/OTHERS', 'OTHER-ADJ$', 'GROSS CHECK AMOUNT', 'GROSS OTHER AMOUNT', 'GP'
         ]);
-
+        
         const rowsWithRightBorder = new Set([
             'Total Hrs of this week', 'Total Hours', 'CHECK HOURS', 'OTHER HOURS'
         ]);
@@ -423,9 +423,17 @@ function PayrollReportContent() {
                         currentStyle = { ...currentStyle, ...thickBorderStyle };
                      }
                 }
+                
+                if (thirdCellValue === 'HRS') {
+                    currentStyle = { ...currentStyle, ...thickBorderStyle };
+                }
 
                 if (rowsWithThickBorder.has(firstCellValue as string)) {
-                     currentStyle = { ...currentStyle, ...thickBorderStyle };
+                     for(let i = C; i <= range.e.c; i++){
+                        const targetCellRef = XLSX.utils.encode_cell({c: i, r: R});
+                        if (!ws[targetCellRef]) ws[targetCellRef] = { t: 's', v: '' };
+                        ws[targetCellRef].s = { ...(ws[targetCellRef].s || {}), ...thickBorderStyle };
+                     }
                 }
                 
                 const isHoursRow = thirdCellValue === "HRS" || rowsWithRightBorder.has(firstCellValue as string);
