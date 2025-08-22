@@ -175,7 +175,7 @@ export default function DashboardPage() {
 
     const clockOutDate = parse(closingTime, 'hh:mm a', clockInDate);
     const employeeName = activeTimeEntry?.employeeName || 'Employee';
-    const toastDescription = `${employeeName} was automatically clocked out for a previous shift at ${format(clockOutDate, 'p')}.`;
+    const toastDescription = `${employeeName} was automatically clocked out for a previous shift at ${format(clockOutDate, 'p')}. Please clock in again.`;
 
     return { timeOutValue: clockOutDate, toastDescription };
   }
@@ -196,7 +196,10 @@ export default function DashboardPage() {
               description: toastDescription,
               variant: "destructive"
           });
-          setActiveTimeEntry(null); // Clear the stale entry
+          // Stop execution here. The user needs to click "Time In" again.
+          // This prevents the race condition/crash.
+          setIsSubmitting(false);
+          return; 
       }
 
       // Proceed with the new clock-in
