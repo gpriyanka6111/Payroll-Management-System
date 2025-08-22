@@ -384,7 +384,7 @@ function PayrollReportContent() {
         const thickBorderStyle = { 
             border: { top: { style: "thick" }, bottom: { style: "thick" }, left: { style: "thick" }, right: { style: "thick" } }
         };
-
+        
         const rowsWithThickBorder = new Set([
             'Total Hrs of this week', 'Total Hours', 'COMMENTS', 'CHECK HOURS', 'OTHER HOURS', 'RATE/CHECK', 
             'RATE/OTHERS', 'OTHER-ADJ$', 'GROSS CHECK AMOUNT', 'GROSS OTHER AMOUNT', 'GP'
@@ -392,7 +392,6 @@ function PayrollReportContent() {
 
         const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
 
-        // Apply styles
         for (let R = range.s.r; R <= range.e.r; ++R) {
             for (let C = range.s.c; C <= range.e.c; ++C) {
                 const cell_address = { c: C, r: R };
@@ -400,29 +399,25 @@ function PayrollReportContent() {
                 if (!ws[cell_ref]) ws[cell_ref] = { t: 's', v: '' };
                 const cell = ws[cell_ref];
 
-                // Header Row Style
                 if (R === 0) {
                     cell.s = {
                         font: { bold: true, sz: 14 },
                         alignment: { horizontal: 'center', vertical: 'center' },
                         ...thickBorderStyle
                     };
-                    continue; // Skip other styles for header
+                    continue;
                 }
                 
-                // Employee Names Row (Row 2) Border
                 if (R === 1) {
                     cell.s = { ...cell.s, ...thickBorderStyle };
                 }
 
                 const firstCellValue = ws[XLSX.utils.encode_cell({c:0, r:R})]?.v;
                 
-                // Date/Day/HRS Block Border
                 if (typeof firstCellValue === 'string' && /^\d{2}\/\d{2}$/.test(firstCellValue) && C >= 0 && C <= 2) {
                      cell.s = { ...cell.s, ...thickBorderStyle };
                 }
 
-                // Summary Rows Border
                 if (rowsWithThickBorder.has(firstCellValue as string)) {
                      for (let i = 0; i <= range.e.c; i++) {
                         const currentCellRef = XLSX.utils.encode_cell({c: i, r: R});
@@ -431,7 +426,6 @@ function PayrollReportContent() {
                      }
                 }
                 
-                // Final Summary Row Border
                 const secondToLastRowLabel = ws[XLSX.utils.encode_cell({c:0, r:ws_data.length - 2})]?.v;
                 if(secondToLastRowLabel === 'GP' && R === ws_data.length - 1){
                     cell.s = { ...cell.s, ...thickBorderStyle };
@@ -440,14 +434,16 @@ function PayrollReportContent() {
         }
         
         const rowsToHeighten = new Set([
+            'Total Hrs of this week',
             'Total Hours', 'COMMENTS', 'CHECK HOURS', 'OTHER HOURS', 'RATE/CHECK', 'RATE/OTHERS', 'OTHER-ADJ$',
             'GROSS CHECK AMOUNT', 'GROSS OTHER AMOUNT', 'GP'
         ]);
         
         const wsRows = ws_data.map((row, index) => {
-            if (index === 0) return { hpt: 30 }; // Header row
+            if (index === 0) return { hpt: 30 };
             const firstCell = row[0];
-            if (typeof firstCell === 'string' && rowsToHeighten.has(firstCell)) {
+            const isEmployeeNameRow = row.slice(3).every(cell => typeof cell === 'string' && cell === cell.toUpperCase() && !/\d/.test(cell));
+            if ((typeof firstCell === 'string' && rowsToHeighten.has(firstCell)) || (firstCell === null && isEmployeeNameRow)) {
                 return { hpt: 20 };
             }
             if(index === ws_data.length - 1){
