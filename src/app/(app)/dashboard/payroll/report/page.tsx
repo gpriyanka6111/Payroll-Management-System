@@ -269,7 +269,6 @@ function PayrollReportContent() {
         const ws_data: (string | number | null)[][] = [];
         
         ws_data.push([`${companyName} - Pay Period: ${format(period.from, 'LLL dd, yyyy')} - ${format(period.to, 'LLL dd, yyyy')}`]);
-        ws_data.push([]); // Empty row for merge
         ws_data.push([]); // Spacer row
     
         const employeeNames = inputs.map(i => i.name.toUpperCase());
@@ -385,15 +384,15 @@ function PayrollReportContent() {
             },
             alignment: { horizontal: 'left', vertical: 'center' }
         };
-        
+
         const rowsToBorder = new Set([
             'Total Hrs of this week', 'Total Hours', 'COMMENTS', 'CHECK HOURS',
             'OTHER HOURS', 'RATE/CHECK', 'RATE/OTHERS', 'OTHER-ADJ$',
             'GROSS CHECK AMOUNT', 'GROSS OTHER AMOUNT', 'GP'
         ]);
-
+        
         ws['!merges'] = [
-            { s: { r: 0, c: 0 }, e: { r: 1, c: 2 + inputs.length } },
+            { s: { r: 0, c: 0 }, e: { r: 0, c: 2 + inputs.length } },
             ...ws_data.map((row, r) => ({ s: { r, c: 0 }, e: { r, c: 2 } }))
                      .filter((_, r) => ws_data[r] && (ws_data[r][0] === 'Total Hrs of this week' || ws_data[r][0] === 'Total Hours' || summaryMetrics.some(m => m.label === ws_data[r][0]) || grossMetrics.some(m => m.label === ws_data[r][0])))
         ];
@@ -407,11 +406,12 @@ function PayrollReportContent() {
                 if (!ws[cell_ref]) continue;
 
                 const firstCellInRow = ws[XLSX.utils.encode_cell({c:0, r:R})];
-                if (R === 0) { // Header row
+
+                if (R === 0) { 
                     ws[cell_ref].s = headerStyle;
                 } else if (firstCellInRow && rowsToBorder.has(firstCellInRow.v as string)) {
                     ws[cell_ref].s = thickBorderStyle;
-                } else if (ws_data[R]?.[0] === 'GP' && ws_data[R+1]) { // Final summary row values
+                } else if (ws_data[R]?.[0] === 'GP' && ws_data[R+1] && ws[XLSX.utils.encode_cell({c:C, r:R+1})]) {
                     ws[XLSX.utils.encode_cell({c:C, r:R+1})].s = thickBorderStyle;
                 }
                 else {
@@ -422,7 +422,7 @@ function PayrollReportContent() {
         
         ws['!cols'] = [
             { wch: 9 }, { wch: 9 }, { wch: 9 },
-            ...inputs.map(() => ({ wch: 9 }))
+            ...inputs.map(() => ({ wch: 10 }))
         ];
 
         XLSX.utils.book_append_sheet(wb, ws, "Timesheet Report");
@@ -550,7 +550,6 @@ function PayrollReportContent() {
 
                 {/* Payroll Summary */}
                 <section>
-                    <h2 className="text-xl font-semibold mb-4">Payroll Summary</h2>
                     <div className="overflow-x-auto border rounded-lg">
                         <Table>
                             <TableHeader>
@@ -625,4 +624,5 @@ export default function PayrollReportPage() {
     
 
     
+
 
