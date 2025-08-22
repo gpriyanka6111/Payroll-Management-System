@@ -341,8 +341,7 @@ function PayrollReportContent() {
             });
             ws_data.push(row);
         });
-
-        ws_data.push([]); 
+        
         ws_data.push([null, null, null, ...employeeNames]);
 
         const grossMetrics = [
@@ -358,8 +357,6 @@ function PayrollReportContent() {
             });
             ws_data.push(row);
         });
-        
-        ws_data.push([]); 
         
         ws_data.push(['GP', 'EMPLOYER', 'EMPLOYEE', 'DED', 'NET', 'OTHERS']);
         ws_data.push([
@@ -387,7 +384,6 @@ function PayrollReportContent() {
         const thickBorderStyle = { 
             border: { top: { style: "thick" }, bottom: { style: "thick" }, left: { style: "thick" }, right: { style: "thick" } }
         };
-        const leftAlignStyle = { alignment: { horizontal: 'left', vertical: 'center' } };
 
         const rowsWithThickBorder = new Set([
             'Total Hrs of this week', 'Total Hours', 'COMMENTS', 'CHECK HOURS', 'OTHER HOURS', 'RATE/CHECK', 
@@ -395,19 +391,50 @@ function PayrollReportContent() {
         ]);
 
         const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+
+        // Apply styles
         for (let R = range.s.r; R <= range.e.r; ++R) {
             for (let C = range.s.c; C <= range.e.c; ++C) {
                 const cell_address = { c: C, r: R };
                 const cell_ref = XLSX.utils.encode_cell(cell_address);
                 if (!ws[cell_ref]) ws[cell_ref] = { t: 's', v: '' };
+                const cell = ws[cell_ref];
 
-                const firstCellInRow = ws[XLSX.utils.encode_cell({c:0, r:R})];
-                const firstCellValue = firstCellInRow ? firstCellInRow.v : '';
+                // Header Row Style
+                if (R === 0) {
+                    cell.s = {
+                        font: { bold: true, sz: 14 },
+                        alignment: { horizontal: 'center', vertical: 'center' },
+                        ...thickBorderStyle
+                    };
+                    continue; // Skip other styles for header
+                }
                 
-                if (R === 0 || rowsWithThickBorder.has(firstCellValue as string) || (firstCellValue === null && R === ws_data.length -1)) {
-                    ws[cell_ref].s = { ...ws[cell_ref].s, ...thickBorderStyle };
-                } else {
-                     ws[cell_ref].s = { ...ws[cell_ref].s, ...leftAlignStyle };
+                // Employee Names Row (Row 2) Border
+                if (R === 1) {
+                    cell.s = { ...cell.s, ...thickBorderStyle };
+                }
+
+                const firstCellValue = ws[XLSX.utils.encode_cell({c:0, r:R})]?.v;
+                
+                // Date/Day/HRS Block Border
+                if (typeof firstCellValue === 'string' && /^\d{2}\/\d{2}$/.test(firstCellValue) && C >= 0 && C <= 2) {
+                     cell.s = { ...cell.s, ...thickBorderStyle };
+                }
+
+                // Summary Rows Border
+                if (rowsWithThickBorder.has(firstCellValue as string)) {
+                     for (let i = 0; i <= range.e.c; i++) {
+                        const currentCellRef = XLSX.utils.encode_cell({c: i, r: R});
+                        if (!ws[currentCellRef]) ws[currentCellRef] = { t: 's', v: '' };
+                        ws[currentCellRef].s = { ...ws[currentCellRef].s, ...thickBorderStyle };
+                     }
+                }
+                
+                // Final Summary Row Border
+                const secondToLastRowLabel = ws[XLSX.utils.encode_cell({c:0, r:ws_data.length - 2})]?.v;
+                if(secondToLastRowLabel === 'GP' && R === ws_data.length - 1){
+                    cell.s = { ...cell.s, ...thickBorderStyle };
                 }
             }
         }
@@ -418,11 +445,12 @@ function PayrollReportContent() {
         ]);
         
         const wsRows = ws_data.map((row, index) => {
+            if (index === 0) return { hpt: 30 }; // Header row
             const firstCell = row[0];
             if (typeof firstCell === 'string' && rowsToHeighten.has(firstCell)) {
                 return { hpt: 20 };
             }
-            if(index === ws_data.length-1){
+            if(index === ws_data.length - 1){
                  return { hpt: 20 };
             }
             return {};
