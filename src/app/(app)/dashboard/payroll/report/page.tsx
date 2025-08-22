@@ -433,15 +433,6 @@ function PayrollReportContent() {
                         ws[targetCellRef].s = { ...(ws[targetCellRef].s || {}), ...thickBorderStyle };
                      }
                 }
-                
-                const rowsWithRightBorder = new Set([
-                    'Total Hrs of this week', 'Total Hours', 'CHECK HOURS', 'OTHER HOURS'
-                ]);
-
-                const isHoursRow = thirdCellValue === "HRS" || rowsWithRightBorder.has(firstCellValue as string);
-                if (isHoursRow && C >= 3) { // Start from the first employee column
-                    currentStyle = { ...currentStyle, ...thickRightBorderStyle };
-                }
 
                 const lastDataRowLabel = ws_data[ws_data.length - 2][0];
                 if(lastDataRowLabel === 'GP' && R === ws_data.length - 1){
@@ -450,6 +441,10 @@ function PayrollReportContent() {
                         if (!ws[targetCellRef]) ws[targetCellRef] = { t: 's', v: '' };
                         ws[targetCellRef].s = { ...(ws[targetCellRef].s || {}), ...thickBorderStyle };
                      }
+                }
+
+                if (C === range.e.c) { // Check if it's the last column
+                    currentStyle.border = { ...(currentStyle.border || {}), right: { style: 'thick' } };
                 }
                 
                 cell.s = currentStyle;
@@ -672,5 +667,7 @@ export default function PayrollReportPage() {
         </React.Suspense>
     )
 }
+
+    
 
     
