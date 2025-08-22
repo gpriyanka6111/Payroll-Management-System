@@ -269,7 +269,6 @@ function PayrollReportContent() {
         const ws_data: (string | number | null)[][] = [];
         
         ws_data.push([`${companyName} - Pay Period: ${format(period.from, 'LLL dd, yyyy')} - ${format(period.to, 'LLL dd, yyyy')}`]);
-        ws_data.push([]); // Spacer row
     
         const employeeNames = inputs.map(i => i.name.toUpperCase());
         ws_data.push(['Date', 'Day', 'HRS', ...employeeNames]);
@@ -343,7 +342,7 @@ function PayrollReportContent() {
             ws_data.push(row);
         });
 
-        ws_data.push([]); // Spacer row
+        ws_data.push([]); 
         ws_data.push([null, null, null, ...employeeNames]);
 
         const grossMetrics = [
@@ -360,7 +359,7 @@ function PayrollReportContent() {
             ws_data.push(row);
         });
         
-        ws_data.push([]); // Spacer row
+        ws_data.push([]); 
         
         ws_data.push(['GP', 'EMPLOYER', 'EMPLOYEE', 'DED', 'NET', 'OTHERS']);
         ws_data.push([
@@ -374,7 +373,13 @@ function PayrollReportContent() {
         
         const ws = XLSX.utils.aoa_to_sheet(ws_data);
         
-        // --- STYLING ---
+        const merges = [
+            { s: { r: 0, c: 0 }, e: { r: 0, c: 2 + inputs.length } },
+            ...ws_data.map((row, r) => ({ s: { r, c: 0 }, e: { r, c: 2 } }))
+                     .filter((_, r) => ws_data[r] && (ws_data[r][0] === 'Total Hrs of this week' || ws_data[r][0] === 'Total Hours' || summaryMetrics.some(m => m.label === ws_data[r][0]) || grossMetrics.some(m => m.label === ws_data[r][0])))
+        ];
+        ws['!merges'] = merges;
+
         const headerStyle = { font: { bold: true, sz: 14 }, alignment: { horizontal: 'center', vertical: 'center' } };
         const leftAlignStyle = { alignment: { horizontal: 'left', vertical: 'center' } };
         const thickBorderStyle = {
@@ -391,30 +396,23 @@ function PayrollReportContent() {
             'GROSS CHECK AMOUNT', 'GROSS OTHER AMOUNT', 'GP'
         ]);
         
-        ws['!merges'] = [
-            { s: { r: 0, c: 0 }, e: { r: 0, c: 2 + inputs.length } },
-            ...ws_data.map((row, r) => ({ s: { r, c: 0 }, e: { r, c: 2 } }))
-                     .filter((_, r) => ws_data[r] && (ws_data[r][0] === 'Total Hrs of this week' || ws_data[r][0] === 'Total Hours' || summaryMetrics.some(m => m.label === ws_data[r][0]) || grossMetrics.some(m => m.label === ws_data[r][0])))
-        ];
-
-        // Apply styles
         const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
         for (let R = range.s.r; R <= range.e.r; ++R) {
+            const firstCellInRow = ws[XLSX.utils.encode_cell({c:0, r:R})];
+            const shouldHaveThickBorder = firstCellInRow && rowsToBorder.has(firstCellInRow.v as string);
+
             for (let C = range.s.c; C <= range.e.c; ++C) {
                 const cell_address = { c: C, r: R };
                 const cell_ref = XLSX.utils.encode_cell(cell_address);
-                if (!ws[cell_ref]) continue;
-
-                const firstCellInRow = ws[XLSX.utils.encode_cell({c:0, r:R})];
+                if (!ws[cell_ref]) ws[cell_ref] = { t: 's', v: '' };
 
                 if (R === 0) { 
                     ws[cell_ref].s = headerStyle;
-                } else if (firstCellInRow && rowsToBorder.has(firstCellInRow.v as string)) {
+                } else if (shouldHaveThickBorder) {
                     ws[cell_ref].s = thickBorderStyle;
-                } else if (ws_data[R]?.[0] === 'GP' && ws_data[R+1] && ws[XLSX.utils.encode_cell({c:C, r:R+1})]) {
-                    ws[XLSX.utils.encode_cell({c:C, r:R+1})].s = thickBorderStyle;
-                }
-                else {
+                } else if (ws_data[R]?.[0] === null && R > 0 && ws_data[R-1]?.[0] === 'GP' && ws[cell_ref]) {
+                    ws[cell_ref].s = thickBorderStyle;
+                } else {
                     ws[cell_ref].s = leftAlignStyle;
                 }
             }
@@ -624,5 +622,6 @@ export default function PayrollReportPage() {
     
 
     
+
 
 
