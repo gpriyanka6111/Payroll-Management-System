@@ -416,20 +416,21 @@ function PayrollReportContent() {
                 }
 
                 const firstCellValue = ws[XLSX.utils.encode_cell({c:0, r:R})]?.v;
+                const thirdCellValue = ws[XLSX.utils.encode_cell({ c: 2, r: R })]?.v;
                 
-                if (typeof firstCellValue === 'string' && /^\d{2}\/\d{2}$/.test(firstCellValue) && C >= 0 && C <= 2) {
-                     currentStyle = { ...currentStyle, ...thickBorderStyle };
+                if (typeof firstCellValue === 'string' && /^\d{2}\/\d{2}$/.test(firstCellValue)) {
+                     if (C >= 0 && C <= 2) {
+                        currentStyle = { ...currentStyle, ...thickBorderStyle };
+                     }
                 }
 
                 if (rowsWithThickBorder.has(firstCellValue as string)) {
                      currentStyle = { ...currentStyle, ...thickBorderStyle };
                 }
                 
-                const hoursValue = ws[XLSX.utils.encode_cell({c:0, r:R-2})]?.v;
-                if(firstCellValue === "HRS" || (typeof hoursValue === 'string' && /^\d{2}\/\d{2}$/.test(hoursValue))){
-                    if(rowsWithRightBorder.has(ws[XLSX.utils.encode_cell({c:0, r:R-2})]?.v as string) || (typeof firstCellValue === 'string' && /^\d{2}\/\d{2}$/.test(firstCellValue))){
-                       currentStyle = { ...currentStyle, ...thickRightBorderStyle };
-                    }
+                const isHoursRow = thirdCellValue === "HRS" || rowsWithRightBorder.has(firstCellValue as string);
+                if (isHoursRow && C >= 2) {
+                    currentStyle = { ...currentStyle, ...thickRightBorderStyle };
                 }
 
                 const secondToLastRowLabel = ws[XLSX.utils.encode_cell({c:0, r:ws_data.length - 2})]?.v;
