@@ -18,12 +18,16 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 interface PayPeriodEarning {
     period: string; // "MM/dd/yy - MM/dd/yy"
     grossPay: number;
+    grossCheckAmount: number;
+    grossOtherAmount: number;
 }
 
 interface YtdEarningsRecord {
     employeeId: string;
     employeeName: string;
     totalGrossPay: number;
+    totalGrossCheckAmount: number;
+    totalGrossOtherAmount: number;
     payPeriods: PayPeriodEarning[];
 }
 
@@ -73,6 +77,8 @@ export default function YtdSummaryPage() {
               employeeId: emp.id,
               employeeName: `${emp.firstName}`,
               totalGrossPay: 0,
+              totalGrossCheckAmount: 0,
+              totalGrossOtherAmount: 0,
               payPeriods: []
           };
       });
@@ -80,8 +86,13 @@ export default function YtdSummaryPage() {
       payrollsData.forEach(payroll => {
         payroll.results.forEach((result: any) => {
           if (ytdTotals[result.employeeId]) {
-              const gross = (result.grossCheckAmount || 0) + (result.grossOtherAmount || 0);
+              const grossCheck = result.grossCheckAmount || 0;
+              const grossOther = result.grossOtherAmount || 0;
+              const gross = grossCheck + grossOther;
+
               ytdTotals[result.employeeId].totalGrossPay += gross;
+              ytdTotals[result.employeeId].totalGrossCheckAmount += grossCheck;
+              ytdTotals[result.employeeId].totalGrossOtherAmount += grossOther;
               
               const [fromY, fromM, fromD] = payroll.fromDate.split('-').map(Number);
               const [toY, toM, toD] = payroll.toDate.split('-').map(Number);
@@ -90,7 +101,9 @@ export default function YtdSummaryPage() {
 
               ytdTotals[result.employeeId].payPeriods.push({
                   period: `${format(fromDate, 'MM/dd/yy')} - ${format(toDate, 'MM/dd/yy')}`,
-                  grossPay: gross
+                  grossPay: gross,
+                  grossCheckAmount: grossCheck,
+                  grossOtherAmount: grossOther,
               });
           }
         });
@@ -110,6 +123,12 @@ export default function YtdSummaryPage() {
 
   const totalYtdGrossPay = React.useMemo(() => {
     return ytdEarnings.reduce((sum, employee) => sum + employee.totalGrossPay, 0);
+  }, [ytdEarnings]);
+  const totalYtdGrossCheck = React.useMemo(() => {
+    return ytdEarnings.reduce((sum, employee) => sum + employee.totalGrossCheckAmount, 0);
+  }, [ytdEarnings]);
+    const totalYtdGrossOther = React.useMemo(() => {
+    return ytdEarnings.reduce((sum, employee) => sum + employee.totalGrossOtherAmount, 0);
   }, [ytdEarnings]);
 
 
@@ -144,40 +163,70 @@ export default function YtdSummaryPage() {
              </div>
           ) : ytdEarnings.length > 0 ? (
             <>
-              <Accordion type="single" collapsible className="w-full">
-                {ytdEarnings.map(employee => (
-                    <AccordionItem value={employee.employeeId} key={employee.employeeId}>
-                        <AccordionTrigger className="hover:no-underline">
-                           <div className="flex justify-between w-full pr-4">
-                             <span className="font-medium">{employee.employeeName}</span>
-                             <span className="font-semibold tabular-nums">{formatCurrency(employee.totalGrossPay)}</span>
-                           </div>
-                        </AccordionTrigger>
-                        <AccordionContent>
-                           <Table>
-                               <TableHeader>
-                                   <TableRow>
-                                       <TableHead>Pay Period</TableHead>
-                                       <TableHead className="text-right">Gross Pay</TableHead>
-                                   </TableRow>
-                               </TableHeader>
-                               <TableBody>
-                                   {employee.payPeriods.map((pp, index) => (
-                                       <TableRow key={index}>
-                                           <TableCell>{pp.period}</TableCell>
-                                           <TableCell className="text-right tabular-nums">{formatCurrency(pp.grossPay)}</TableCell>
-                                       </TableRow>
-                                   ))}
-                               </TableBody>
-                           </Table>
-                        </AccordionContent>
-                    </AccordionItem>
-                ))}
-              </Accordion>
-              <div className="flex justify-between font-bold text-lg border-t pt-4 mt-4 pr-4">
-                  <span>Total YTD Gross Pay</span>
-                  <span className="tabular-nums">{formatCurrency(totalYtdGrossPay)}</span>
-              </div>
+              <Table>
+                <TableHeader>
+                    <TableRow>
+                        <TableHead>Employee</TableHead>
+                        <TableHead className="text-right">Gross Check Amount</TableHead>
+                        <TableHead className="text-right">Gross Other Amount</TableHead>
+                        <TableHead className="text-right font-bold">Total Gross Pay</TableHead>
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
+                   {ytdEarnings.map(employee => (
+                    <Accordion type="single" collapsible className="w-full" asChild key={employee.employeeId}>
+                        <TableRow>
+                          <TableCell colSpan={4} className="p-0">
+                              <AccordionItem value={employee.employeeId} className="border-b-0">
+                                <AccordionTrigger className="hover:no-underline px-4 py-2">
+                                  <div className="flex justify-between w-full">
+                                    <span className="font-medium">{employee.employeeName}</span>
+                                    <div className="grid grid-cols-3 gap-x-4 w-3/4 text-right tabular-nums">
+                                        <span>{formatCurrency(employee.totalGrossCheckAmount)}</span>
+                                        <span>{formatCurrency(employee.totalGrossOtherAmount)}</span>
+                                        <span className="font-bold">{formatCurrency(employee.totalGrossPay)}</span>
+                                    </div>
+                                  </div>
+                                </AccordionTrigger>
+                                <AccordionContent>
+                                  <div className="bg-muted/50 p-4">
+                                      <Table>
+                                          <TableHeader>
+                                              <TableRow>
+                                                  <TableHead>Pay Period</TableHead>
+                                                  <TableHead className="text-right">Gross Check</TableHead>
+                                                  <TableHead className="text-right">Gross Other</TableHead>
+                                                  <TableHead className="text-right">Gross Pay</TableHead>
+                                              </TableRow>
+                                          </TableHeader>
+                                          <TableBody>
+                                              {employee.payPeriods.map((pp, index) => (
+                                                  <TableRow key={index}>
+                                                      <TableCell>{pp.period}</TableCell>
+                                                      <TableCell className="text-right tabular-nums">{formatCurrency(pp.grossCheckAmount)}</TableCell>
+                                                      <TableCell className="text-right tabular-nums">{formatCurrency(pp.grossOtherAmount)}</TableCell>
+                                                      <TableCell className="text-right tabular-nums">{formatCurrency(pp.grossPay)}</TableCell>
+                                                  </TableRow>
+                                              ))}
+                                          </TableBody>
+                                      </Table>
+                                  </div>
+                                </AccordionContent>
+                              </AccordionItem>
+                          </TableCell>
+                        </TableRow>
+                    </Accordion>
+                   ))}
+                </TableBody>
+                 <TableFooter>
+                    <TableRow className="bg-muted/50 hover:bg-muted/50">
+                        <TableCell className="font-bold text-lg">Total</TableCell>
+                        <TableCell className="text-right font-bold text-lg tabular-nums">{formatCurrency(totalYtdGrossCheck)}</TableCell>
+                        <TableCell className="text-right font-bold text-lg tabular-nums">{formatCurrency(totalYtdGrossOther)}</TableCell>
+                        <TableCell className="text-right font-bold text-lg tabular-nums">{formatCurrency(totalYtdGrossPay)}</TableCell>
+                    </TableRow>
+                </TableFooter>
+              </Table>
             </>
           ) : (
             <div className="h-24 text-center flex items-center justify-center text-muted-foreground">
