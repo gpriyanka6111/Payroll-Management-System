@@ -428,14 +428,12 @@ function PayrollReportContent() {
                     currentStyle = { ...currentStyle, ...thickBorderStyle };
                 }
 
-                const firstCellValue = ws[XLSX.utils.encode_cell({c:0, r:R})]?.v;
                 const secondCellValue = ws[XLSX.utils.encode_cell({c:1, r:R})]?.v;
-
-                if (typeof secondCellValue === 'string' && ['In:', 'Out:', 'Total:'].includes(secondCellValue)) {
-                    for(let i=0; i<2; i++){
-                       const targetCellRef = XLSX.utils.encode_cell({c:i, r:R});
-                       if (!ws[targetCellRef]) ws[targetCellRef] = { t: 's', v: '' };
-                       ws[targetCellRef].s = { ...(ws[targetCellRef].s || {}), ...thickBorderStyle };
+                if (typeof secondCellValue === 'string' && secondCellValue === 'Total:') {
+                    for (let c = 0; c <= range.e.c; c++) {
+                        const totalCellRef = XLSX.utils.encode_cell({c, r: R});
+                        if (!ws[totalCellRef]) ws[totalCellRef] = { t: 's', v: ''};
+                        ws[totalCellRef].s = { ...(ws[totalCellRef].s || {}), ...thickBorderStyle };
                     }
                 }
                 
@@ -444,7 +442,7 @@ function PayrollReportContent() {
                     'RATE/OTHERS', 'OTHER-ADJ$', 'GROSS CHECK AMOUNT', 'GROSS OTHER AMOUNT', 'GP'
                 ]);
 
-                if (summaryRowLabels.has(firstCellValue as string)) {
+                if (summaryRowLabels.has(ws_data[R]?.[0] as string)) {
                      for(let i = 0; i <= range.e.c; i++){
                         const targetCellRef = XLSX.utils.encode_cell({c: i, r: R});
                         if (!ws[targetCellRef]) ws[targetCellRef] = { t: 's', v: '' };
@@ -452,7 +450,7 @@ function PayrollReportContent() {
                      }
                 }
 
-                const lastDataRowLabel = ws_data[ws_data.length - 2][0];
+                const lastDataRowLabel = ws_data[ws_data.length - 2]?.[0];
                 if(lastDataRowLabel === 'GP' && R === ws_data.length - 1){
                      for(let i = 0; i <= range.e.c; i++){
                         const targetCellRef = XLSX.utils.encode_cell({c: i, r: R});
@@ -692,3 +690,4 @@ export default function PayrollReportPage() {
     
 
     
+
