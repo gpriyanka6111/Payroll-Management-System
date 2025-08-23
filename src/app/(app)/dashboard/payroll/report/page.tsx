@@ -437,6 +437,11 @@ function PayrollReportContent() {
                         currentStyle = { ...currentStyle, ...thickBorderStyle };
                     }
                 }
+
+                // Apply thick right border to employee time cells
+                if (C > 1 && secondCellValue && (secondCellValue === 'In:' || secondCellValue === 'Out:')) {
+                     currentStyle.border = { ...(currentStyle.border || {}), right: { style: "thick" } };
+                }
                 
                 const summaryRowLabels = new Set([
                     'Total Hours', 'COMMENTS', 'CHECK HOURS', 'OTHER HOURS', 'RATE/CHECK', 
@@ -458,10 +463,6 @@ function PayrollReportContent() {
                         if (!ws[targetCellRef]) ws[targetCellRef] = { t: 's', v: '' };
                         ws[targetCellRef].s = { ...(ws[targetCellRef].s || {}), ...thickBorderStyle };
                      }
-                }
-
-                if (C === range.e.c) { // Check if it's the last column
-                    currentStyle.border = { ...(currentStyle.border || {}), right: { style: 'thick' } };
                 }
                 
                 cell.s = currentStyle;
@@ -689,3 +690,6 @@ export default function PayrollReportPage() {
     
 
 
+
+
+    
