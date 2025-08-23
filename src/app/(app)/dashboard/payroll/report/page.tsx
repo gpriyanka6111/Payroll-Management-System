@@ -41,13 +41,19 @@ interface YtdData {
     };
 }
 
-interface DailyHours {
-    date: Date;
-    hours: number;
+interface TimeEntry {
+    timeIn: Timestamp;
+    timeOut: Timestamp | null;
 }
 
-interface EmployeeDailyHours {
-    [employeeId: string]: DailyHours[];
+interface DailyEntries {
+    date: Date;
+    totalHours: number;
+    entries: TimeEntry[];
+}
+
+interface EmployeeTimeData {
+    [employeeId: string]: DailyEntries[];
 }
 
 function PayrollReportContent() {
@@ -233,10 +239,10 @@ function PayrollReportContent() {
 
         const toDateEnd = new Date(period.to);
         toDateEnd.setHours(23, 59, 59, 999);
-        const employeeHours: EmployeeDailyHours = {};
+        const employeeTimeData: EmployeeTimeData = {};
     
         for (const input of inputs) {
-            employeeHours[input.employeeId] = [];
+            employeeTimeData[input.employeeId] = [];
             const timeEntriesRef = collection(db, 'users', user.uid, 'employees', input.employeeId, 'timeEntries');
             const q = query(
                 timeEntriesRef,
@@ -244,22 +250,29 @@ function PayrollReportContent() {
                 where('timeIn', '<=', toDateEnd)
             );
             const snapshot = await getDocs(q);
-            const dailyMinutes: { [key: string]: number } = {};
+            const dailyData: { [key: string]: { totalMinutes: number, entries: TimeEntry[] } } = {};
+            
             snapshot.forEach(doc => {
                 const entry = doc.data();
-                if (entry.timeOut) {
-                    const dateKey = format(entry.timeIn.toDate(), 'yyyy-MM-dd');
-                    const minutes = Math.round((entry.timeOut.toDate().getTime() - entry.timeIn.toDate().getTime()) / 60000);
-                    dailyMinutes[dateKey] = (dailyMinutes[dateKey] || 0) + minutes;
+                const dateKey = format(entry.timeIn.toDate(), 'yyyy-MM-dd');
+                if (!dailyData[dateKey]) {
+                    dailyData[dateKey] = { totalMinutes: 0, entries: [] };
                 }
+
+                if (entry.timeOut) {
+                    const minutes = Math.round((entry.timeOut.toDate().getTime() - entry.timeIn.toDate().getTime()) / 60000);
+                    dailyData[dateKey].totalMinutes += minutes > 0 ? minutes : 0;
+                }
+                 dailyData[dateKey].entries.push({ timeIn: entry.timeIn, timeOut: entry.timeOut });
             });
     
-            for (const dateKey in dailyMinutes) {
+            for (const dateKey in dailyData) {
                  const dateWithTimezone = parseISO(dateKey + 'T12:00:00');
                  if(isValid(dateWithTimezone)) {
-                    employeeHours[input.employeeId].push({
+                    employeeTimeData[input.employeeId].push({
                         date: dateWithTimezone,
-                        hours: dailyMinutes[dateKey] / 60
+                        totalHours: dailyData[dateKey].totalMinutes / 60,
+                        entries: dailyData[dateKey].entries
                     });
                  }
             }
@@ -269,50 +282,54 @@ function PayrollReportContent() {
         const ws_data: (string | number | null)[][] = [];
         
         ws_data.push([`${companyName} - Pay Period: ${format(period.from, 'LLL dd, yyyy')} - ${format(period.to, 'LLL dd, yyyy')}`]);
-        ws_data.push(['Date', 'Day', 'HRS', ...inputs.map(i => i.name.toUpperCase())]);
+        ws_data.push(['Date', 'Metric', ...inputs.map(i => i.name.toUpperCase())]);
+        let currentRow = 2; // Start after header
     
         const daysInPeriod = eachDayOfInterval({ start: period.from, end: period.to });
-        let weeklyTotals: number[] = Array(inputs.length).fill(0);
-        const grandTotals: number[] = Array(inputs.length).fill(0);
     
-        daysInPeriod.forEach((day, index) => {
+        daysInPeriod.forEach((day) => {
             const dayOfWeek = getDay(day);
-    
-            if (!(isSundayClosed && dayOfWeek === 0)) {
-                const row: (string | number | null)[] = [
-                    format(day, 'MM/dd'),
-                    format(day, 'EEE').toUpperCase(),
-                    "HRS",
-                ];
-                inputs.forEach((input, i) => {
-                    const dayData = employeeHours[input.employeeId]?.find(d => isSameDay(d.date, day));
-                    const hours = dayData ? parseFloat(dayData.hours.toFixed(2)) : 0;
-                    row.push(hours > 0 ? hours : '');
-                    weeklyTotals[i] += hours;
-                    grandTotals[i] += hours;
-                });
-                ws_data.push(row);
-            }
+            if (isSundayClosed && dayOfWeek === 0) return;
 
-            const isSaturday = dayOfWeek === 6;
-            const isLastDay = index === daysInPeriod.length - 1;
-            
-            if ((isSaturday || isLastDay) && weeklyTotals.some(t => t > 0)) {
-                const weeklyTotalRow: (string | number | null)[] = ['Total Hrs of this week', null, null];
-                weeklyTotals.forEach(total => {
-                    weeklyTotalRow.push(total > 0 ? parseFloat(total.toFixed(2)) : '');
-                });
-                ws_data.push(weeklyTotalRow);
-                weeklyTotals = Array(inputs.length).fill(0);
-            }
+            const dateStr = format(day, 'eee, MMM dd');
+
+            const inRow: (string | number)[] = [dateStr, 'In:'];
+            const outRow: (string | number)[] = ['', 'Out:'];
+            const totalRow: (string | number)[] = ['', 'Total:'];
+
+            inputs.forEach(input => {
+                const dayData = employeeTimeData[input.employeeId]?.find(d => isSameDay(d.date, day));
+                
+                let inValue: string = '-';
+                let outValue: string = '-';
+                let totalValue: string | number = '-';
+
+                if (dayData) {
+                    if (dayData.entries.length > 1) {
+                        inValue = 'Multiple';
+                        outValue = 'Multiple';
+                    } else if (dayData.entries.length === 1) {
+                        const entry = dayData.entries[0];
+                        inValue = entry.timeIn ? format(entry.timeIn.toDate(), 'p') : '-';
+                        outValue = entry.timeOut ? format(entry.timeOut.toDate(), 'p') : (entry.timeIn ? 'ACTIVE' : '-');
+                    }
+                    totalValue = dayData.totalHours > 0 ? parseFloat(dayData.totalHours.toFixed(2)) : '-';
+                }
+                
+                inRow.push(inValue);
+                outRow.push(outValue);
+                totalRow.push(totalValue);
+            });
+            ws_data.push(inRow, outRow, totalRow);
+            currentRow += 3;
         });
-    
-        const grandTotalRow: (string | number | null)[] = ['Total Hours', null, null];
-        grandTotals.forEach(total => {
-            grandTotalRow.push(total > 0 ? parseFloat(total.toFixed(2)) : '');
+
+        const employeeTotals = inputs.map(input => {
+            return (employeeTimeData[input.employeeId] || []).reduce((sum, day) => sum + day.totalHours, 0);
         });
+        const grandTotalRow: (string | number | null)[] = ['Total Hours', null, ...employeeTotals.map(t => t > 0 ? parseFloat(t.toFixed(2)) : '')];
         ws_data.push(grandTotalRow);
-
+        
         const summaryMetrics: { label: string; key: keyof EmployeePayrollInput | keyof PayrollResult; type: 'input' | 'result'; format?: 'currency' | 'hours' }[] = [
             { label: 'COMMENTS', key: 'comment', type: 'input' },
             { label: 'CHECK HOURS', key: 'checkHours', type: 'input', format: 'hours' },
@@ -323,7 +340,7 @@ function PayrollReportContent() {
         ];
         
         summaryMetrics.forEach(metric => {
-            const row: (string | number | null)[] = [metric.label, null, null];
+            const row: (string | number | null)[] = [metric.label, null];
             inputs.forEach(input => {
                 const source = metric.type === 'input' ? input : results.find(r => r.employeeId === input.employeeId);
                 let value: any = source ? (source as any)[metric.key] : undefined;
@@ -340,7 +357,7 @@ function PayrollReportContent() {
             ws_data.push(row);
         });
         
-        ws_data.push([null, null, null, ...inputs.map(i => i.name.toUpperCase())]);
+        ws_data.push([null, null, ...inputs.map(i => i.name.toUpperCase())]);
 
         const grossMetrics = [
             { label: 'GROSS CHECK AMOUNT', key: 'grossCheckAmount' },
@@ -348,7 +365,7 @@ function PayrollReportContent() {
         ];
 
         grossMetrics.forEach(metric => {
-            const row: (string | number | null)[] = [metric.label, null, null];
+            const row: (string | number | null)[] = [metric.label, null];
             results.forEach(result => {
                 const rawValue = (result as any)[metric.key];
                 row.push(typeof rawValue === 'number' ? formatCurrency(rawValue) : '');
@@ -368,13 +385,18 @@ function PayrollReportContent() {
         
         const ws = XLSX.utils.aoa_to_sheet(ws_data);
         
-        const merges = [
-            { s: { r: 0, c: 0 }, e: { r: 0, c: 2 + inputs.length } },
-        ];
-
+        const merges: XLSX.Range[] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 2 + inputs.length -1 } }];
+        for (let i = 2; i < ws_data.length; i += 3) {
+             const firstCell = ws_data[i]?.[0];
+             if (typeof firstCell === 'string' && firstCell.match(/^[A-Za-z]{3}, [A-Za-z]{3} \d{2}$/)) {
+                 merges.push({ s: { r: i, c: 0 }, e: { r: i + 2, c: 0 } });
+             } else {
+                 break; 
+             }
+        }
         ws_data.forEach((row, r) => {
-            if (['Total Hrs of this week', 'Total Hours', ...summaryMetrics.map(m => m.label), ...grossMetrics.map(m => m.label)].includes(row[0] as string)) {
-                merges.push({ s: { r, c: 0 }, e: { r, c: 2 } });
+            if (['Total Hours', ...summaryMetrics.map(m => m.label), ...grossMetrics.map(m => m.label)].includes(row[0] as string)) {
+                merges.push({ s: { r, c: 0 }, e: { r, c: 1 } });
             }
         });
         ws['!merges'] = merges;
@@ -407,22 +429,18 @@ function PayrollReportContent() {
                 }
 
                 const firstCellValue = ws[XLSX.utils.encode_cell({c:0, r:R})]?.v;
-                const thirdCellValue = ws[XLSX.utils.encode_cell({ c: 2, r: R })]?.v;
-                
-                if (typeof firstCellValue === 'string' && /^\d{2}\/\d{2}$/.test(firstCellValue)) {
-                     for(let i=0; i<3; i++){
+                const secondCellValue = ws[XLSX.utils.encode_cell({c:1, r:R})]?.v;
+
+                if (typeof secondCellValue === 'string' && ['In:', 'Out:', 'Total:'].includes(secondCellValue)) {
+                    for(let i=0; i<2; i++){
                        const targetCellRef = XLSX.utils.encode_cell({c:i, r:R});
                        if (!ws[targetCellRef]) ws[targetCellRef] = { t: 's', v: '' };
                        ws[targetCellRef].s = { ...(ws[targetCellRef].s || {}), ...thickBorderStyle };
-                     }
-                }
-                
-                if (thirdCellValue === 'HRS') {
-                    currentStyle = { ...currentStyle, ...thickBorderStyle };
+                    }
                 }
                 
                 const summaryRowLabels = new Set([
-                    'Total Hrs of this week', 'Total Hours', 'COMMENTS', 'CHECK HOURS', 'OTHER HOURS', 'RATE/CHECK', 
+                    'Total Hours', 'COMMENTS', 'CHECK HOURS', 'OTHER HOURS', 'RATE/CHECK', 
                     'RATE/OTHERS', 'OTHER-ADJ$', 'GROSS CHECK AMOUNT', 'GROSS OTHER AMOUNT', 'GP'
                 ]);
 
@@ -443,6 +461,10 @@ function PayrollReportContent() {
                      }
                 }
 
+                if (C > 1 && typeof secondCellValue === 'string' && ['In:', 'Out:', 'Total:'].includes(secondCellValue)) {
+                    currentStyle.border = { ...(currentStyle.border || {}), right: { style: 'thick' } };
+                }
+
                 if (C === range.e.c) { // Check if it's the last column
                     currentStyle.border = { ...(currentStyle.border || {}), right: { style: 'thick' } };
                 }
@@ -452,7 +474,6 @@ function PayrollReportContent() {
         }
         
         const rowsToHeighten = new Set([
-            'Total Hrs of this week',
             'Total Hours', 'COMMENTS', 'CHECK HOURS', 'OTHER HOURS', 'RATE/CHECK', 'RATE/OTHERS', 'OTHER-ADJ$',
             'GROSS CHECK AMOUNT', 'GROSS OTHER AMOUNT', 'GP'
         ]);
@@ -460,7 +481,7 @@ function PayrollReportContent() {
         const wsRows = ws_data.map((row, index) => {
             if (index === 0) return { hpt: 30 };
             const firstCell = row[0];
-            const isEmployeeNameRow = index === ws_data.length - 4 && row[3]; 
+            const isEmployeeNameRow = index === ws_data.length - 4 && row[2]; 
 
             if ((typeof firstCell === 'string' && rowsToHeighten.has(firstCell)) || isEmployeeNameRow) {
                 return { hpt: 25 };
@@ -472,7 +493,7 @@ function PayrollReportContent() {
         });
 
         ws['!rows'] = wsRows;
-        ws['!cols'] = Array(range.e.c + 1).fill({ wch: 10 });
+        ws['!cols'] = [{ wch: 15 }, { wch: 8 }, ...Array(inputs.length).fill({ wch: 15 })];
 
         XLSX.utils.book_append_sheet(wb, ws, "Timesheet Report");
         const fileName = `Payroll_Timesheet_${format(period.from, 'yyyy-MM-dd')}_to_${format(period.to, 'yyyy-MM-dd')}.xlsx`;
