@@ -230,20 +230,32 @@ export default function DashboardPage() {
   const handleTimeOut = async () => {
     if (!user || !selectedEmployeeId || !activeTimeEntry) return;
     setIsSubmitting(true);
+
     try {
         const entryDocRef = doc(db, 'users', user.uid, 'employees', selectedEmployeeId, 'timeEntries', activeTimeEntry.id);
+        const now = new Date();
         
-        let timeOutValue: Date | Timestamp = serverTimestamp() as Timestamp;
-        let toastDescription = `${activeTimeEntry.employeeName}'s shift has ended at ${format(new Date(), 'p')}.`;
+        const { timeOutValue: storeClosingTime } = await getAutoClockOutTime(activeTimeEntry.timeIn.toDate());
+        
+        let finalTimeOutValue: Date | Timestamp;
+        let toastDescription: string;
 
         if (isBefore(activeTimeEntry.timeIn.toDate(), startOfToday())) {
-            const autoClockOutResult = await getAutoClockOutTime(activeTimeEntry.timeIn.toDate());
-            timeOutValue = autoClockOutResult.timeOutValue;
-            toastDescription = autoClockOutResult.toastDescription;
+            // Logic for forgotten clock-out from a previous day
+            finalTimeOutValue = storeClosingTime;
+            toastDescription = `${activeTimeEntry.employeeName} was automatically clocked out for a previous shift at ${format(storeClosingTime, 'p')}.`;
+        } else if (now > storeClosingTime) {
+            // Logic for clocking out after store hours on the same day
+            finalTimeOutValue = storeClosingTime;
+            toastDescription = `${activeTimeEntry.employeeName}'s shift ended at the store's closing time of ${format(storeClosingTime, 'p')}.`;
+        } else {
+            // Normal clock-out before store closing time
+            finalTimeOutValue = serverTimestamp() as Timestamp;
+            toastDescription = `${activeTimeEntry.employeeName}'s shift has ended at ${format(now, 'p')}.`;
         }
 
         await updateDoc(entryDocRef, {
-            timeOut: timeOutValue,
+            timeOut: finalTimeOutValue,
         });
 
         toast({
