@@ -404,9 +404,6 @@ function PayrollReportContent() {
         const thickBorderStyle = { 
             border: { top: { style: "thick" }, bottom: { style: "thick" }, left: { style: "thick" }, right: { style: "thick" } }
         };
-        const thickRightBorderStyle = {
-            border: { right: { style: "thick" } }
-        };
         
         const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
 
@@ -429,11 +426,15 @@ function PayrollReportContent() {
                 }
 
                 const secondCellValue = ws[XLSX.utils.encode_cell({c:1, r:R})]?.v;
-                if (typeof secondCellValue === 'string' && secondCellValue === 'Total:') {
-                    for (let c = 0; c <= range.e.c; c++) {
-                        const totalCellRef = XLSX.utils.encode_cell({c, r: R});
-                        if (!ws[totalCellRef]) ws[totalCellRef] = { t: 's', v: ''};
-                        ws[totalCellRef].s = { ...(ws[totalCellRef].s || {}), ...thickBorderStyle };
+                if (typeof secondCellValue === 'string') {
+                    if (secondCellValue === 'Total:') {
+                        for (let c = 0; c <= range.e.c; c++) {
+                            const totalCellRef = XLSX.utils.encode_cell({c, r: R});
+                            if (!ws[totalCellRef]) ws[totalCellRef] = { t: 's', v: ''};
+                            ws[totalCellRef].s = { ...(ws[totalCellRef].s || {}), ...thickBorderStyle };
+                        }
+                    } else if (C === 1 && (secondCellValue === 'In:' || secondCellValue === 'Out:')) {
+                        currentStyle = { ...currentStyle, ...thickBorderStyle };
                     }
                 }
                 
@@ -457,10 +458,6 @@ function PayrollReportContent() {
                         if (!ws[targetCellRef]) ws[targetCellRef] = { t: 's', v: '' };
                         ws[targetCellRef].s = { ...(ws[targetCellRef].s || {}), ...thickBorderStyle };
                      }
-                }
-
-                if (C > 1 && typeof secondCellValue === 'string' && ['In:', 'Out:', 'Total:'].includes(secondCellValue)) {
-                    currentStyle.border = { ...(currentStyle.border || {}), right: { style: 'thick' } };
                 }
 
                 if (C === range.e.c) { // Check if it's the last column
@@ -690,4 +687,5 @@ export default function PayrollReportPage() {
     
 
     
+
 
