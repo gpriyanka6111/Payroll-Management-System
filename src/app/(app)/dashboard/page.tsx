@@ -88,7 +88,7 @@ export default function DashboardPage() {
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const employeeEntries = snapshot.docs
                 .map(doc => ({ id: doc.id, ...doc.data() } as TimeEntry))
-                .filter(entry => entry.timeIn); // Ensure timeIn is populated
+                .filter(entry => entry.timeIn); // Ensure timeIn is populated before processing
 
             // Remove old entries for this employee and add new ones
             allEntries = allEntries.filter(e => e.employeeId !== employee.id);
@@ -191,7 +191,7 @@ export default function DashboardPage() {
     
     try {
       // Check if there is a stale clock-in from a previous day
-      if (activeTimeEntry && isBefore(activeTimeEntry.timeIn.toDate(), startOfToday())) {
+      if (activeTimeEntry && activeTimeEntry.timeIn && isBefore(activeTimeEntry.timeIn.toDate(), startOfToday())) {
           const { timeOutValue, toastDescription } = await getAutoClockOutTime(activeTimeEntry.timeIn.toDate());
           const staleEntryDocRef = doc(db, 'users', user.uid, 'employees', activeTimeEntry.employeeId, 'timeEntries', activeTimeEntry.id);
           await updateDoc(staleEntryDocRef, { timeOut: timeOutValue });
@@ -233,7 +233,7 @@ export default function DashboardPage() {
   };
 
   const handleTimeOut = async () => {
-    if (!user || !selectedEmployeeId || !activeTimeEntry) return;
+    if (!user || !selectedEmployeeId || !activeTimeEntry || !activeTimeEntry.timeIn) return;
     setIsSubmitting(true);
 
     try {
@@ -366,7 +366,7 @@ export default function DashboardPage() {
                         )
                         )}
                         <div className="grid grid-cols-2 gap-4">
-                        <Button size="lg" onClick={handleTimeIn} disabled={!selectedEmployeeId || (!!activeTimeEntry && !isBefore(activeTimeEntry.timeIn.toDate(), startOfToday())) || isSubmitting}>
+                        <Button size="lg" onClick={handleTimeIn} disabled={!selectedEmployeeId || (!!activeTimeEntry && activeTimeEntry.timeIn && !isBefore(activeTimeEntry.timeIn.toDate(), startOfToday())) || isSubmitting}>
                             <LogIn className="mr-2 h-5 w-5" /> Time In
                         </Button>
                         <Button size="lg" variant="destructive" onClick={handleTimeOut} disabled={!selectedEmployeeId || !activeTimeEntry || isSubmitting}>
@@ -442,7 +442,7 @@ export default function DashboardPage() {
                         <div className="text-sm font-semibold text-accent">ACTIVE</div>
                     ) : (
                         <div className="text-sm font-semibold text-muted-foreground">
-                            {formatDuration(entry.timeIn?.toDate(), entry.timeOut?.toDate())}
+                            {formatDuration(entry.timeIn?.toDate() ?? null, entry.timeOut?.toDate() ?? null)}
                         </div>
                     )}
                 </li>
