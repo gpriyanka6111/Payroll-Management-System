@@ -255,7 +255,7 @@ export default function DashboardPage() {
             toastDescription = `${activeTimeEntry.employeeName}'s shift ended at the store's closing time of ${format(storeClosingTime, 'p')}.`;
         } else {
             // Normal clock-out before store closing time
-            finalTimeOutValue = serverTimestamp() as Timestamp;
+            finalTimeOutValue = now;
             toastDescription = `${activeTimeEntry.employeeName}'s shift has ended at ${format(now, 'p')}.`;
         }
 
@@ -279,13 +279,16 @@ export default function DashboardPage() {
   
   const getElapsedTime = () => {
     if (!activeTimeEntry || !activeTimeEntry.timeIn) return '0h 0m';
-    const hours = differenceInHours(new Date(), activeTimeEntry.timeIn.toDate());
-    const minutes = Math.floor((new Date().getTime() - activeTimeEntry.timeIn.toDate().getTime()) / 60000) % 60;
+    const startTime = activeTimeEntry.timeIn.toDate();
+    if (!startTime) return '0h 0m'; // Safety check
+    const hours = differenceInHours(new Date(), startTime);
+    const minutes = Math.floor((new Date().getTime() - startTime.getTime()) / 60000) % 60;
     return `${hours}h ${minutes}m`;
   };
 
   const formatDuration = (start: Date | null, end: Date | null) => {
-    if (!start || !end) return 'Active';
+    if (!start) return '...';
+    if (!end) return 'Active';
     const totalMinutes = differenceInMinutes(end, start);
     if (totalMinutes < 0) return '0h 0m';
 
@@ -298,7 +301,7 @@ export default function DashboardPage() {
   const todaysStats = React.useMemo(() => {
     const clockedInCount = todaysGlobalEntries.filter(entry => entry.timeOut === null).length;
     const totalHoursToday = todaysGlobalEntries.reduce((total, entry) => {
-        if (entry.timeOut) {
+        if (entry.timeIn && entry.timeOut) {
             const minutes = differenceInMinutes(entry.timeOut.toDate(), entry.timeIn.toDate());
             return total + (minutes > 0 ? minutes / 60 : 0);
         }
