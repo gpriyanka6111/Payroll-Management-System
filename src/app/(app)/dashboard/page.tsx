@@ -71,41 +71,46 @@ export default function DashboardPage() {
       return;
     }
 
-    const fetchAllTodaysEntries = async () => {
-      const todayStart = startOfDay(new Date());
-      const todayEnd = endOfDay(new Date());
-      let allEntries: TimeEntry[] = [];
+    const todayStart = startOfDay(new Date());
+    const todayEnd = endOfDay(new Date());
+    let allEntries: TimeEntry[] = [];
+    const unsubscribers: (() => void)[] = [];
 
-      await Promise.all(employees.map(async (employee) => {
-        try {
-          const timeEntriesRef = collection(db, 'users', user.uid, 'employees', employee.id, 'timeEntries');
-          const q = query(
+    employees.forEach(employee => {
+        const timeEntriesRef = collection(db, 'users', user.uid, 'employees', employee.id, 'timeEntries');
+        const q = query(
             timeEntriesRef,
             where('timeIn', '>=', todayStart),
             where('timeIn', '<=', todayEnd),
             orderBy('timeIn', 'desc')
-          );
-          const snapshot = await getDocs(q);
-          const employeeEntries = snapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-          } as TimeEntry));
-          allEntries.push(...employeeEntries);
-        } catch (error) {
-          console.error(`Error fetching entries for ${employee.firstName}:`, error);
-        }
-      }));
-      
-      allEntries.sort((a, b) => {
-        const timeA = a.timeIn?.toDate()?.getTime() || 0;
-        const timeB = b.timeIn?.toDate()?.getTime() || 0;
-        return timeB - timeA;
-      });
-      setTodaysGlobalEntries(allEntries);
+        );
+
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const employeeEntries = snapshot.docs
+                .map(doc => ({ id: doc.id, ...doc.data() } as TimeEntry))
+                .filter(entry => entry.timeIn); // Ensure timeIn is populated
+
+            // Remove old entries for this employee and add new ones
+            allEntries = allEntries.filter(e => e.employeeId !== employee.id);
+            allEntries.push(...employeeEntries);
+
+            // Sort and update state
+            allEntries.sort((a, b) => {
+                const timeA = a.timeIn?.toDate()?.getTime() || 0;
+                const timeB = b.timeIn?.toDate()?.getTime() || 0;
+                return timeB - timeA;
+            });
+            setTodaysGlobalEntries([...allEntries]);
+        }, (error) => {
+            console.error(`Error fetching real-time entries for ${employee.firstName}:`, error);
+        });
+        unsubscribers.push(unsubscribe);
+    });
+
+    return () => {
+        unsubscribers.forEach(unsub => unsub());
     };
-    
-    fetchAllTodaysEntries();
-  }, [user, employees, activeTimeEntry]);
+  }, [user, employees]);
 
 
   // Effect to fetch and listen to the selected employee's active entry
@@ -449,4 +454,5 @@ export default function DashboardPage() {
   );
 }
 
+    
     
