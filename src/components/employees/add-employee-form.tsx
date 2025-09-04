@@ -16,13 +16,14 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { UserPlus, Phone, Shield, Mail } from 'lucide-react';
+import { UserPlus, Phone, Shield, Mail, Upload } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/contexts/auth-context';
 import { useRouter } from 'next/navigation';
 import { collection, addDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 const baseEmployeeSchema = z.object({
   firstName: z.string().min(2, { message: 'First name must be at least 2 characters.' }).regex(/^[a-zA-Z' -]+$/, { message: "Name can only contain letters, spaces, hyphens, and apostrophes." }),
@@ -30,7 +31,10 @@ const baseEmployeeSchema = z.object({
   ssn: z.string().regex(/^\d{3}-\d{2}-\d{4}$/, { message: "SSN must be in XXX-XX-XXXX format." }).optional().or(z.literal('')),
   email: z.string().email({ message: 'Invalid email address.' }).optional().or(z.literal('')),
   mobileNumber: z.string().regex(/^\(\d{3}\) \d{3}-\d{4}$/, { message: "Number must be in (XXX) XXX-XXXX format." }).optional().or(z.literal('')),
-  ptoBalance: z.coerce.number().min(0, { message: 'PTO balance cannot be negative.' }).default(0),
+  vacationBalance: z.coerce.number().min(0, { message: 'Vacation balance cannot be negative.' }).default(0),
+  holidayBalance: z.coerce.number().min(0, { message: 'Holiday balance cannot be negative.' }).default(0),
+  sickDayBalance: z.coerce.number().min(0, { message: 'Sick day balance cannot be negative.' }).default(0),
+  w4Form: z.any().optional(),
   comment: z.string().optional(),
 });
 
@@ -75,7 +79,9 @@ export function AddEmployeeForm() {
       payRateCheck: 0,
       payRateOthers: 0,
       standardCheckHours: 40,
-      ptoBalance: 0,
+      vacationBalance: 0,
+      holidayBalance: 0,
+      sickDayBalance: 0,
       comment: '',
     },
     mode: 'onChange',
@@ -90,8 +96,19 @@ export function AddEmployeeForm() {
     }
     setIsSubmitting(true);
     try {
+        const { w4Form, ...employeeData } = values;
+        let w4FormUrl = '';
+
+        if (w4Form && w4Form.length > 0) {
+            const file = w4Form[0];
+            const storage = getStorage();
+            const storageRef = ref(storage, `users/${user.uid}/employees/${Date.now()}-${file.name}`);
+            await uploadBytes(storageRef, file);
+            w4FormUrl = await getDownloadURL(storageRef);
+        }
+
         const employeesCollectionRef = collection(db, 'users', user.uid, 'employees');
-        await addDoc(employeesCollectionRef, values);
+        await addDoc(employeesCollectionRef, { ...employeeData, w4FormUrl });
         toast({
             title: 'Employee Added',
             description: `${values.firstName} has been added successfully.`,
@@ -301,16 +318,68 @@ export function AddEmployeeForm() {
             />
         )}
 
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
+            <FormField
+                control={form.control}
+                name="vacationBalance"
+                render={({ field }) => (
+                    <FormItem>
+                    <FormLabel>Vacation (hours)</FormLabel>
+                    <FormControl>
+                        <Input type="number" step="0.1" min="0" placeholder="e.g., 40" {...field} disabled={isSubmitting} />
+                    </FormControl>
+                    <FormMessage />
+                    </FormItem>
+                )}
+            />
+            <FormField
+                control={form.control}
+                name="holidayBalance"
+                render={({ field }) => (
+                    <FormItem>
+                    <FormLabel>Holiday (hours)</FormLabel>
+                    <FormControl>
+                        <Input type="number" step="0.1" min="0" placeholder="e.g., 8" {...field} disabled={isSubmitting} />
+                    </FormControl>
+                    <FormMessage />
+                    </FormItem>
+                )}
+            />
+            <FormField
+                control={form.control}
+                name="sickDayBalance"
+                render={({ field }) => (
+                    <FormItem>
+                    <FormLabel>Sick Day (hours)</FormLabel>
+                    <FormControl>
+                        <Input type="number" step="0.1" min="0" placeholder="e.g., 24" {...field} disabled={isSubmitting} />
+                    </FormControl>
+                    <FormMessage />
+                    </FormItem>
+                )}
+            />
+        </div>
 
         <FormField
             control={form.control}
-            name="ptoBalance"
+            name="w4Form"
             render={({ field }) => (
                 <FormItem>
-                <FormLabel>Initial PTO Balance (hours)</FormLabel>
+                <FormLabel>W-4 Form (PDF)</FormLabel>
                 <FormControl>
-                    <Input type="number" step="0.1" min="0" placeholder="e.g., 40" {...field} disabled={isSubmitting} />
+                    <div className="relative">
+                        <Upload className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                        <Input 
+                            type="file"
+                            accept="application/pdf"
+                            onChange={(e) => field.onChange(e.target.files)}
+                            className="pl-10" 
+                            disabled={isSubmitting} />
+                    </div>
                 </FormControl>
+                <FormDescription>
+                    Upload the employee's W-4 form in PDF format.
+                </FormDescription>
                 <FormMessage />
                 </FormItem>
             )}

@@ -13,7 +13,10 @@ export type Employee = {
   payRateOthers?: number; // Used for hourly rate
   biWeeklySalary?: number; // Used for salaried
   standardCheckHours?: number; // Used for hourly rate
-  ptoBalance: number;
+  vacationBalance: number;
+  holidayBalance: number;
+  sickDayBalance: number;
+  w4FormUrl?: string; // URL to the W-4 PDF file
   comment?: string;
 };
 

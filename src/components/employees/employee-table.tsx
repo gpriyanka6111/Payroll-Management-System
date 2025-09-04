@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Edit, Trash2, Clock, DollarSign, CalendarDays, Phone, Shield, Mail, MessageSquare } from "lucide-react";
+import { Edit, Trash2, Clock, DollarSign, CalendarDays, Phone, Shield, Mail, MessageSquare, File as FileIcon } from "lucide-react";
 import type { Employee } from '@/lib/types';
 import {
   AlertDialog,
@@ -55,6 +55,11 @@ export function EmployeeTable({ employees, onUpdate, onDelete }: EmployeeTablePr
     return `${hours.toFixed(1)} hrs`;
    };
 
+  const formatSsn = (ssn: string | undefined) => {
+    if (!ssn) return 'N/A';
+    return `***-**-${ssn.slice(-4)}`;
+  };
+
   const handleSaveEdit = (updatedEmployeeData: Employee) => {
     onUpdate(updatedEmployeeData);
     setEmployeeToEdit(null);
@@ -75,7 +80,10 @@ export function EmployeeTable({ employees, onUpdate, onDelete }: EmployeeTablePr
             <TableHead><DollarSign className="inline-block h-4 w-4 mr-1"/>$Rate/Cheque</TableHead>
             <TableHead><DollarSign className="inline-block h-4 w-4 mr-1"/>$Rate/Others</TableHead>
             <TableHead><Clock className="inline-block h-4 w-4 mr-1"/>Std. Check Hrs</TableHead>
-            <TableHead><CalendarDays className="inline-block h-4 w-4 mr-1"/>PTO Balance</TableHead>
+            <TableHead><CalendarDays className="inline-block h-4 w-4 mr-1"/>Vacation</TableHead>
+            <TableHead><CalendarDays className="inline-block h-4 w-4 mr-1"/>Holiday</TableHead>
+            <TableHead><CalendarDays className="inline-block h-4 w-4 mr-1"/>Sick Day</TableHead>
+            <TableHead><FileIcon className="inline-block h-4 w-4 mr-1"/>W-4</TableHead>
             <TableHead className="text-right">Actions</TableHead>
           </TableRow>
         </TableHeader>
@@ -85,7 +93,7 @@ export function EmployeeTable({ employees, onUpdate, onDelete }: EmployeeTablePr
               <TableCell className="font-medium">{`${employee.firstName}`}</TableCell>
               <TableCell>{employee.email || 'N/A'}</TableCell>
               <TableCell>{employee.mobileNumber || 'N/A'}</TableCell>
-              <TableCell>{employee.ssn || 'N/A'}</TableCell>
+              <TableCell>{formatSsn(employee.ssn)}</TableCell>
               <TableCell className="text-center">
                  {employee.comment ? (
                    <Tooltip>
@@ -115,7 +123,18 @@ export function EmployeeTable({ employees, onUpdate, onDelete }: EmployeeTablePr
                      `${formatCurrency(employee.payRateOthers)}/hr` : 'N/A'}
               </TableCell>
               <TableCell>{employee.payMethod === 'Hourly' ? formatHours(employee.standardCheckHours) : 'N/A'}</TableCell>
-              <TableCell>{formatHours(employee.ptoBalance)}</TableCell>
+              <TableCell>{formatHours(employee.vacationBalance)}</TableCell>
+              <TableCell>{formatHours(employee.holidayBalance)}</TableCell>
+              <TableCell>{formatHours(employee.sickDayBalance)}</TableCell>
+              <TableCell>
+                {employee.w4FormUrl ? (
+                  <a href={employee.w4FormUrl} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">
+                    View
+                  </a>
+                ) : (
+                  'N/A'
+                )}
+              </TableCell>
               <TableCell className="text-right space-x-2">
                 <Button variant="ghost" size="icon" aria-label="Edit employee" onClick={() => setEmployeeToEdit(employee)}>
                     <Edit className="h-4 w-4" />
@@ -128,7 +147,7 @@ export function EmployeeTable({ employees, onUpdate, onDelete }: EmployeeTablePr
           ))}
           {employees.length === 0 && (
             <TableRow>
-              <TableCell colSpan={11} className="h-24 text-center text-muted-foreground">
+              <TableCell colSpan={14} className="h-24 text-center text-muted-foreground">
                 No employees found. Add your first employee!
               </TableCell>
             </TableRow>
