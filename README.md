@@ -1,6 +1,6 @@
-# Payroll Management System
+# Payroll Management System - WorkRoll
 
-A comprehensive, web-based application designed to streamline and automate payroll processes for businesses. It provides a user-friendly interface for managing employees, calculating payroll, and generating reports.
+This WorkRoll is a modern, web-based platform designed to simplify and automate the complexities of payroll for any business. What makes it unique is its real-time, collaborative core, powered by a serverless architecture; this ensures that all data, from employee details to payroll calculations, is instantly synchronized for all users without needing a page refresh. This eliminates data conflicts and streamlines workflow, offering an all-in-one, intuitive dashboard for managing staff, processing payroll with automated deductions, and generating insightful reports, making it a highly efficient and reliable solution.
 
 ## Uses of this Application
 
