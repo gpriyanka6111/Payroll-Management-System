@@ -13,4 +13,6 @@ A comprehensive, web-based application designed to streamline and automate payro
 ## Tech Stack
 
 *   **Frontend:** Next.js, React, TypeScript, Tailwind CSS
+  
 *   **Backend:** Firebase (for authentication and database)
+For the Payroll Management System, I chose Firebase as the backend provider primarily for its ability to accelerate development and provide robust, scalable services without the need for managing server infrastructure.
