@@ -3,18 +3,17 @@
 
 import * as React from 'react';
 import { useSearchParams } from 'next/navigation';
-import { format, addDays } from 'date-fns';
-import Link from 'next/link';
+import { format } from 'date-fns';
 
 import { PayrollCalculation } from '@/components/payroll/payroll-calculation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Calculator, Calendar as CalendarIcon, Loader2, History, CheckCircle } from 'lucide-react';
+import { Calculator, Calendar as CalendarIcon, Loader2, History } from 'lucide-react';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import { Label } from '@/components/ui/label';
-import { doc, getDoc, collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
+import { doc, getDoc, collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/contexts/auth-context';
 import type { Payroll } from '@/lib/types';
