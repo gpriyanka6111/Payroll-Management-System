@@ -4,11 +4,10 @@
 import * as React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Users, Calculator, CalendarClock, DollarSign, ArrowLeft, CheckCircle, Calendar, CornerDownRight, Banknote, PanelLeft, PanelRight } from "lucide-react";
+import { Users, Calculator, CalendarClock, DollarSign, ArrowLeft, CheckCircle, Calendar, CornerDownRight, Banknote } from "lucide-react";
 import Link from 'next/link';
 import { getNextPayPeriod } from '@/lib/pay-period';
 import { format } from 'date-fns';
-import { cn } from '@/lib/utils';
 
 const managerLinks = [
     {
@@ -48,8 +47,6 @@ export default function ManagerDashboardPage() {
         current: null,
         next: null
     });
-    const [isSidebarOpen, setIsSidebarOpen] = React.useState(true);
-
 
     React.useEffect(() => {
         const today = new Date();
@@ -79,33 +76,37 @@ export default function ManagerDashboardPage() {
                 <p className="text-muted-foreground">Access payroll, employee, and reporting tools.</p>
             </div>
 
-            <div className="flex gap-6">
-                {/* Collapsible Sidebar */}
-                <div className={cn(
-                    "bg-card border rounded-lg transition-all duration-300 ease-in-out",
-                    isSidebarOpen ? "w-72" : "w-20"
-                )}>
-                    <div className="p-4 flex items-center justify-between">
-                        {isSidebarOpen && <h2 className="text-lg font-semibold">Manager Area</h2>}
-                        <Button variant="ghost" size="icon" onClick={() => setIsSidebarOpen(!isSidebarOpen)}>
-                            {isSidebarOpen ? <PanelLeft className="h-5 w-5"/> : <PanelRight className="h-5 w-5"/>}
-                        </Button>
-                    </div>
-                    <div className="space-y-2 p-2">
-                         {managerLinks.map((link) => (
-                            <Link href={link.href} key={link.href}>
-                                <Button variant="ghost" className={cn("w-full flex items-center gap-4", isSidebarOpen ? "justify-start" : "justify-center")}>
-                                    <link.icon className="h-5 w-5" />
-                                    {isSidebarOpen && <span className="text-sm">{link.title}</span>}
-                                </Button>
-                            </Link>
-                        ))}
-                    </div>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Left Column: Manager Area Links */}
+                <div className="lg:col-span-1">
+                    <Card className="h-full">
+                        <CardHeader>
+                            <CardTitle>Manager Area</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <ul className="space-y-4">
+                                {managerLinks.map((link) => (
+                                    <li key={link.href}>
+                                        <Link href={link.href} className="block p-4 border rounded-lg hover:bg-muted/50 transition-colors">
+                                            <div className="flex items-start gap-4">
+                                                <div className="bg-primary/10 text-primary p-3 rounded-full">
+                                                    <link.icon className="h-5 w-5" />
+                                                </div>
+                                                <div>
+                                                    <p className="font-semibold">{link.title}</p>
+                                                    <p className="text-sm text-muted-foreground">{link.description}</p>
+                                                </div>
+                                            </div>
+                                        </Link>
+                                    </li>
+                                ))}
+                            </ul>
+                        </CardContent>
+                    </Card>
                 </div>
 
-                {/* Main Content */}
-                <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {/* Center Column: Pay Period */}
+                {/* Right Columns: Pay Period and Things to Do */}
+                <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="">
                         <Card className="bg-primary/5 border-primary/20 h-full">
                             <CardHeader className="text-center">
@@ -127,8 +128,6 @@ export default function ManagerDashboardPage() {
                             </CardContent>
                         </Card>
                     </div>
-
-                    {/* Right Column: Things to Do */}
                     <div className="">
                         <Card>
                             <CardHeader>
