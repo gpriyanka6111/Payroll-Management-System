@@ -17,9 +17,9 @@ interface PtoUsageRecord {
   employeeId: string;
   employeeName: string;
   payPeriod: string; // YYYY-MM-DD
-  vacationUsed: number;
-  holidayUsed: number;
-  sickUsed: number;
+  vdHoursUsed: number;
+  hdHoursUsed: number;
+  sdHoursUsed: number;
 }
 
 
@@ -70,9 +70,9 @@ export default function PtoTrackerPage() {
               employeeId: input.employeeId,
               employeeName: input.name,
               payPeriod: payroll.toDate,
-              vacationUsed: input.vdHoursUsed ?? 0,
-              holidayUsed: input.hdHoursUsed ?? 0,
-              sickUsed: input.sdHoursUsed ?? 0,
+              vdHoursUsed: input.vdHoursUsed ?? 0,
+              hdHoursUsed: input.hdHoursUsed ?? 0,
+              sdHoursUsed: input.sdHoursUsed ?? 0,
             });
           }
         });
@@ -91,9 +91,9 @@ export default function PtoTrackerPage() {
       const usedYTD = ptoHistory
           .filter(record => record.employeeId === employee.id)
           .reduce((sum, record) => {
-              sum.vacation += record.vacationUsed;
-              sum.holiday += record.holidayUsed;
-              sum.sick += record.sickUsed;
+              sum.vacation += record.vdHoursUsed;
+              sum.holiday += record.hdHoursUsed;
+              sum.sick += record.sdHoursUsed;
               return sum;
           }, { vacation: 0, holiday: 0, sick: 0 });
       
@@ -232,9 +232,9 @@ export default function PtoTrackerPage() {
                 <TableRow>
                     <TableHead>Employee</TableHead>
                     <TableHead>Pay Period End Date</TableHead>
-                    <TableHead className="text-right">Vacation Used</TableHead>
-                    <TableHead className="text-right">Holiday Used</TableHead>
-                    <TableHead className="text-right">Sick Used</TableHead>
+                    <TableHead className="text-right">VD Hours Used</TableHead>
+                    <TableHead className="text-right">HD Hours Used</TableHead>
+                    <TableHead className="text-right">SD Hours Used</TableHead>
                 </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -242,9 +242,9 @@ export default function PtoTrackerPage() {
                     <TableRow key={`${record.employeeId}-${record.payPeriod}-${index}`}>
                         <TableCell className="font-medium">{record.employeeName}</TableCell>
                         <TableCell>{formatDate(record.payPeriod)}</TableCell>
-                        <TableCell className="text-right tabular-nums">{record.vacationUsed > 0 ? `(${formatHours(record.vacationUsed)})` : '-'}</TableCell>
-                        <TableCell className="text-right tabular-nums">{record.holidayUsed > 0 ? `(${formatHours(record.holidayUsed)})` : '-'}</TableCell>
-                        <TableCell className="text-right tabular-nums">{record.sickUsed > 0 ? `(${formatHours(record.sickUsed)})` : '-'}</TableCell>
+                        <TableCell className="text-right tabular-nums">{record.vdHoursUsed > 0 ? `(${formatHours(record.vdHoursUsed)})` : '-'}</TableCell>
+                        <TableCell className="text-right tabular-nums">{record.hdHoursUsed > 0 ? `(${formatHours(record.hdHoursUsed)})` : '-'}</TableCell>
+                        <TableCell className="text-right tabular-nums">{record.sdHoursUsed > 0 ? `(${formatHours(record.sdHoursUsed)})` : '-'}</TableCell>
                     </TableRow>
                 ))}
                 {ptoHistory.length === 0 && !isLoading && (
