@@ -77,25 +77,23 @@ export default function ManagerDashboardPage() {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Left Column: Things to Do */}
-                <div className="lg:col-span-1">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Top Things to Do</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <ul className="space-y-4">
-                                {thingsToDo.map((item, index) => (
-                                    <li key={index} className="flex items-start gap-3">
-                                        <div className="bg-primary/10 text-primary p-2 rounded-full mt-1">
-                                            <item.icon className="h-4 w-4" />
-                                        </div>
-                                        <span className="text-sm text-muted-foreground">{item.text}</span>
-                                    </li>
-                                ))}
-                            </ul>
-                        </CardContent>
-                    </Card>
+                 {/* Left Column: Navigation Links */}
+                <div className="lg:col-span-1 space-y-4">
+                   {managerLinks.map((link) => (
+                        <Link href={link.href} key={link.href} className="block">
+                            <Card className="hover:shadow-md hover:border-primary/50 transition-all h-full">
+                                <CardHeader className="flex flex-row items-center gap-4">
+                                <div className="bg-primary/10 text-primary p-3 rounded-full">
+                                    <link.icon className="h-5 w-5" />
+                                </div>
+                                <div>
+                                    <CardTitle className="text-base">{link.title}</CardTitle>
+                                    <CardDescription className="text-xs mt-1">{link.description}</CardDescription>
+                                </div>
+                                </CardHeader>
+                            </Card>
+                        </Link>
+                    ))}
                 </div>
 
                 {/* Center Column: Pay Period */}
@@ -120,24 +118,26 @@ export default function ManagerDashboardPage() {
                         </CardContent>
                     </Card>
                 </div>
-                
-                {/* Right Column: Navigation Links */}
-                <div className="lg:col-span-1 space-y-4">
-                   {managerLinks.map((link) => (
-                        <Link href={link.href} key={link.href} className="block">
-                            <Card className="hover:shadow-md hover:border-primary/50 transition-all h-full">
-                                <CardHeader className="flex flex-row items-center gap-4">
-                                <div className="bg-primary/10 text-primary p-3 rounded-full">
-                                    <link.icon className="h-5 w-5" />
-                                </div>
-                                <div>
-                                    <CardTitle className="text-base">{link.title}</CardTitle>
-                                    <CardDescription className="text-xs mt-1">{link.description}</CardDescription>
-                                </div>
-                                </CardHeader>
-                            </Card>
-                        </Link>
-                    ))}
+
+                {/* Right Column: Things to Do */}
+                <div className="lg:col-span-1">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Top Things to Do</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <ul className="space-y-4">
+                                {thingsToDo.map((item, index) => (
+                                    <li key={index} className="flex items-start gap-3">
+                                        <div className="bg-primary/10 text-primary p-2 rounded-full mt-1">
+                                            <item.icon className="h-4 w-4" />
+                                        </div>
+                                        <span className="text-sm text-muted-foreground">{item.text}</span>
+                                    </li>
+                                ))}
+                            </ul>
+                        </CardContent>
+                    </Card>
                 </div>
             </div>
         </div>
