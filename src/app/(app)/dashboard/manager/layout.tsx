@@ -5,7 +5,7 @@ import * as React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { Users, History, DollarSign, CalendarClock, Calendar, Star } from 'lucide-react';
+import { Users, History, DollarSign, CalendarClock, Calendar, Star, PlayCircle } from 'lucide-react';
 
 export default function ManagerLayout({
   children,
@@ -17,7 +17,8 @@ export default function ManagerLayout({
 
   const navLinks = [
     { href: '/dashboard/manager/employees', label: 'Employees', icon: Users },
-    { href: '/dashboard/manager/payroll', label: 'Payroll', icon: History },
+    { href: '/dashboard/manager/payroll/run', label: 'Run Payroll', icon: PlayCircle },
+    { href: '/dashboard/manager/payroll', label: 'Payroll History', icon: History },
     { href: '/dashboard/manager/ytd-summary', label: 'YTD Summary', icon: DollarSign },
     { href: '/dashboard/manager/pto', label: 'PTO Tracker', icon: CalendarClock },
     { href: '/dashboard/manager/calendar', label: 'Pay Period Calendar', icon: Calendar },

@@ -1,37 +1,46 @@
-
 "use client";
 
 import * as React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { User, History, Printer } from 'lucide-react';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
+import { DollarSign } from 'lucide-react';
 import { format, startOfYear } from 'date-fns';
-import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/auth-context';
 import { collection, query, orderBy, getDocs, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Employee, Payroll } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
-interface PtoUsageRecord {
-  employeeId: string;
-  employeeName: string;
-  payPeriod: string; // YYYY-MM-DD
-  vacationUsed: number;
-  holidayUsed: number;
-  sickUsed: number;
+interface PayPeriodEarning {
+    period: string; // "MM/dd/yy - MM/dd/yy"
+    grossPay: number;
+    grossCheckAmount: number;
+    grossOtherAmount: number;
 }
 
+interface YtdEarningsRecord {
+    employeeId: string;
+    employeeName: string;
+    totalGrossPay: number;
+    totalGrossCheckAmount: number;
+    totalGrossOtherAmount: number;
+    payPeriods: PayPeriodEarning[];
+}
 
-export default function PtoTrackerPage() {
+export default function YtdSummaryPage() {
   const { user } = useAuth();
-  const [employees, setEmployees] = React.useState<Employee[]>([]);
-  const [ptoHistory, setPtoHistory] = React.useState<PtoUsageRecord[]>([]);
+  const [ytdEarnings, setYtdEarnings] = React.useState<YtdEarningsRecord[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
-  const [today, setToday] = React.useState('');
+  const [dateRange, setDateRange] = React.useState({ from: '', to: '' });
 
   React.useEffect(() => {
-    setToday(format(new Date(), "MMMM d, yyyy"));
+    const today = new Date();
+    const yearStart = startOfYear(today);
+    setDateRange({
+        from: format(yearStart, "MMMM d, yyyy"),
+        to: format(today, "MMMM d, yyyy")
+    });
   }, []);
 
   React.useEffect(() => {
@@ -40,7 +49,6 @@ export default function PtoTrackerPage() {
     const fetchAllData = async () => {
       setIsLoading(true);
       
-      // Fetch Employees
       const employeesCollectionRef = collection(db, 'users', user.uid, 'employees');
       const employeesQuery = query(employeesCollectionRef, orderBy('firstName', 'asc'));
       const employeeSnapshot = await getDocs(employeesQuery);
@@ -48,37 +56,57 @@ export default function PtoTrackerPage() {
         id: doc.id,
         ...doc.data()
       } as Employee));
-      setEmployees(employeesData);
 
-      // Fetch Payrolls for the current year to calculate PTO usage
       const yearStart = startOfYear(new Date());
       const payrollsCollectionRef = collection(db, 'users', user.uid, 'payrolls');
       const payrollsQuery = query(
         payrollsCollectionRef, 
         where('toDate', '>=', format(yearStart, 'yyyy-MM-dd')),
-        orderBy('toDate', 'desc')
+        orderBy('toDate', 'asc')
       );
       const payrollSnapshot = await getDocs(payrollsQuery);
       const payrollsData: Payroll[] = payrollSnapshot.docs.map(doc => doc.data() as Payroll);
       
-      const usageHistory: PtoUsageRecord[] = [];
+      const ytdTotals: { [employeeId: string]: YtdEarningsRecord } = {};
+
+      employeesData.forEach(emp => {
+          ytdTotals[emp.id] = {
+              employeeId: emp.id,
+              employeeName: `${emp.firstName}`,
+              totalGrossPay: 0,
+              totalGrossCheckAmount: 0,
+              totalGrossOtherAmount: 0,
+              payPeriods: []
+          };
+      });
 
       payrollsData.forEach(payroll => {
-        payroll.inputs.forEach((input: any) => {
-          if ((input.ptoUsed ?? 0) > 0) {
-            usageHistory.push({
-              employeeId: input.employeeId,
-              employeeName: input.name,
-              payPeriod: payroll.toDate,
-              vacationUsed: input.ptoUsed ?? 0, // Assuming ptoUsed is vacation for now
-              holidayUsed: 0,
-              sickUsed: 0,
-            });
+        payroll.results.forEach((result: any) => {
+          if (ytdTotals[result.employeeId]) {
+              const grossCheck = result.grossCheckAmount || 0;
+              const grossOther = result.grossOtherAmount || 0;
+              const gross = grossCheck + grossOther;
+
+              ytdTotals[result.employeeId].totalGrossPay += gross;
+              ytdTotals[result.employeeId].totalGrossCheckAmount += grossCheck;
+              ytdTotals[result.employeeId].totalGrossOtherAmount += grossOther;
+              
+              const [fromY, fromM, fromD] = payroll.fromDate.split('-').map(Number);
+              const [toY, toM, toD] = payroll.toDate.split('-').map(Number);
+              const fromDate = new Date(fromY, fromM - 1, fromD);
+              const toDate = new Date(toY, toM - 1, toD);
+
+              ytdTotals[result.employeeId].payPeriods.push({
+                  period: `${format(fromDate, 'MM/dd/yy')} - ${format(toDate, 'MM/dd/yy')}`,
+                  grossPay: gross,
+                  grossCheckAmount: grossCheck,
+                  grossOtherAmount: grossOther,
+              });
           }
         });
       });
       
-      setPtoHistory(usageHistory);
+      setYtdEarnings(Object.values(ytdTotals));
       setIsLoading(false);
     };
 
@@ -86,177 +114,117 @@ export default function PtoTrackerPage() {
 
   }, [user]);
 
-  // Data processing
-  const ptoSummary = employees.map(employee => {
-      const usedYTD = ptoHistory
-          .filter(record => record.employeeId === employee.id)
-          .reduce((sum, record) => {
-              sum.vacation += record.vacationUsed;
-              sum.holiday += record.holidayUsed;
-              sum.sick += record.sickUsed;
-              return sum;
-          }, { vacation: 0, holiday: 0, sick: 0 });
-      
-      const remainingBalance = {
-          vacation: employee.vacationBalance,
-          holiday: employee.holidayBalance,
-          sick: employee.sickDayBalance,
-      };
-
-      const initialBalance = {
-          vacation: (remainingBalance.vacation || 0) + usedYTD.vacation,
-          holiday: (remainingBalance.holiday || 0) + usedYTD.holiday,
-          sick: (remainingBalance.sick || 0) + usedYTD.sick,
-      };
-
-      return {
-          ...employee,
-          initialBalance,
-          usedYTD,
-          remainingBalance,
-      };
-  });
-
-  const formatHours = (hours: number | undefined): string => {
-      if (typeof hours !== 'number' || isNaN(hours)) {
-        return '0.00';
-      }
-      return hours.toFixed(2);
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
   };
 
-  const formatDate = (dateString: string) => {
-      const [year, month, day] = dateString.split('-').map(Number);
-      const date = new Date(year, month - 1, day);
-      return format(date, "MMMM d, yyyy");
-  };
+  const totalYtdGrossPay = React.useMemo(() => {
+    return ytdEarnings.reduce((sum, employee) => sum + employee.totalGrossPay, 0);
+  }, [ytdEarnings]);
+  const totalYtdGrossCheck = React.useMemo(() => {
+    return ytdEarnings.reduce((sum, employee) => sum + employee.totalGrossCheckAmount, 0);
+  }, [ytdEarnings]);
+    const totalYtdGrossOther = React.useMemo(() => {
+    return ytdEarnings.reduce((sum, employee) => sum + employee.totalGrossOtherAmount, 0);
+  }, [ytdEarnings]);
+
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">PTO Tracker</h1>
-        <p className="text-muted-foreground">Review employee Paid Time Off balances from live payroll data.</p>
+        <h1 className="text-3xl font-bold">Year-to-Date Summary</h1>
+        <p className="text-muted-foreground">Review total gross pay for all employees for the current calendar year.</p>
       </div>
 
-      {/* PTO Summary Card */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center">
-            <User className="mr-2 h-5 w-5 text-muted-foreground" />
-            Leave Balance Summary
+            <DollarSign className="mr-2 h-5 w-5 text-muted-foreground" />
+            YTD Earnings Summary
           </CardTitle>
-          <CardDescription>An overview of current leave balances for all employees as of {today}.</CardDescription>
+          <CardDescription>
+            Summary of total gross pay from finalized payrolls from <span className="font-semibold">{dateRange.from}</span> to <span className="font-semibold">{dateRange.to}</span>.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {isLoading ? (
              <div className="space-y-2">
                 <Skeleton className="h-10 w-full" />
                 <Skeleton className="h-10 w-full" />
-             </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead rowSpan={2} className="align-bottom">Employee</TableHead>
-                  <TableHead colSpan={3} className="text-center border-b">Initial Balance (YTD)</TableHead>
-                  <TableHead colSpan={3} className="text-center border-b">Used (YTD)</TableHead>
-                  <TableHead colSpan={3} className="text-center border-b">Remaining Balance</TableHead>
-                </TableRow>
-                 <TableRow>
-                  <TableHead className="text-right text-xs">VD</TableHead>
-                  <TableHead className="text-right text-xs">HD</TableHead>
-                  <TableHead className="text-right text-xs">SD</TableHead>
-                  <TableHead className="text-right text-xs">VD</TableHead>
-                  <TableHead className="text-right text-xs">HD</TableHead>
-                  <TableHead className="text-right text-xs">SD</TableHead>
-                  <TableHead className="text-right text-xs font-semibold">VD</TableHead>
-                  <TableHead className="text-right text-xs font-semibold">HD</TableHead>
-                  <TableHead className="text-right text-xs font-semibold">SD</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {ptoSummary.map(employee => (
-                  <TableRow key={employee.id}>
-                    <TableCell className="font-medium">{employee.firstName}</TableCell>
-                    {/* Initial */}
-                    <TableCell className="text-right tabular-nums">{formatHours(employee.initialBalance.vacation)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{formatHours(employee.initialBalance.holiday)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{formatHours(employee.initialBalance.sick)}</TableCell>
-                    {/* Used */}
-                    <TableCell className="text-right tabular-nums text-destructive">({formatHours(employee.usedYTD.vacation)})</TableCell>
-                    <TableCell className="text-right tabular-nums text-destructive">({formatHours(employee.usedYTD.holiday)})</TableCell>
-                    <TableCell className="text-right tabular-nums text-destructive">({formatHours(employee.usedYTD.sick)})</TableCell>
-                    {/* Remaining */}
-                    <TableCell className="text-right font-semibold tabular-nums">{formatHours(employee.remainingBalance.vacation)}</TableCell>
-                    <TableCell className="text-right font-semibold tabular-nums">{formatHours(employee.remainingBalance.holiday)}</TableCell>
-                    <TableCell className="text-right font-semibold tabular-nums">{formatHours(employee.remainingBalance.sick)}</TableCell>
-                  </TableRow>
-                ))}
-                {ptoSummary.length === 0 && !isLoading && (
-                  <TableRow>
-                    <TableCell colSpan={10} className="h-24 text-center text-muted-foreground">
-                      No employee data found.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* PTO History Log Card */}
-      <Card className="printable-section">
-        <CardHeader className="flex flex-row justify-between items-start">
-          <div>
-            <CardTitle className="flex items-center">
-              <History className="mr-2 h-5 w-5 text-muted-foreground" />
-              Detailed Leave Log
-            </CardTitle>
-            <CardDescription>A complete log of all leave hours used during payroll runs.</CardDescription>
-          </div>
-          <div className="print-action-button-container">
-              <Button variant="outline" size="sm" onClick={() => window.print()}>
-                  <Printer className="mr-2 h-4 w-4" /> Print Log
-              </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-           {isLoading ? (
-             <div className="space-y-2">
-                <Skeleton className="h-10 w-full" />
                 <Skeleton className="h-10 w-full" />
              </div>
-           ): (
-            <Table>
+          ) : ytdEarnings.length > 0 ? (
+            <>
+              <Table>
                 <TableHeader>
-                <TableRow>
-                    <TableHead>Employee</TableHead>
-                    <TableHead>Pay Period End Date</TableHead>
-                    <TableHead className="text-right">Vacation Used</TableHead>
-                    <TableHead className="text-right">Holiday Used</TableHead>
-                    <TableHead className="text-right">Sick Used</TableHead>
-                </TableRow>
+                    <TableRow>
+                        <TableHead>Employee</TableHead>
+                        <TableHead className="text-right">Gross Check Amount</TableHead>
+                        <TableHead className="text-right">Gross Other Amount</TableHead>
+                        <TableHead className="text-right font-bold">Total Gross Pay</TableHead>
+                    </TableRow>
                 </TableHeader>
                 <TableBody>
-                {ptoHistory.map((record, index) => (
-                    <TableRow key={`${record.employeeId}-${record.payPeriod}-${index}`}>
-                        <TableCell className="font-medium">{record.employeeName}</TableCell>
-                        <TableCell>{formatDate(record.payPeriod)}</TableCell>
-                        <TableCell className="text-right tabular-nums">{record.vacationUsed > 0 ? `(${formatHours(record.vacationUsed)})` : '-'}</TableCell>
-                        <TableCell className="text-right tabular-nums">{record.holidayUsed > 0 ? `(${formatHours(record.holidayUsed)})` : '-'}</TableCell>
-                        <TableCell className="text-right tabular-nums">{record.sickUsed > 0 ? `(${formatHours(record.sickUsed)})` : '-'}</TableCell>
-                    </TableRow>
-                ))}
-                {ptoHistory.length === 0 && !isLoading && (
-                    <TableRow>
-                    <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
-                        No leave usage history found for this year.
-                    </TableCell>
-                    </TableRow>
-                )}
+                   {ytdEarnings.map(employee => (
+                    <Accordion type="single" collapsible className="w-full" asChild key={employee.employeeId}>
+                        <TableRow>
+                          <TableCell colSpan={4} className="p-0">
+                              <AccordionItem value={employee.employeeId} className="border-b-0">
+                                <AccordionTrigger className="hover:no-underline px-4 py-2">
+                                  <div className="flex justify-between w-full">
+                                    <span className="font-medium">{employee.employeeName}</span>
+                                    <div className="grid grid-cols-3 gap-x-4 w-3/4 text-right tabular-nums">
+                                        <span>{formatCurrency(employee.totalGrossCheckAmount)}</span>
+                                        <span>{formatCurrency(employee.totalGrossOtherAmount)}</span>
+                                        <span className="font-bold">{formatCurrency(employee.totalGrossPay)}</span>
+                                    </div>
+                                  </div>
+                                </AccordionTrigger>
+                                <AccordionContent>
+                                  <div className="bg-muted/50 p-4">
+                                      <Table>
+                                          <TableHeader>
+                                              <TableRow>
+                                                  <TableHead>Pay Period</TableHead>
+                                                  <TableHead className="text-right">Gross Check</TableHead>
+                                                  <TableHead className="text-right">Gross Other</TableHead>
+                                                  <TableHead className="text-right">Gross Pay</TableHead>
+                                              </TableRow>
+                                          </TableHeader>
+                                          <TableBody>
+                                              {employee.payPeriods.map((pp, index) => (
+                                                  <TableRow key={index}>
+                                                      <TableCell>{pp.period}</TableCell>
+                                                      <TableCell className="text-right tabular-nums">{formatCurrency(pp.grossCheckAmount)}</TableCell>
+                                                      <TableCell className="text-right tabular-nums">{formatCurrency(pp.grossOtherAmount)}</TableCell>
+                                                      <TableCell className="text-right tabular-nums">{formatCurrency(pp.grossPay)}</TableCell>
+                                                  </TableRow>
+                                              ))}
+                                          </TableBody>
+                                      </Table>
+                                  </div>
+                                </AccordionContent>
+                              </AccordionItem>
+                          </TableCell>
+                        </TableRow>
+                    </Accordion>
+                   ))}
                 </TableBody>
-            </Table>
-           )}
+                 <TableFooter>
+                    <TableRow className="bg-muted/50 hover:bg-muted/50">
+                        <TableCell className="font-bold text-lg">Total</TableCell>
+                        <TableCell className="text-right font-bold text-lg tabular-nums">{formatCurrency(totalYtdGrossCheck)}</TableCell>
+                        <TableCell className="text-right font-bold text-lg tabular-nums">{formatCurrency(totalYtdGrossOther)}</TableCell>
+                        <TableCell className="text-right font-bold text-lg tabular-nums">{formatCurrency(totalYtdGrossPay)}</TableCell>
+                    </TableRow>
+                </TableFooter>
+              </Table>
+            </>
+          ) : (
+            <div className="h-24 text-center flex items-center justify-center text-muted-foreground">
+                No earnings data found for this year.
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
