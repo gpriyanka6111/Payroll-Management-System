@@ -39,7 +39,7 @@ export default function ManagerLayout({
             <div className="flex h-14 items-center justify-between border-b px-4 lg:h-[60px] lg:px-6">
                 <div className={cn("flex items-center gap-2", isCollapsed && "justify-center w-full")}>
                     <Briefcase className="h-6 w-6" />
-                    <h2 className={cn("text-lg font-semibold transition-opacity duration-300", isCollapsed && "opacity-0 w-0")}>Manager Area</h2>
+                    <h2 className={cn("text-lg font-semibold transition-opacity duration-300", isCollapsed && "opacity-0 w-0")}>Manager Dashboard</h2>
                 </div>
                  <Button variant="outline" size="icon" onClick={() => setIsCollapsed(!isCollapsed)} className={cn("rounded-full", isCollapsed && "rotate-180")}>
                     <ChevronLeft className="h-4 w-4"/>
