@@ -35,11 +35,15 @@ export default function ManagerLayout({
       )}>
         <div className="hidden border-r bg-muted/40 md:block">
           <div className="flex h-full max-h-screen flex-col relative">
-            <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6">
-                <div className={cn("flex items-center gap-2", isCollapsed && "justify-center")}>
+            <div className="flex h-14 items-center justify-between border-b px-4 lg:h-[60px] lg:px-6">
+                <div className={cn("flex items-center gap-2", isCollapsed && "justify-center w-full")}>
                     <Briefcase className="h-6 w-6" />
                     <h2 className={cn("text-lg font-semibold transition-opacity duration-300", isCollapsed && "opacity-0 w-0")}>Manager Area</h2>
                 </div>
+                 <Button variant="outline" size="icon" onClick={() => setIsCollapsed(!isCollapsed)} className={cn("rounded-full", isCollapsed && "rotate-180")}>
+                    <ChevronLeft className="h-4 w-4"/>
+                    <span className="sr-only">Toggle sidebar</span>
+                </Button>
             </div>
             <div className="flex-1 overflow-y-auto">
               <nav className={cn("grid items-start py-4 text-sm font-medium", isCollapsed ? "px-2" : "px-4")}>
@@ -77,12 +81,6 @@ export default function ManagerLayout({
                   )
                 ))}
               </nav>
-            </div>
-            <div className="mt-auto flex h-14 items-center border-t px-4 lg:h-[60px] lg:px-6">
-                <Button variant="outline" size="icon" onClick={() => setIsCollapsed(!isCollapsed)} className="rounded-full">
-                    {isCollapsed ? <ChevronRight className="h-4 w-4"/> : <ChevronLeft className="h-4 w-4"/>}
-                    <span className="sr-only">Toggle sidebar</span>
-                </Button>
             </div>
           </div>
         </div>
