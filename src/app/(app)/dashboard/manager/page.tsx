@@ -11,7 +11,7 @@ import { collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Payroll } from '@/lib/types';
 import { format } from 'date-fns';
-import { getNextPayPeriod } from '@/lib/pay-period';
+import { getCurrentPayPeriod } from '@/lib/pay-period';
 
 
 const formatCurrency = (amount: number | undefined) => {
@@ -27,7 +27,7 @@ export default function ManagerDashboardPage() {
     const [payPeriod, setPayPeriod] = React.useState({ start: new Date(), end: new Date(), payDate: new Date() });
 
     React.useEffect(() => {
-        setPayPeriod(getNextPayPeriod(new Date()));
+        setPayPeriod(getCurrentPayPeriod(new Date()));
     }, []);
     
     React.useEffect(() => {
