@@ -6,16 +6,26 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 import { getYearlyPayPeriods, PayPeriod } from '@/lib/pay-period';
-import { format } from 'date-fns';
+import { format, isBefore, startOfToday } from 'date-fns';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 export default function PayPeriodCalendarPage() {
   const [year, setYear] = React.useState(new Date().getFullYear());
   const [payPeriods, setPayPeriods] = React.useState<PayPeriod[]>([]);
+  const [today, setToday] = React.useState(startOfToday());
 
   React.useEffect(() => {
     setPayPeriods(getYearlyPayPeriods(year));
   }, [year]);
+  
+  React.useEffect(() => {
+    // Update today's date if the component stays mounted for a long time
+    const timer = setInterval(() => {
+        setToday(startOfToday());
+    }, 60000); // Update every minute
+    return () => clearInterval(timer);
+  }, []);
 
   const handlePreviousYear = () => {
     setYear(prevYear => prevYear - 1);
@@ -49,7 +59,7 @@ export default function PayPeriodCalendarPage() {
             {year} Pay Periods
           </CardTitle>
           <CardDescription>
-            Each period runs from Sunday to Saturday, with the pay date on the following Thursday.
+            Each period runs from Sunday to Saturday, with the pay date on the following Thursday. Past periods are grayed out.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -62,13 +72,16 @@ export default function PayPeriodCalendarPage() {
                     </TableRow>
                 </TableHeader>
                 <TableBody>
-                    {payPeriods.map((period, index) => (
-                        <TableRow key={index}>
+                    {payPeriods.map((period, index) => {
+                       const isPast = isBefore(period.end, today);
+                       return (
+                        <TableRow key={index} className={cn(isPast && "text-muted-foreground")}>
                             <TableCell>{format(period.start, 'MM/dd/yyyy')}</TableCell>
                             <TableCell>{format(period.end, 'MM/dd/yyyy')}</TableCell>
-                            <TableCell className="font-medium text-primary">{format(period.payDate, 'MM/dd/yyyy')}</TableCell>
+                            <TableCell className={cn("font-medium", !isPast && "text-primary")}>{format(period.payDate, 'MM/dd/yyyy')}</TableCell>
                         </TableRow>
-                    ))}
+                       )
+                    })}
                 </TableBody>
             </Table>
         </CardContent>
