@@ -1,232 +1,293 @@
-"use client";
+
+'use client';
 
 import * as React from 'react';
+import { useSearchParams } from 'next/navigation';
+import { format, addDays } from 'date-fns';
+import Link from 'next/link';
+
+import { PayrollCalculation } from '@/components/payroll/payroll-calculation';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
-import { DollarSign } from 'lucide-react';
-import { format, startOfYear } from 'date-fns';
-import { useAuth } from '@/contexts/auth-context';
-import { collection, query, orderBy, getDocs, where } from 'firebase/firestore';
+import { Calculator, Calendar as CalendarIcon, Loader2, History } from 'lucide-react';
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { cn } from '@/lib/utils';
+import { Label } from '@/components/ui/label';
+import { doc, getDoc, collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { Employee, Payroll } from '@/lib/types';
+import { useAuth } from '@/contexts/auth-context';
+import type { Payroll } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
-interface PayPeriodEarning {
-    period: string; // "MM/dd/yy - MM/dd/yy"
-    grossPay: number;
-    grossCheckAmount: number;
-    grossOtherAmount: number;
-}
-
-interface YtdEarningsRecord {
-    employeeId: string;
-    employeeName: string;
-    totalGrossPay: number;
-    totalGrossCheckAmount: number;
-    totalGrossOtherAmount: number;
-    payPeriods: PayPeriodEarning[];
-}
-
-export default function YtdSummaryPage() {
+function RunPayrollPageContent() {
   const { user } = useAuth();
-  const [ytdEarnings, setYtdEarnings] = React.useState<YtdEarningsRecord[]>([]);
+  const searchParams = useSearchParams();
+  const payrollId = searchParams.get('id');
+
+  const [from, setFrom] = React.useState<Date | undefined>();
+  const [to, setTo] = React.useState<Date | undefined>();
+  const [initialData, setInitialData] = React.useState<Payroll | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
-  const [dateRange, setDateRange] = React.useState({ from: '', to: '' });
+  const [isFetchingRanges, setIsFetchingRanges] = React.useState(true);
+  const [disabledDateRanges, setDisabledDateRanges] = React.useState<{ from: Date; to: Date }[]>([]);
+  const [lastPayrollDate, setLastPayrollDate] = React.useState<string | null>(null);
 
+  const isEditMode = !!payrollId;
+
+  // Set default date range on mount
   React.useEffect(() => {
-    const today = new Date();
-    const yearStart = startOfYear(today);
-    setDateRange({
-        from: format(yearStart, "MMMM d, yyyy"),
-        to: format(today, "MMMM d, yyyy")
-    });
-  }, []);
+    if (!isEditMode) {
+      const lastPayrollEndDateStr = localStorage.getItem('lastPayrollEndDate');
+      if (lastPayrollEndDateStr) {
+        const lastEndDate = new Date(lastPayrollEndDateStr);
+        const newStartDate = addDays(lastEndDate, 1);
+        const newEndDate = addDays(newStartDate, 13);
+        setFrom(newStartDate);
+        setTo(newEndDate);
+      }
+    }
+  }, [isEditMode]);
 
+  // Fetch existing payroll ranges to disable dates and get the last payroll date
   React.useEffect(() => {
-    if (!user) return;
-
-    const fetchAllData = async () => {
-      setIsLoading(true);
-      
-      const employeesCollectionRef = collection(db, 'users', user.uid, 'employees');
-      const employeesQuery = query(employeesCollectionRef, orderBy('firstName', 'asc'));
-      const employeeSnapshot = await getDocs(employeesQuery);
-      const employeesData: Employee[] = employeeSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      } as Employee));
-
-      const yearStart = startOfYear(new Date());
-      const payrollsCollectionRef = collection(db, 'users', user.uid, 'payrolls');
-      const payrollsQuery = query(
-        payrollsCollectionRef, 
-        where('toDate', '>=', format(yearStart, 'yyyy-MM-dd')),
-        orderBy('toDate', 'asc')
-      );
-      const payrollSnapshot = await getDocs(payrollsQuery);
-      const payrollsData: Payroll[] = payrollSnapshot.docs.map(doc => doc.data() as Payroll);
-      
-      const ytdTotals: { [employeeId: string]: YtdEarningsRecord } = {};
-
-      employeesData.forEach(emp => {
-          ytdTotals[emp.id] = {
-              employeeId: emp.id,
-              employeeName: `${emp.firstName}`,
-              totalGrossPay: 0,
-              totalGrossCheckAmount: 0,
-              totalGrossOtherAmount: 0,
-              payPeriods: []
-          };
-      });
-
-      payrollsData.forEach(payroll => {
-        payroll.results.forEach((result: any) => {
-          if (ytdTotals[result.employeeId]) {
-              const grossCheck = result.grossCheckAmount || 0;
-              const grossOther = result.grossOtherAmount || 0;
-              const gross = grossCheck + grossOther;
-
-              ytdTotals[result.employeeId].totalGrossPay += gross;
-              ytdTotals[result.employeeId].totalGrossCheckAmount += grossCheck;
-              ytdTotals[result.employeeId].totalGrossOtherAmount += grossOther;
-              
-              const [fromY, fromM, fromD] = payroll.fromDate.split('-').map(Number);
-              const [toY, toM, toD] = payroll.toDate.split('-').map(Number);
-              const fromDate = new Date(fromY, fromM - 1, fromD);
-              const toDate = new Date(toY, toM - 1, toD);
-
-              ytdTotals[result.employeeId].payPeriods.push({
-                  period: `${format(fromDate, 'MM/dd/yy')} - ${format(toDate, 'MM/dd/yy')}`,
-                  grossPay: gross,
-                  grossCheckAmount: grossCheck,
-                  grossOtherAmount: grossOther,
-              });
-          }
-        });
-      });
-      
-      setYtdEarnings(Object.values(ytdTotals));
-      setIsLoading(false);
+    if (!user) {
+        setIsFetchingRanges(false);
+        return;
     };
 
-    fetchAllData().catch(console.error);
+    const fetchPayrollData = async () => {
+      setIsFetchingRanges(true);
+      try {
+        const payrollsCollectionRef = collection(db, 'users', user.uid, 'payrolls');
+        
+        // Fetch all ranges for disabling dates
+        const allPayrollsQuery = query(payrollsCollectionRef, orderBy('toDate', 'desc'));
+        const allPayrollsSnapshot = await getDocs(allPayrollsQuery);
+        
+        const ranges = allPayrollsSnapshot.docs
+          .map(doc => {
+            const data = doc.data();
+            const [fromY, fromM, fromD] = data.fromDate.split('-').map(Number);
+            const [toY, toM, toD] = data.toDate.split('-').map(Number);
+            return {
+              from: new Date(fromY, fromM - 1, fromD),
+              to: new Date(toY, toM - 1, toD),
+            };
+          });
+        setDisabledDateRanges(ranges);
 
+        // Get the most recent payroll for display
+        if (!allPayrollsSnapshot.empty) {
+            const lastPayroll = allPayrollsSnapshot.docs[0].data();
+            const [fromY, fromM, fromD] = lastPayroll.fromDate.split('-').map(Number);
+            const [toY, toM, toD] = lastPayroll.toDate.split('-').map(Number);
+            const fromDate = new Date(fromY, fromM - 1, fromD);
+            const toDate = new Date(toY, toM - 1, toD);
+            setLastPayrollDate(`${format(fromDate, 'LLL dd, y')} - ${format(toDate, 'LLL dd, y')}`);
+        }
+
+      } catch (error) {
+        console.error("Error fetching payroll data:", error);
+      } finally {
+        setIsFetchingRanges(false);
+      }
+    };
+
+    fetchPayrollData();
   }, [user]);
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
+
+  React.useEffect(() => {
+    if (payrollId && user) {
+      setIsLoading(true);
+      const payrollDocRef = doc(db, 'users', user.uid, 'payrolls', payrollId);
+      getDoc(payrollDocRef)
+        .then((docSnap) => {
+          if (docSnap.exists()) {
+            const data = { id: docSnap.id, ...docSnap.data() } as Payroll;
+            setInitialData(data);
+            const [fromY, fromM, fromD] = data.fromDate.split('-').map(Number);
+            const [toY, toM, toD] = data.toDate.split('-').map(Number);
+            setFrom(new Date(fromY, fromM - 1, fromD));
+            setTo(new Date(toY, toM - 1, toD));
+          } else {
+            // Handle case where payroll is not found, e.g., redirect or show error
+            console.error('No such payroll document!');
+          }
+        })
+        .catch((error) => {
+          console.error('Error fetching payroll:', error);
+        })
+        .finally(() => {
+          setIsLoading(false);
+        });
+    } else {
+        setIsLoading(false);
+    }
+  }, [payrollId, user]);
+
+  const isDateDisabled = (date: Date) => {
+    // When editing, no dates should be considered "disabled" by past payrolls.
+    // The date pickers themselves will be locked.
+    if (isEditMode) return false;
+
+    for (const range of disabledDateRanges) {
+      // Check if the date falls within one of the existing payroll periods
+      if (date >= range.from && date <= range.to) {
+        return true;
+      }
+    }
+    return false;
   };
 
-  const totalYtdGrossPay = React.useMemo(() => {
-    return ytdEarnings.reduce((sum, employee) => sum + employee.totalGrossPay, 0);
-  }, [ytdEarnings]);
-  const totalYtdGrossCheck = React.useMemo(() => {
-    return ytdEarnings.reduce((sum, employee) => sum + employee.totalGrossCheckAmount, 0);
-  }, [ytdEarnings]);
-    const totalYtdGrossOther = React.useMemo(() => {
-    return ytdEarnings.reduce((sum, employee) => sum + employee.totalGrossOtherAmount, 0);
-  }, [ytdEarnings]);
-
+  const isPageLoading = isLoading || isFetchingRanges;
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Year-to-Date Summary</h1>
-        <p className="text-muted-foreground">Review total gross pay for all employees for the current calendar year.</p>
+      <div className="flex justify-between items-start">
+        <div>
+          <h1 className="text-3xl font-bold">{isEditMode ? 'Edit Payroll' : 'Run New Payroll'}</h1>
+          <p className="text-muted-foreground">
+            {isEditMode
+              ? `Editing payroll for period: ${initialData && from && to ? format(from, 'LLL dd, y') + ' - ' + format(to, 'LLL dd, y') : '...'}`
+              : 'Calculate employee payroll for a specific period.'}
+          </p>
+        </div>
+        {!isEditMode && lastPayrollDate && (
+             <div className="text-right">
+                <p className="text-sm font-medium flex items-center text-muted-foreground">
+                  <History className="mr-2 h-4 w-4"/> Last Payroll Run
+                </p>
+                <p className="text-sm font-semibold">{lastPayrollDate}</p>
+             </div>
+        )}
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center">
-            <DollarSign className="mr-2 h-5 w-5 text-muted-foreground" />
-            YTD Earnings Summary
-          </CardTitle>
-          <CardDescription>
-            Summary of total gross pay from finalized payrolls from <span className="font-semibold">{dateRange.from}</span> to <span className="font-semibold">{dateRange.to}</span>.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-             <div className="space-y-2">
-                <Skeleton className="h-10 w-full" />
-                <Skeleton className="h-10 w-full" />
-                <Skeleton className="h-10 w-full" />
-             </div>
-          ) : ytdEarnings.length > 0 ? (
-            <>
-              <Table>
-                <TableHeader>
-                    <TableRow>
-                        <TableHead>Employee</TableHead>
-                        <TableHead className="text-right">Gross Check Amount</TableHead>
-                        <TableHead className="text-right">Gross Other Amount</TableHead>
-                        <TableHead className="text-right font-bold">Total Gross Pay</TableHead>
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                   {ytdEarnings.map(employee => (
-                    <Accordion type="single" collapsible className="w-full" asChild key={employee.employeeId}>
-                        <TableRow>
-                          <TableCell colSpan={4} className="p-0">
-                              <AccordionItem value={employee.employeeId} className="border-b-0">
-                                <AccordionTrigger className="hover:no-underline px-4 py-2">
-                                  <div className="flex justify-between w-full">
-                                    <span className="font-medium">{employee.employeeName}</span>
-                                    <div className="grid grid-cols-3 gap-x-4 w-3/4 text-right tabular-nums">
-                                        <span>{formatCurrency(employee.totalGrossCheckAmount)}</span>
-                                        <span>{formatCurrency(employee.totalGrossOtherAmount)}</span>
-                                        <span className="font-bold">{formatCurrency(employee.totalGrossPay)}</span>
-                                    </div>
-                                  </div>
-                                </AccordionTrigger>
-                                <AccordionContent>
-                                  <div className="bg-muted/50 p-4">
-                                      <Table>
-                                          <TableHeader>
-                                              <TableRow>
-                                                  <TableHead>Pay Period</TableHead>
-                                                  <TableHead className="text-right">Gross Check</TableHead>
-                                                  <TableHead className="text-right">Gross Other</TableHead>
-                                                  <TableHead className="text-right">Gross Pay</TableHead>
-                                              </TableRow>
-                                          </TableHeader>
-                                          <TableBody>
-                                              {employee.payPeriods.map((pp, index) => (
-                                                  <TableRow key={index}>
-                                                      <TableCell>{pp.period}</TableCell>
-                                                      <TableCell className="text-right tabular-nums">{formatCurrency(pp.grossCheckAmount)}</TableCell>
-                                                      <TableCell className="text-right tabular-nums">{formatCurrency(pp.grossOtherAmount)}</TableCell>
-                                                      <TableCell className="text-right tabular-nums">{formatCurrency(pp.grossPay)}</TableCell>
-                                                  </TableRow>
-                                              ))}
-                                          </TableBody>
-                                      </Table>
-                                  </div>
-                                </AccordionContent>
-                              </AccordionItem>
-                          </TableCell>
-                        </TableRow>
-                    </Accordion>
-                   ))}
-                </TableBody>
-                 <TableFooter>
-                    <TableRow className="bg-muted/50 hover:bg-muted/50">
-                        <TableCell className="font-bold text-lg">Total</TableCell>
-                        <TableCell className="text-right font-bold text-lg tabular-nums">{formatCurrency(totalYtdGrossCheck)}</TableCell>
-                        <TableCell className="text-right font-bold text-lg tabular-nums">{formatCurrency(totalYtdGrossOther)}</TableCell>
-                        <TableCell className="text-right font-bold text-lg tabular-nums">{formatCurrency(totalYtdGrossPay)}</TableCell>
-                    </TableRow>
-                </TableFooter>
-              </Table>
-            </>
-          ) : (
-            <div className="h-24 text-center flex items-center justify-center text-muted-foreground">
-                No earnings data found for this year.
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {isPageLoading ? (
+        <Card>
+            <CardHeader>
+                <CardTitle>Loading Payroll Data...</CardTitle>
+            </CardHeader>
+            <CardContent>
+                <div className="flex items-center justify-center py-10">
+                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                </div>
+            </CardContent>
+        </Card>
+      ) : (
+        <>
+            {/* Pay Period Selector */}
+            <Card>
+                <CardHeader>
+                <CardTitle>1. Pay Period</CardTitle>
+                <CardDescription>
+                    {isEditMode
+                    ? 'The pay period for this run is locked.'
+                    : 'Choose the date range for this payroll run. Previously used dates are disabled.'}
+                </CardDescription>
+                </CardHeader>
+                <CardContent>
+                <div className="flex flex-wrap items-end gap-4">
+                    <div className="grid gap-2">
+                    <Label htmlFor="from-date">From</Label>
+                    <Popover>
+                        <PopoverTrigger asChild>
+                        <Button
+                            id="from-date"
+                            variant={'outline'}
+                            className={cn(
+                            'w-[240px] justify-start text-left font-normal',
+                            !from && 'text-muted-foreground'
+                            )}
+                            disabled={isEditMode}
+                        >
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {from ? format(from, 'LLL dd, y') : <span>Pick a start date</span>}
+                        </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                            mode="single"
+                            selected={from}
+                            onSelect={setFrom}
+                            disabled={(date) => (to && date > to) || date > new Date() || isEditMode || isDateDisabled(date)}
+                            initialFocus
+                        />
+                        </PopoverContent>
+                    </Popover>
+                    </div>
+
+                    <div className="grid gap-2">
+                    <Label htmlFor="to-date">To</Label>
+                    <Popover>
+                        <PopoverTrigger asChild>
+                        <Button
+                            id="to-date"
+                            variant={'outline'}
+                            className={cn(
+                            'w-[240px] justify-start text-left font-normal',
+                            !to && 'text-muted-foreground'
+                            )}
+                            disabled={isEditMode}
+                        >
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {to ? format(to, 'LLL dd, y') : <span>Pick an end date</span>}
+                        </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                            mode="single"
+                            selected={to}
+                            onSelect={setTo}
+                            disabled={(date) => !from || date < from || date > new Date() || isEditMode || isDateDisabled(date)}
+                            initialFocus
+                        />
+                        </PopoverContent>
+                    </Popover>
+                    </div>
+                </div>
+                </CardContent>
+            </Card>
+
+            {/* Payroll Calculation Component */}
+            {from && to ? (
+                <PayrollCalculation
+                    key={payrollId || `${format(from, 'yyyy-MM-dd')}-${format(to, 'yyyy-MM-dd')}`}
+                    from={from}
+                    to={to}
+                    payrollId={payrollId}
+                    initialPayrollData={initialData}
+                />
+            ) : (
+                <Card>
+                <CardHeader>
+                    <CardTitle className="flex items-center">
+                    <Calculator className="mr-2 h-5 w-5 text-muted-foreground" /> 2. Calculate Payroll
+                    </CardTitle>
+                    <CardDescription>Enter hours for each employee for the selected pay period.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <p className="text-center text-muted-foreground py-10">Please select a pay period above to begin.</p>
+                </CardContent>
+                </Card>
+            )}
+        </>
+      )}
     </div>
+  );
+}
+
+export default function RunPayrollPage() {
+  return (
+    <React.Suspense
+      fallback={
+        <div className="flex h-screen items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin" />
+        </div>
+      }
+    >
+      <RunPayrollPageContent />
+    </React.Suspense>
   );
 }
