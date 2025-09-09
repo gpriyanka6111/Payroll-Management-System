@@ -36,6 +36,11 @@ export default function YtdSummaryPage() {
   const [isLoading, setIsLoading] = React.useState(true);
   const [dateRange, setDateRange] = React.useState({ from: new Date(), to: new Date() });
   const [selectedQuarter, setSelectedQuarter] = React.useState<string>(`q${getQuarter(new Date())}`);
+  const [currentYear, setCurrentYear] = React.useState(new Date().getFullYear());
+
+  React.useEffect(() => {
+    setCurrentYear(new Date().getFullYear());
+  }, []);
 
   React.useEffect(() => {
     if (!user) return;
@@ -52,7 +57,7 @@ export default function YtdSummaryPage() {
       } as Employee));
 
       const today = new Date();
-      const currentYear = today.getFullYear();
+      const yearForQuery = today.getFullYear();
       let fromDate: Date, toDate: Date;
 
       if (selectedQuarter === 'all') {
@@ -60,7 +65,7 @@ export default function YtdSummaryPage() {
         toDate = endOfYear(today);
       } else {
         const quarterIndex = parseInt(selectedQuarter.replace('q', '')) - 1;
-        const targetDate = new Date(currentYear, quarterIndex * 3, 1);
+        const targetDate = new Date(yearForQuery, quarterIndex * 3, 1);
         fromDate = startOfQuarter(targetDate);
         toDate = endOfQuarter(targetDate);
       }
@@ -146,6 +151,13 @@ export default function YtdSummaryPage() {
     return `Quarter ${quarterNumber} (${format(dateRange.from, 'MM/dd/yy')} - ${format(dateRange.to, 'MM/dd/yy')})`;
   };
 
+  const quarterOptions = [
+    { value: "q1", label: `Quarter 1 (01/${currentYear} - 03/${currentYear})` },
+    { value: "q2", label: `Quarter 2 (04/${currentYear} - 06/${currentYear})` },
+    { value: "q3", label: `Quarter 3 (07/${currentYear} - 09/${currentYear})` },
+    { value: "q4", label: `Quarter 4 (10/${currentYear} - 12/${currentYear})` },
+    { value: "all", label: `Full Year (${currentYear})` },
+  ];
 
   return (
     <div className="space-y-6">
@@ -166,17 +178,15 @@ export default function YtdSummaryPage() {
                 Summary of total gross pay from finalized payrolls for <span className="font-semibold">{getPeriodDescription()}</span>.
               </CardDescription>
             </div>
-             <div className="w-48">
+             <div className="w-64">
                 <Select value={selectedQuarter} onValueChange={setSelectedQuarter}>
                     <SelectTrigger>
                         <SelectValue placeholder="Select a period" />
                     </SelectTrigger>
                     <SelectContent>
-                        <SelectItem value="q1">Quarter 1</SelectItem>
-                        <SelectItem value="q2">Quarter 2</SelectItem>
-                        <SelectItem value="q3">Quarter 3</SelectItem>
-                        <SelectItem value="q4">Quarter 4</SelectItem>
-                        <SelectItem value="all">Full Year</SelectItem>
+                        {quarterOptions.map(option => (
+                            <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                        ))}
                     </SelectContent>
                 </Select>
             </div>
@@ -266,5 +276,3 @@ export default function YtdSummaryPage() {
     </div>
   );
 }
-
-    
