@@ -18,7 +18,6 @@ export default function ManagerLayout({
   const [isCollapsed, setIsCollapsed] = React.useState(false);
 
   const navLinks = [
-    { href: '/dashboard/manager', label: 'Manager Dashboard', icon: LayoutDashboard },
     { href: '/dashboard/manager/employees', label: 'Employees', icon: Users },
     { href: '/dashboard/manager/payroll/run', label: 'Run Payroll', icon: PlayCircle },
     { href: '/dashboard/manager/payroll', label: 'Payroll History', icon: History },
@@ -37,10 +36,10 @@ export default function ManagerLayout({
         <div className="hidden border-r bg-muted/40 md:block">
           <div className="flex h-full max-h-screen flex-col relative">
             <div className="flex h-14 items-center justify-between border-b px-4 lg:h-[60px] lg:px-6">
-                <div className={cn("flex items-center gap-2", isCollapsed && "justify-center w-full")}>
+                <Link href="/dashboard/manager" className={cn("flex items-center gap-2", isCollapsed && "justify-center w-full")}>
                     <Briefcase className="h-6 w-6" />
                     <h2 className={cn("text-lg font-semibold transition-opacity duration-300", isCollapsed && "opacity-0 w-0")}>Manager Dashboard</h2>
-                </div>
+                </Link>
                  <Button variant="outline" size="icon" onClick={() => setIsCollapsed(!isCollapsed)} className={cn("rounded-full", isCollapsed && "rotate-180")}>
                     <ChevronLeft className="h-4 w-4"/>
                     <span className="sr-only">Toggle sidebar</span>
@@ -56,7 +55,7 @@ export default function ManagerLayout({
                           href={link.href}
                           className={cn(
                             "flex items-center justify-center gap-3 rounded-lg h-10 w-10 text-muted-foreground transition-all hover:text-primary hover:bg-muted",
-                            pathname === link.href && "bg-muted text-primary"
+                            pathname.startsWith(link.href) && (link.href !== '/dashboard/manager' || pathname === '/dashboard/manager') && "bg-muted text-primary"
                           )}
                         >
                           <link.icon className="h-5 w-5" />
@@ -73,7 +72,7 @@ export default function ManagerLayout({
                       href={link.href}
                       className={cn(
                         "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary",
-                        pathname === link.href && "bg-muted text-primary"
+                         pathname.startsWith(link.href) && (link.href !== '/dashboard/manager' || pathname === '/dashboard/manager') && "bg-muted text-primary"
                       )}
                     >
                       <link.icon className="h-4 w-4" />
