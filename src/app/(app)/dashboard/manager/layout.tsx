@@ -18,7 +18,7 @@ export default function ManagerLayout({
   const [isCollapsed, setIsCollapsed] = React.useState(false);
 
   const navLinks = [
-    { href: '/dashboard/manager', label: 'Dashboard', icon: LayoutDashboard },
+    { href: '/dashboard/manager', label: 'Manager Dashboard', icon: LayoutDashboard },
     { href: '/dashboard/manager/employees', label: 'Employees', icon: Users },
     { href: '/dashboard/manager/payroll/run', label: 'Run Payroll', icon: PlayCircle },
     { href: '/dashboard/manager/payroll', label: 'Payroll History', icon: History },
