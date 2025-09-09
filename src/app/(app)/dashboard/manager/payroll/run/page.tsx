@@ -77,7 +77,7 @@ function RunPayrollPageContent() {
           });
         setDisabledDateRanges(ranges);
 
-        // Get the most recent payroll for display
+        // Get the most recent payroll for display and setting the next period
         if (!allPayrollsSnapshot.empty) {
             const lastPayroll = allPayrollsSnapshot.docs[0].data();
             const [fromY, fromM, fromD] = lastPayroll.fromDate.split('-').map(Number);
@@ -85,6 +85,16 @@ function RunPayrollPageContent() {
             const fromDate = new Date(fromY, fromM - 1, fromD);
             const toDate = new Date(toY, toM - 1, toD);
             setLastPayrollDate(`${format(fromDate, 'LLL dd, y')} - ${format(toDate, 'LLL dd, y')}`);
+
+            if (!isEditMode) {
+                // Save to local storage for the next run
+                localStorage.setItem('lastPayrollEndDate', toDate.toISOString());
+                // Set the date for the current view
+                const newStartDate = addDays(toDate, 1);
+                const newEndDate = addDays(newStartDate, 13);
+                setFrom(newStartDate);
+                setTo(newEndDate);
+            }
         }
 
       } catch (error) {
@@ -95,7 +105,7 @@ function RunPayrollPageContent() {
     };
 
     fetchPayrollData();
-  }, [user]);
+  }, [user, isEditMode]);
 
 
   React.useEffect(() => {
