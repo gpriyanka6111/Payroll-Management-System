@@ -23,32 +23,25 @@ export function getCurrentPayPeriod(date: Date): PayPeriod {
     // Normalize the input date to the start of the day to avoid time zone issues
     const normalizedDate = startOfDay(date);
 
-    // Calculate the number of days that have passed since the anchor date
-    const daysSinceAnchor = differenceInDays(normalizedDate, anchorDate);
+    // Calculate the number of days between the target date and the anchor.
+    const daysDifference = differenceInDays(normalizedDate, anchorDate);
 
-    // Determine which 14-day cycle the date falls into.
-    // We adjust this to ensure we find the period whose pay date is *after* today.
-    const cyclesSinceAnchor = Math.floor(daysSinceAnchor / 14);
-
-    // Calculate the start date of the pay period containing today's date
-    const periodStart = addDays(anchorDate, cyclesSinceAnchor * 14);
+    // Determine how many 14-day cycles are between the dates.
+    // Math.floor correctly handles both past and future dates.
+    const cycles = Math.floor(daysDifference / 14);
     
-    const periodEnd = addDays(periodStart, 13);
-    const payDate = nextThursday(periodEnd);
+    // Calculate the start of the period that CONTAINS the normalizedDate.
+    let periodStart = addDays(anchorDate, cycles * 14);
+    let periodEnd = addDays(periodStart, 13);
+    let payDate = nextThursday(periodEnd);
 
-    // If the pay date for the calculated period is *before* today, it means the current
-    // active period is the *next* one.
+    // If the calculated pay date is before today, we need the *next* period to be the "current" one.
     if (isBefore(payDate, normalizedDate)) {
-        const nextPeriodStart = addDays(periodStart, 14);
-        const nextPeriodEnd = addDays(nextPeriodStart, 13);
-        const nextPayDate = nextThursday(nextPeriodEnd);
-        return {
-            start: nextPeriodStart,
-            end: nextPeriodEnd,
-            payDate: nextPayDate,
-        };
+        periodStart = addDays(periodStart, 14);
+        periodEnd = addDays(periodStart, 13);
+        payDate = nextThursday(periodEnd);
     }
-
+    
     return {
         start: periodStart,
         end: periodEnd,
