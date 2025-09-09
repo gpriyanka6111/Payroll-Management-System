@@ -73,7 +73,7 @@ export default function PayPeriodCalendarPage() {
                 </TableHeader>
                 <TableBody>
                     {payPeriods.map((period, index) => {
-                       const isPast = isBefore(period.end, today);
+                       const isPast = isBefore(period.payDate, today);
                        return (
                         <TableRow key={index} className={cn(isPast && "text-muted-foreground")}>
                             <TableCell>{format(period.start, 'MM/dd/yyyy')}</TableCell>
