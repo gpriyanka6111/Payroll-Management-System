@@ -18,7 +18,9 @@ interface PtoUsageRecord {
   employeeId: string;
   employeeName: string;
   payPeriod: string; // YYYY-MM-DD
-  ptoUsed: number;
+  vacationUsed: number;
+  holidayUsed: number;
+  sickUsed: number;
 }
 
 
@@ -63,13 +65,15 @@ export default function PtoTrackerPage() {
       const usageHistory: PtoUsageRecord[] = [];
 
       payrollsData.forEach(payroll => {
-        payroll.results.forEach((result: any) => {
-          if (result.ptoUsed > 0) {
+        payroll.inputs.forEach((input: any) => {
+          if ((input.vacationUsed ?? 0) > 0 || (input.holidayUsed ?? 0) > 0 || (input.sickUsed ?? 0) > 0) {
             usageHistory.push({
-              employeeId: result.employeeId,
-              employeeName: result.name,
+              employeeId: input.employeeId,
+              employeeName: input.name,
               payPeriod: payroll.toDate,
-              ptoUsed: result.ptoUsed,
+              vacationUsed: input.vacationUsed ?? 0,
+              holidayUsed: input.holidayUsed ?? 0,
+              sickUsed: input.sickUsed ?? 0,
             });
           }
         });
@@ -87,10 +91,24 @@ export default function PtoTrackerPage() {
   const ptoSummary = employees.map(employee => {
       const usedYTD = ptoHistory
           .filter(record => record.employeeId === employee.id)
-          .reduce((sum, record) => sum + record.ptoUsed, 0);
+          .reduce((sum, record) => {
+              sum.vacation += record.vacationUsed;
+              sum.holiday += record.holidayUsed;
+              sum.sick += record.sickUsed;
+              return sum;
+          }, { vacation: 0, holiday: 0, sick: 0 });
       
-      const remainingBalance = employee.ptoBalance;
-      const initialBalance = remainingBalance + usedYTD;
+      const remainingBalance = {
+          vacation: employee.vacationBalance,
+          holiday: employee.holidayBalance,
+          sick: employee.sickDayBalance,
+      };
+
+      const initialBalance = {
+          vacation: remainingBalance.vacation + usedYTD.vacation,
+          holiday: remainingBalance.holiday + usedYTD.holiday,
+          sick: remainingBalance.sick + usedYTD.sick,
+      };
 
       return {
           ...employee,
@@ -127,9 +145,9 @@ export default function PtoTrackerPage() {
         <CardHeader>
           <CardTitle className="flex items-center">
             <User className="mr-2 h-5 w-5 text-muted-foreground" />
-            PTO Balance Summary
+            Leave Balance Summary
           </CardTitle>
-          <CardDescription>An overview of current PTO balances for all employees as of {today}.</CardDescription>
+          <CardDescription>An overview of current leave balances for all employees as of {today}.</CardDescription>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -141,24 +159,44 @@ export default function PtoTrackerPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Employee</TableHead>
-                  <TableHead className="text-right">Initial Balance (YTD)</TableHead>
-                  <TableHead className="text-right">Used (YTD)</TableHead>
-                  <TableHead className="text-right">Remaining Balance</TableHead>
+                  <TableHead rowSpan={2} className="align-bottom">Employee</TableHead>
+                  <TableHead colSpan={3} className="text-center border-b">Initial Balance (YTD)</TableHead>
+                  <TableHead colSpan={3} className="text-center border-b">Used (YTD)</TableHead>
+                  <TableHead colSpan={3} className="text-center border-b">Remaining Balance</TableHead>
+                </TableRow>
+                 <TableRow>
+                  <TableHead className="text-right text-xs">VD</TableHead>
+                  <TableHead className="text-right text-xs">HD</TableHead>
+                  <TableHead className="text-right text-xs">SD</TableHead>
+                  <TableHead className="text-right text-xs">VD</TableHead>
+                  <TableHead className="text-right text-xs">HD</TableHead>
+                  <TableHead className="text-right text-xs">SD</TableHead>
+                  <TableHead className="text-right text-xs font-semibold">VD</TableHead>
+                  <TableHead className="text-right text-xs font-semibold">HD</TableHead>
+                  <TableHead className="text-right text-xs font-semibold">SD</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {ptoSummary.map(employee => (
                   <TableRow key={employee.id}>
                     <TableCell className="font-medium">{employee.firstName}</TableCell>
-                    <TableCell className="text-right tabular-nums">{formatHours(employee.initialBalance)}</TableCell>
-                    <TableCell className="text-right tabular-nums text-destructive">({formatHours(employee.usedYTD)})</TableCell>
-                    <TableCell className="text-right font-semibold tabular-nums">{formatHours(employee.remainingBalance)}</TableCell>
+                    {/* Initial */}
+                    <TableCell className="text-right tabular-nums">{formatHours(employee.initialBalance.vacation)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{formatHours(employee.initialBalance.holiday)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{formatHours(employee.initialBalance.sick)}</TableCell>
+                    {/* Used */}
+                    <TableCell className="text-right tabular-nums text-destructive">({formatHours(employee.usedYTD.vacation)})</TableCell>
+                    <TableCell className="text-right tabular-nums text-destructive">({formatHours(employee.usedYTD.holiday)})</TableCell>
+                    <TableCell className="text-right tabular-nums text-destructive">({formatHours(employee.usedYTD.sick)})</TableCell>
+                    {/* Remaining */}
+                    <TableCell className="text-right font-semibold tabular-nums">{formatHours(employee.remainingBalance.vacation)}</TableCell>
+                    <TableCell className="text-right font-semibold tabular-nums">{formatHours(employee.remainingBalance.holiday)}</TableCell>
+                    <TableCell className="text-right font-semibold tabular-nums">{formatHours(employee.remainingBalance.sick)}</TableCell>
                   </TableRow>
                 ))}
                 {ptoSummary.length === 0 && !isLoading && (
                   <TableRow>
-                    <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
+                    <TableCell colSpan={10} className="h-24 text-center text-muted-foreground">
                       No employee data found.
                     </TableCell>
                   </TableRow>
@@ -175,9 +213,9 @@ export default function PtoTrackerPage() {
           <div>
             <CardTitle className="flex items-center">
               <History className="mr-2 h-5 w-5 text-muted-foreground" />
-              Detailed PTO Log
+              Detailed Leave Log
             </CardTitle>
-            <CardDescription>A complete log of all PTO hours used during payroll runs.</CardDescription>
+            <CardDescription>A complete log of all leave hours used during payroll runs.</CardDescription>
           </div>
           <div className="print-action-button-container">
               <Button variant="outline" size="sm" onClick={() => window.print()}>
@@ -197,7 +235,9 @@ export default function PtoTrackerPage() {
                 <TableRow>
                     <TableHead>Employee</TableHead>
                     <TableHead>Pay Period End Date</TableHead>
-                    <TableHead className="text-right">Hours Used</TableHead>
+                    <TableHead className="text-right">Vacation Used</TableHead>
+                    <TableHead className="text-right">Holiday Used</TableHead>
+                    <TableHead className="text-right">Sick Used</TableHead>
                 </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -205,13 +245,15 @@ export default function PtoTrackerPage() {
                     <TableRow key={`${record.employeeId}-${record.payPeriod}-${index}`}>
                         <TableCell className="font-medium">{record.employeeName}</TableCell>
                         <TableCell>{formatDate(record.payPeriod)}</TableCell>
-                        <TableCell className="text-right tabular-nums">({formatHours(record.ptoUsed)})</TableCell>
+                        <TableCell className="text-right tabular-nums">{record.vacationUsed > 0 ? `(${formatHours(record.vacationUsed)})` : '-'}</TableCell>
+                        <TableCell className="text-right tabular-nums">{record.holidayUsed > 0 ? `(${formatHours(record.holidayUsed)})` : '-'}</TableCell>
+                        <TableCell className="text-right tabular-nums">{record.sickUsed > 0 ? `(${formatHours(record.sickUsed)})` : '-'}</TableCell>
                     </TableRow>
                 ))}
                 {ptoHistory.length === 0 && !isLoading && (
                     <TableRow>
-                    <TableCell colSpan={3} className="h-24 text-center text-muted-foreground">
-                        No PTO usage history found.
+                    <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
+                        No leave usage history found for this year.
                     </TableCell>
                     </TableRow>
                 )}
