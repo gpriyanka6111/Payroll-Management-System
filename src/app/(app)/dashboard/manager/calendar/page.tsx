@@ -64,9 +64,9 @@ export default function PayPeriodCalendarPage() {
                 <TableBody>
                     {payPeriods.map((period, index) => (
                         <TableRow key={index}>
-                            <TableCell>{format(period.start, 'EEEE, MMMM dd, yyyy')}</TableCell>
-                            <TableCell>{format(period.end, 'EEEE, MMMM dd, yyyy')}</TableCell>
-                            <TableCell className="font-medium text-primary">{format(period.payDate, 'EEEE, MMMM dd, yyyy')}</TableCell>
+                            <TableCell>{format(period.start, 'MM/dd/yyyy')}</TableCell>
+                            <TableCell>{format(period.end, 'MM/dd/yyyy')}</TableCell>
+                            <TableCell className="font-medium text-primary">{format(period.payDate, 'MM/dd/yyyy')}</TableCell>
                         </TableRow>
                     ))}
                 </TableBody>
