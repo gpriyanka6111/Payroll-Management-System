@@ -66,9 +66,9 @@ export default function PayPeriodCalendarPage() {
             <Table>
                 <TableHeader>
                     <TableRow>
-                        <TableHead className="w-1/4">Period Start Date</TableHead>
-                        <TableHead className="w-1/4">Period End Date</TableHead>
-                        <TableHead className="w-1/4 font-semibold text-primary">Pay Date</TableHead>
+                        <TableHead className="w-1/4">Period Start Date (Sunday)</TableHead>
+                        <TableHead className="w-1/4">Period End Date (Saturday)</TableHead>
+                        <TableHead className="w-1/4 font-semibold text-primary">Pay Date (Thursday)</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
