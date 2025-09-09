@@ -5,13 +5,14 @@ import * as React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
 import { DollarSign } from 'lucide-react';
-import { format, startOfYear } from 'date-fns';
+import { format, startOfYear, endOfYear, startOfQuarter, endOfQuarter, getQuarter } from 'date-fns';
 import { useAuth } from '@/contexts/auth-context';
 import { collection, query, orderBy, getDocs, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Employee, Payroll } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface PayPeriodEarning {
     period: string; // "MM/dd/yy - MM/dd/yy"
@@ -34,15 +35,7 @@ export default function YtdSummaryPage() {
   const [ytdEarnings, setYtdEarnings] = React.useState<YtdEarningsRecord[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [dateRange, setDateRange] = React.useState({ from: '', to: '' });
-
-  React.useEffect(() => {
-    const today = new Date();
-    const yearStart = startOfYear(today);
-    setDateRange({
-        from: format(yearStart, "MMMM d, yyyy"),
-        to: format(today, "MMMM d, yyyy")
-    });
-  }, []);
+  const [selectedQuarter, setSelectedQuarter] = React.useState<string>(`q${getQuarter(new Date())}`);
 
   React.useEffect(() => {
     if (!user) return;
@@ -58,11 +51,30 @@ export default function YtdSummaryPage() {
         ...doc.data()
       } as Employee));
 
-      const yearStart = startOfYear(new Date());
+      const today = new Date();
+      const currentYear = today.getFullYear();
+      let fromDate: Date, toDate: Date;
+
+      if (selectedQuarter === 'all') {
+        fromDate = startOfYear(today);
+        toDate = endOfYear(today);
+      } else {
+        const quarterIndex = parseInt(selectedQuarter.replace('q', '')) - 1;
+        const targetDate = new Date(currentYear, quarterIndex * 3, 1);
+        fromDate = startOfQuarter(targetDate);
+        toDate = endOfQuarter(targetDate);
+      }
+      
+      setDateRange({
+          from: format(fromDate, "MMMM d, yyyy"),
+          to: format(toDate, "MMMM d, yyyy")
+      });
+
       const payrollsCollectionRef = collection(db, 'users', user.uid, 'payrolls');
       const payrollsQuery = query(
         payrollsCollectionRef, 
-        where('toDate', '>=', format(yearStart, 'yyyy-MM-dd')),
+        where('toDate', '>=', format(fromDate, 'yyyy-MM-dd')),
+        where('toDate', '<=', format(toDate, 'yyyy-MM-dd')),
         orderBy('toDate', 'asc')
       );
       const payrollSnapshot = await getDocs(payrollsQuery);
@@ -94,11 +106,11 @@ export default function YtdSummaryPage() {
               
               const [fromY, fromM, fromD] = payroll.fromDate.split('-').map(Number);
               const [toY, toM, toD] = payroll.toDate.split('-').map(Number);
-              const fromDate = new Date(fromY, fromM - 1, fromD);
-              const toDate = new Date(toY, toM - 1, toD);
+              const fromDatePayroll = new Date(fromY, fromM - 1, fromD);
+              const toDatePayroll = new Date(toY, toM - 1, toD);
 
               ytdTotals[result.employeeId].payPeriods.push({
-                  period: `${format(fromDate, 'MM/dd/yy')} - ${format(toDate, 'MM/dd/yy')}`,
+                  period: `${format(fromDatePayroll, 'MM/dd/yy')} - ${format(toDatePayroll, 'MM/dd/yy')}`,
                   grossPay: gross,
                   grossCheckAmount: grossCheck,
                   grossOtherAmount: grossOther,
@@ -107,13 +119,13 @@ export default function YtdSummaryPage() {
         });
       });
       
-      setYtdEarnings(Object.values(ytdTotals));
+      setYtdEarnings(Object.values(ytdTotals).filter(e => e.totalGrossPay > 0));
       setIsLoading(false);
     };
 
     fetchAllData().catch(console.error);
 
-  }, [user]);
+  }, [user, selectedQuarter]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
@@ -133,19 +145,37 @@ export default function YtdSummaryPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Year-to-Date Summary</h1>
-        <p className="text-muted-foreground">Review total gross pay for all employees for the current calendar year.</p>
+        <h1 className="text-3xl font-bold">Earnings Summary</h1>
+        <p className="text-muted-foreground">Review total gross pay for all employees by quarter or year-to-date.</p>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center">
-            <DollarSign className="mr-2 h-5 w-5 text-muted-foreground" />
-            YTD Earnings Summary
-          </CardTitle>
-          <CardDescription>
-            Summary of total gross pay from finalized payrolls from <span className="font-semibold">{dateRange.from}</span> to <span className="font-semibold">{dateRange.to}</span>.
-          </CardDescription>
+           <div className="flex justify-between items-start">
+            <div>
+              <CardTitle className="flex items-center">
+                <DollarSign className="mr-2 h-5 w-5 text-muted-foreground" />
+                Earnings Report
+              </CardTitle>
+              <CardDescription>
+                Summary of total gross pay from finalized payrolls from <span className="font-semibold">{dateRange.from}</span> to <span className="font-semibold">{dateRange.to}</span>.
+              </CardDescription>
+            </div>
+             <div className="w-48">
+                <Select value={selectedQuarter} onValueChange={setSelectedQuarter}>
+                    <SelectTrigger>
+                        <SelectValue placeholder="Select a period" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="q1">Quarter 1</SelectItem>
+                        <SelectItem value="q2">Quarter 2</SelectItem>
+                        <SelectItem value="q3">Quarter 3</SelectItem>
+                        <SelectItem value="q4">Quarter 4</SelectItem>
+                        <SelectItem value="all">Full Year</SelectItem>
+                    </SelectContent>
+                </Select>
+            </div>
+           </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -223,7 +253,7 @@ export default function YtdSummaryPage() {
             </>
           ) : (
             <div className="h-24 text-center flex items-center justify-center text-muted-foreground">
-                No earnings data found for this year.
+                No earnings data found for the selected period.
             </div>
           )}
         </CardContent>
