@@ -4,64 +4,59 @@
 import * as React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Users, Calculator, CalendarClock, DollarSign, ArrowLeft, CheckCircle, Calendar, CornerDownRight, Banknote } from "lucide-react";
+import { Users, ArrowLeft, PlayCircle, History, DollarSign, CalendarClock, ChevronRight, Loader2, FileText } from "lucide-react";
 import Link from 'next/link';
-import { getNextPayPeriod } from '@/lib/pay-period';
+import { useAuth } from '@/contexts/auth-context';
+import { collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import type { Payroll } from '@/lib/types';
 import { format } from 'date-fns';
 
-const managerLinks = [
-    {
-        href: "/dashboard/employees",
-        icon: Users,
-        title: "Employees",
-        description: "Add, view, and manage all employee records and pay information."
-    },
-    {
-        href: "/dashboard/payroll",
-        icon: Calculator,
-        title: "Payroll",
-        description: "Run new payroll, view past payroll history, and generate reports."
-    },
-    {
-        href: "/dashboard/pto",
-        icon: CalendarClock,
-        title: "PTO Tracker",
-        description: "Review employee Paid Time Off balances and usage history."
-    },
-    {
-        href: "/dashboard/ytd-summary",
-        icon: DollarSign,
-        title: "YTD Summary",
-        description: "Get a year-to-date overview of gross pay for all employees."
-    }
-]
-
-const thingsToDo = [
-    { text: "Review and approve timesheets for the current period.", icon: CheckCircle },
-    { text: "Run payroll for the upcoming pay date.", icon: CornerDownRight },
-    { text: "Review any pending employee change requests.", icon: Users },
-]
+const formatCurrency = (amount: number | undefined) => {
+    if (amount === undefined) return '$0.00';
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
+};
 
 export default function ManagerDashboardPage() {
-    const [payPeriod, setPayPeriod] = React.useState<{ current: any, next: any }>({
-        current: null,
-        next: null
-    });
-
+    const { user } = useAuth();
+    const [lastPayroll, setLastPayroll] = React.useState<Payroll | null>(null);
+    const [employeeCount, setEmployeeCount] = React.useState<number>(0);
+    const [isLoading, setIsLoading] = React.useState(true);
+    
     React.useEffect(() => {
-        const today = new Date();
-        const currentPeriod = getNextPayPeriod(today);
-        const nextPeriodStartDate = new Date(currentPeriod.end);
-        nextPeriodStartDate.setDate(nextPeriodStartDate.getDate() + 1);
-        const nextPeriod = getNextPayPeriod(nextPeriodStartDate);
+        if (!user) return;
+        
+        const fetchData = async () => {
+            setIsLoading(true);
+            try {
+                // Fetch last payroll
+                const payrollsRef = collection(db, 'users', user.uid, 'payrolls');
+                const qPayroll = query(payrollsRef, orderBy('toDate', 'desc'), limit(1));
+                const payrollSnapshot = await getDocs(qPayroll);
+                if (!payrollSnapshot.empty) {
+                    setLastPayroll({ id: payrollSnapshot.docs[0].id, ...payrollSnapshot.docs[0].data() } as Payroll);
+                }
 
-        setPayPeriod({ current: currentPeriod, next: nextPeriod });
-    }, []);
+                // Fetch employee count
+                const employeesRef = collection(db, 'users', user.uid, 'employees');
+                const employeeSnapshot = await getDocs(employeesRef);
+                setEmployeeCount(employeeSnapshot.size);
+                
+            } catch (error) {
+                console.error("Error fetching manager dashboard data:", error);
+            } finally {
+                setIsLoading(false);
+            }
+        };
 
-    const formatDateRange = (start: Date | undefined, end: Date | undefined) => {
-        if (!start || !end) return 'Calculating...';
-        return `${format(start, 'MMM dd')} - ${format(end, 'MMM dd, yyyy')}`;
-    }
+        fetchData();
+    }, [user]);
+
+    const reportLinks = [
+        { href: "/dashboard/payroll", icon: History, title: "Payroll History", description: "View all past payroll runs." },
+        { href: "/dashboard/ytd-summary", icon: DollarSign, title: "YTD Summary", description: "Year-to-date gross pay totals." },
+        { href: "/dashboard/pto", icon: CalendarClock, title: "PTO Tracker", description: "Review leave balances and history." },
+    ];
 
     return (
         <div className="space-y-6">
@@ -72,81 +67,109 @@ export default function ManagerDashboardPage() {
             </Button>
 
             <div>
-                <h1 className="text-3xl font-bold">Manager Dashboard</h1>
+                <h1 className="text-3xl font-bold">Manager Area</h1>
                 <p className="text-muted-foreground">Access payroll, employee, and reporting tools.</p>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Left Column: Manager Area Links */}
-                <div className="lg:col-span-1">
-                    <Card className="h-full">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+                {/* Left Column */}
+                <div className="lg:col-span-1 space-y-6">
+                    <Card className="bg-primary text-primary-foreground">
+                       <CardHeader>
+                            <CardTitle>Run Payroll</CardTitle>
+                       </CardHeader>
+                       <CardContent className="flex flex-col items-center text-center">
+                            <PlayCircle className="h-16 w-16 mb-4"/>
+                            <p className="mb-4">Ready to pay your team? Start a new payroll run for the next pay period.</p>
+                            <Button variant="secondary" asChild className="w-full">
+                                <Link href="/dashboard/payroll/run">Run New Payroll</Link>
+                            </Button>
+                       </CardContent>
+                    </Card>
+
+                    <Card>
                         <CardHeader>
-                            <CardTitle>Manager Area</CardTitle>
+                            <CardTitle className="flex items-center"><Users className="mr-2 h-5 w-5"/> Manage People</CardTitle>
                         </CardHeader>
                         <CardContent>
-                            <ul className="space-y-4">
-                                {managerLinks.map((link) => (
-                                    <li key={link.href}>
-                                        <Link href={link.href} className="block p-4 border rounded-lg hover:bg-muted/50 transition-colors">
-                                            <div className="flex items-start gap-4">
-                                                <div className="bg-primary/10 text-primary p-3 rounded-full">
-                                                    <link.icon className="h-5 w-5" />
-                                                </div>
-                                                <div>
-                                                    <p className="font-semibold">{link.title}</p>
-                                                    <p className="text-sm text-muted-foreground">{link.description}</p>
-                                                </div>
-                                            </div>
-                                        </Link>
-                                    </li>
-                                ))}
-                            </ul>
+                           <div className="flex justify-between items-center">
+                                <div>
+                                    <p className="text-3xl font-bold">{isLoading ? <Loader2 className="h-6 w-6 animate-spin"/> : employeeCount}</p>
+                                    <p className="text-sm text-muted-foreground">Active Employees</p>
+                                </div>
+                                <Button asChild>
+                                    <Link href="/dashboard/employees">View All</Link>
+                                </Button>
+                           </div>
                         </CardContent>
                     </Card>
                 </div>
 
-                {/* Right Columns: Pay Period and Things to Do */}
-                <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="">
-                        <Card className="bg-primary/5 border-primary/20 h-full">
-                            <CardHeader className="text-center">
-                                <div className="mx-auto bg-primary/10 text-primary p-3 rounded-full w-fit mb-2">
-                                    <Calendar className="h-6 w-6" />
+                {/* Right Column */}
+                <div className="lg:col-span-2 space-y-6">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="flex items-center"><History className="mr-2 h-5 w-5"/> Last Payroll</CardTitle>
+                            <CardDescription>Summary of your most recent payroll run.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            {isLoading ? (
+                                <div className="flex justify-center items-center h-24">
+                                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground"/>
                                 </div>
-                                <CardTitle>Current Pay Period</CardTitle>
-                                <CardDescription>{formatDateRange(payPeriod.current?.start, payPeriod.current?.end)}</CardDescription>
-                            </CardHeader>
-                            <CardContent className="text-center space-y-4">
-                                <div className="p-3 bg-background/50 rounded-md">
-                                <p className="text-sm font-semibold text-muted-foreground flex items-center justify-center gap-2"><Banknote className="h-4 w-4"/> Payroll Date</p>
-                                <p className="text-lg font-bold text-primary">{payPeriod.current?.payDate ? format(payPeriod.current.payDate, 'eeee, MMM dd') : '...'}</p>
+                            ) : lastPayroll ? (
+                                <div className="space-y-4">
+                                    <div className="grid grid-cols-2 gap-4 text-center">
+                                        <div>
+                                            <p className="text-sm text-muted-foreground">Pay Period</p>
+                                            <p className="font-semibold">
+                                                {format(new Date(lastPayroll.fromDate.replace(/-/g, '/')), 'MMM dd')} - {format(new Date(lastPayroll.toDate.replace(/-/g, '/')), 'MMM dd, yyyy')}
+                                            </p>
+                                        </div>
+                                         <div>
+                                            <p className="text-sm text-muted-foreground">Total Payroll</p>
+                                            <p className="font-semibold text-primary">{formatCurrency(lastPayroll.totalAmount)}</p>
+                                        </div>
+                                    </div>
+                                    <Button variant="outline" className="w-full" asChild>
+                                        <Link href={`/dashboard/payroll/report?id=${lastPayroll.id}`}>
+                                            View Full Report
+                                            <ChevronRight className="ml-2 h-4 w-4"/>
+                                        </Link>
+                                    </Button>
                                 </div>
-                                <div className="p-3 rounded-md">
-                                <p className="text-sm font-semibold text-muted-foreground">Next Pay Period</p>
-                                <p className="text-sm font-medium">{formatDateRange(payPeriod.next?.start, payPeriod.next?.end)}</p>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    </div>
-                    <div className="">
-                        <Card>
-                            <CardHeader>
-                                <CardTitle>Top Things to Do</CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <ul className="space-y-4">
-                                    {thingsToDo.map((item, index) => (
-                                        <li key={index} className="flex items-start gap-3">
-                                            <div className="bg-primary/10 text-primary p-2 rounded-full mt-1">
-                                                <item.icon className="h-4 w-4" />
+                            ) : (
+                                <p className="text-center text-muted-foreground py-8">No payroll history found.</p>
+                            )}
+                        </CardContent>
+                    </Card>
+                    
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="flex items-center"><FileText className="mr-2 h-5 w-5"/> Reports</CardTitle>
+                            <CardDescription>Access historical data and summaries.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                           <ul className="space-y-2">
+                                {reportLinks.map(link => (
+                                    <li key={link.href}>
+                                        <Link href={link.href} className="flex items-center justify-between p-3 -m-3 rounded-lg hover:bg-muted/50 transition-colors">
+                                            <div className="flex items-center gap-4">
+                                                <div className="bg-primary/10 text-primary p-2 rounded-full">
+                                                    <link.icon className="h-5 w-5"/>
+                                                </div>
+                                                <div>
+                                                    <p className="font-semibold">{link.title}</p>
+                                                    <p className="text-xs text-muted-foreground">{link.description}</p>
+                                                </div>
                                             </div>
-                                            <span className="text-sm text-muted-foreground">{item.text}</span>
-                                        </li>
-                                    ))}
-                                </ul>
-                            </CardContent>
-                        </Card>
-                    </div>
+                                            <ChevronRight className="h-5 w-5 text-muted-foreground"/>
+                                        </Link>
+                                    </li>
+                                ))}
+                           </ul>
+                        </CardContent>
+                    </Card>
                 </div>
             </div>
         </div>
