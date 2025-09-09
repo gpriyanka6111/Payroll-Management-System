@@ -20,12 +20,19 @@ export default function ManagerLayout({
   const navLinks = [
     { href: '/dashboard/manager/employees', label: 'Employees', icon: Users },
     { href: '/dashboard/manager/payroll/run', label: 'Run Payroll', icon: PlayCircle },
-    { href: '/dashboard/manager/payroll', label: 'Payroll History', icon: History },
+    { href: '/dashboard/manager/payroll', label: 'Payroll History', icon: History, exact: true },
     { href: '/dashboard/manager/ytd-summary', label: 'YTD Summary', icon: DollarSign },
     { href: '/dashboard/manager/pto', label: 'PTO Tracker', icon: CalendarClock },
     { href: '/dashboard/manager/calendar', label: 'Pay Period Calendar', icon: Calendar },
     { href: '/dashboard/manager/holidays', label: 'Holidays', icon: Star },
   ];
+
+  const isActive = (href: string, exact = false) => {
+    if (exact) {
+      return pathname === href;
+    }
+    return pathname.startsWith(href);
+  };
 
   return (
     <TooltipProvider>
@@ -55,7 +62,7 @@ export default function ManagerLayout({
                           href={link.href}
                           className={cn(
                             "flex items-center justify-center gap-3 rounded-lg h-10 w-10 text-muted-foreground transition-all hover:text-primary hover:bg-muted",
-                            pathname.startsWith(link.href) && (link.href !== '/dashboard/manager' || pathname === '/dashboard/manager') && "bg-muted text-primary"
+                            isActive(link.href, link.exact) && "bg-muted text-primary"
                           )}
                         >
                           <link.icon className="h-5 w-5" />
@@ -72,7 +79,7 @@ export default function ManagerLayout({
                       href={link.href}
                       className={cn(
                         "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary",
-                         pathname.startsWith(link.href) && (link.href !== '/dashboard/manager' || pathname === '/dashboard/manager') && "bg-muted text-primary"
+                         isActive(link.href, link.exact) && "bg-muted text-primary"
                       )}
                     >
                       <link.icon className="h-4 w-4" />
