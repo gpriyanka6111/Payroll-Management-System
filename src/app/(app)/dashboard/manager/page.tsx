@@ -76,7 +76,6 @@ export default function ManagerDashboardPage() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
                  {/* Center Column */}
                 <div className="lg:col-span-2 space-y-6">
-                    <Link href={`/dashboard/manager/payroll/run?from=${format(payPeriod.start, 'yyyy-MM-dd')}&to=${format(payPeriod.end, 'yyyy-MM-dd')}`} className="block rounded-lg transition-all hover:ring-2 hover:ring-primary/50">
                      <Card>
                         <CardHeader>
                             <div className="flex justify-between items-center">
@@ -86,20 +85,19 @@ export default function ManagerDashboardPage() {
                                     <span>{format(new Date(), 'MMM dd, yyyy')}</span>
                                 </div>
                             </div>
-                            <CardDescription>The next payroll run that is due. Click to start.</CardDescription>
+                            <CardDescription>The next payroll run that is due. Click the pay date to start.</CardDescription>
                         </CardHeader>
                         <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4 text-center">
                             <div>
                                 <p className="text-sm font-medium text-muted-foreground">Pay Period</p>
                                 <p className="text-lg font-semibold">{format(payPeriod.start, 'MMM dd')} - {format(payPeriod.end, 'MMM dd, yyyy')}</p>
                             </div>
-                            <div>
+                            <Link href={`/dashboard/manager/payroll/run?from=${format(payPeriod.start, 'yyyy-MM-dd')}&to=${format(payPeriod.end, 'yyyy-MM-dd')}`} className="block rounded-lg p-4 -m-4 transition-all hover:bg-muted/50">
                                 <p className="text-sm font-medium text-primary">Pay Date</p>
                                 <p className="text-lg font-semibold text-primary">{format(payPeriod.payDate, 'MMM dd, yyyy')}</p>
-                            </div>
+                            </Link>
                         </CardContent>
                     </Card>
-                    </Link>
                     <Card>
                         <CardHeader>
                             <CardTitle className="flex items-center"><History className="mr-2 h-5 w-5"/> Last Payroll</CardTitle>
