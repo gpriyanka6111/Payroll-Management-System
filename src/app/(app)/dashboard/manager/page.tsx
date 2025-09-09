@@ -4,7 +4,7 @@
 import * as React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { History, ChevronRight, Loader2, ArrowRight, CalendarIcon } from "lucide-react";
+import { History, ChevronRight, Loader2, ListChecks, CalendarIcon } from "lucide-react";
 import Link from 'next/link';
 import { useAuth } from '@/contexts/auth-context';
 import { collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
@@ -60,9 +60,10 @@ export default function ManagerDashboardPage() {
     }, [user]);
 
     const topThingsToDo = [
-        { title: "Run Payroll", description: "The next pay period is ready to be processed.", href: "/dashboard/manager/payroll/run", cta: "Run Payroll" },
-        { title: "Review Timesheets", description: "Check and approve employee hours for accuracy.", href: "/dashboard/timesheet", cta: "View Timesheets" },
-        { title: "Onboard New Hire", description: "Add your newest team member to the system.", href: "/dashboard/manager/employees/add", cta: "Add Employee" },
+        "Review and approve timesheets.",
+        "Process payroll for the upcoming period.",
+        "Onboard new hire documentation.",
+        "Review PTO requests and balances.",
     ];
 
 
@@ -140,20 +141,15 @@ export default function ManagerDashboardPage() {
                 <div className="lg:col-span-1 space-y-6">
                    <Card>
                         <CardHeader>
-                            <CardTitle>Top Things To Do</CardTitle>
+                            <CardTitle className="flex items-center">
+                                <ListChecks className="mr-2 h-5 w-5"/>
+                                Top Things To Do
+                            </CardTitle>
                         </CardHeader>
                         <CardContent>
-                            <ul className="space-y-4">
-                                {topThingsToDo.map(item => (
-                                    <li key={item.title}>
-                                        <Link href={item.href} className="block p-4 -m-4 rounded-lg hover:bg-muted/50 transition-colors">
-                                            <p className="font-semibold">{item.title}</p>
-                                            <p className="text-sm text-muted-foreground mb-2">{item.description}</p>
-                                            <div className="text-sm font-semibold text-primary flex items-center">
-                                                {item.cta} <ArrowRight className="ml-1 h-4 w-4" />
-                                            </div>
-                                        </Link>
-                                    </li>
+                            <ul className="space-y-3 list-disc list-inside text-sm text-muted-foreground">
+                                {topThingsToDo.map((item, index) => (
+                                    <li key={index}>{item}</li>
                                 ))}
                             </ul>
                         </CardContent>
