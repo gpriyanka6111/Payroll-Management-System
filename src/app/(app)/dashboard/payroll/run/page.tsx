@@ -9,7 +9,7 @@ import Link from 'next/link';
 import { PayrollCalculation } from '@/components/payroll/payroll-calculation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Calculator, Calendar as CalendarIcon, ArrowLeft, Loader2, History } from 'lucide-react';
+import { Calculator, Calendar as CalendarIcon, Loader2, History } from 'lucide-react';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
@@ -145,11 +145,6 @@ function RunPayrollPageContent() {
 
   return (
     <div className="space-y-6">
-      <Button variant="outline" asChild className="w-fit">
-        <Link href="/dashboard/payroll">
-          <ArrowLeft className="mr-2 h-4 w-4" /> Back to Payroll History
-        </Link>
-      </Button>
       <div className="flex justify-between items-start">
         <div>
           <h1 className="text-3xl font-bold">{isEditMode ? 'Edit Payroll' : 'Run New Payroll'}</h1>

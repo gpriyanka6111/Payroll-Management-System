@@ -4,13 +4,15 @@
 import * as React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Users, ArrowLeft, PlayCircle, History, DollarSign, CalendarClock, ChevronRight, Loader2, FileText } from "lucide-react";
+import { Users, PlayCircle, History, DollarSign, CalendarClock, ChevronRight, Loader2, FileText, ArrowRight } from "lucide-react";
 import Link from 'next/link';
 import { useAuth } from '@/contexts/auth-context';
 import { collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Payroll } from '@/lib/types';
 import { format } from 'date-fns';
+import { getNextPayPeriod } from '@/lib/pay-period';
+
 
 const formatCurrency = (amount: number | undefined) => {
     if (amount === undefined) return '$0.00';
@@ -22,6 +24,11 @@ export default function ManagerDashboardPage() {
     const [lastPayroll, setLastPayroll] = React.useState<Payroll | null>(null);
     const [employeeCount, setEmployeeCount] = React.useState<number>(0);
     const [isLoading, setIsLoading] = React.useState(true);
+    const [payPeriod, setPayPeriod] = React.useState({ start: new Date(), end: new Date(), payDate: new Date() });
+
+    React.useEffect(() => {
+        setPayPeriod(getNextPayPeriod(new Date()));
+    }, []);
     
     React.useEffect(() => {
         if (!user) return;
@@ -52,61 +59,43 @@ export default function ManagerDashboardPage() {
         fetchData();
     }, [user]);
 
-    const reportLinks = [
-        { href: "/dashboard/payroll", icon: History, title: "Payroll History", description: "View all past payroll runs." },
-        { href: "/dashboard/ytd-summary", icon: DollarSign, title: "YTD Summary", description: "Year-to-date gross pay totals." },
-        { href: "/dashboard/pto", icon: CalendarClock, title: "PTO Tracker", description: "Review leave balances and history." },
+    const topThingsToDo = [
+        { title: "Run Payroll", description: "The next pay period is ready to be processed.", href: "/dashboard/manager/payroll/run", cta: "Run Payroll" },
+        { title: "Review Timesheets", description: "Check and approve employee hours for accuracy.", href: "/dashboard/timesheet", cta: "View Timesheets" },
+        { title: "Onboard New Hire", description: "Add your newest team member to the system.", href: "/dashboard/manager/employees/add", cta: "Add Employee" },
     ];
+
 
     return (
         <div className="space-y-6">
-            <Button variant="outline" asChild className="w-fit">
-                <Link href="/dashboard">
-                    <ArrowLeft className="mr-2 h-4 w-4" /> Back to Dashboard
-                </Link>
-            </Button>
-
             <div>
-                <h1 className="text-3xl font-bold">Manager Area</h1>
+                <h1 className="text-3xl font-bold">Manager Dashboard</h1>
                 <p className="text-muted-foreground">Access payroll, employee, and reporting tools.</p>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-                {/* Left Column */}
-                <div className="lg:col-span-1 space-y-6">
-                    <Card className="bg-primary text-primary-foreground">
-                       <CardHeader>
-                            <CardTitle>Run Payroll</CardTitle>
-                       </CardHeader>
-                       <CardContent className="flex flex-col items-center text-center">
-                            <PlayCircle className="h-16 w-16 mb-4"/>
-                            <p className="mb-4">Ready to pay your team? Start a new payroll run for the next pay period.</p>
-                            <Button variant="secondary" asChild className="w-full">
-                                <Link href="/dashboard/payroll/run">Run New Payroll</Link>
-                            </Button>
-                       </CardContent>
-                    </Card>
-
-                    <Card>
+                 {/* Center Column */}
+                <div className="lg:col-span-2 space-y-6">
+                     <Card>
                         <CardHeader>
-                            <CardTitle className="flex items-center"><Users className="mr-2 h-5 w-5"/> Manage People</CardTitle>
+                            <CardTitle>Current Pay Period</CardTitle>
+                            <CardDescription>Bi-weekly payroll, starting Sunday and ending Saturday.</CardDescription>
                         </CardHeader>
-                        <CardContent>
-                           <div className="flex justify-between items-center">
-                                <div>
-                                    <p className="text-3xl font-bold">{isLoading ? <Loader2 className="h-6 w-6 animate-spin"/> : employeeCount}</p>
-                                    <p className="text-sm text-muted-foreground">Active Employees</p>
-                                </div>
-                                <Button asChild>
-                                    <Link href="/dashboard/employees">View All</Link>
-                                </Button>
-                           </div>
+                        <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
+                            <div>
+                                <p className="text-sm font-medium text-muted-foreground">Start Date</p>
+                                <p className="text-lg font-semibold">{format(payPeriod.start, 'MMM dd, yyyy')}</p>
+                            </div>
+                            <div>
+                                <p className="text-sm font-medium text-muted-foreground">End Date</p>
+                                <p className="text-lg font-semibold">{format(payPeriod.end, 'MMM dd, yyyy')}</p>
+                            </div>
+                            <div>
+                                <p className="text-sm font-medium text-primary">Pay Date</p>
+                                <p className="text-lg font-semibold text-primary">{format(payPeriod.payDate, 'MMM dd, yyyy')}</p>
+                            </div>
                         </CardContent>
                     </Card>
-                </div>
-
-                {/* Right Column */}
-                <div className="lg:col-span-2 space-y-6">
                     <Card>
                         <CardHeader>
                             <CardTitle className="flex items-center"><History className="mr-2 h-5 w-5"/> Last Payroll</CardTitle>
@@ -143,31 +132,28 @@ export default function ManagerDashboardPage() {
                             )}
                         </CardContent>
                     </Card>
-                    
-                    <Card>
+                </div>
+
+                {/* Right Column */}
+                <div className="lg:col-span-1 space-y-6">
+                   <Card>
                         <CardHeader>
-                            <CardTitle className="flex items-center"><FileText className="mr-2 h-5 w-5"/> Reports</CardTitle>
-                            <CardDescription>Access historical data and summaries.</CardDescription>
+                            <CardTitle>Top Things To Do</CardTitle>
                         </CardHeader>
                         <CardContent>
-                           <ul className="space-y-2">
-                                {reportLinks.map(link => (
-                                    <li key={link.href}>
-                                        <Link href={link.href} className="flex items-center justify-between p-3 -m-3 rounded-lg hover:bg-muted/50 transition-colors">
-                                            <div className="flex items-center gap-4">
-                                                <div className="bg-primary/10 text-primary p-2 rounded-full">
-                                                    <link.icon className="h-5 w-5"/>
-                                                </div>
-                                                <div>
-                                                    <p className="font-semibold">{link.title}</p>
-                                                    <p className="text-xs text-muted-foreground">{link.description}</p>
-                                                </div>
+                            <ul className="space-y-4">
+                                {topThingsToDo.map(item => (
+                                    <li key={item.title}>
+                                        <Link href={item.href} className="block p-4 -m-4 rounded-lg hover:bg-muted/50 transition-colors">
+                                            <p className="font-semibold">{item.title}</p>
+                                            <p className="text-sm text-muted-foreground mb-2">{item.description}</p>
+                                            <div className="text-sm font-semibold text-primary flex items-center">
+                                                {item.cta} <ArrowRight className="ml-1 h-4 w-4" />
                                             </div>
-                                            <ChevronRight className="h-5 w-5 text-muted-foreground"/>
                                         </Link>
                                     </li>
                                 ))}
-                           </ul>
+                            </ul>
                         </CardContent>
                     </Card>
                 </div>

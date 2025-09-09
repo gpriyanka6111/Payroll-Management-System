@@ -4,10 +4,9 @@
 import * as React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { User, History, Printer, ArrowLeft } from 'lucide-react';
+import { User, History, Printer } from 'lucide-react';
 import { format, startOfYear } from 'date-fns';
 import { Button } from '@/components/ui/button';
-import Link from 'next/link';
 import { useAuth } from '@/contexts/auth-context';
 import { collection, query, orderBy, getDocs, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -66,14 +65,14 @@ export default function PtoTrackerPage() {
 
       payrollsData.forEach(payroll => {
         payroll.inputs.forEach((input: any) => {
-          if ((input.vacationUsed ?? 0) > 0 || (input.holidayUsed ?? 0) > 0 || (input.sickUsed ?? 0) > 0) {
+          if ((input.ptoUsed ?? 0) > 0) {
             usageHistory.push({
               employeeId: input.employeeId,
               employeeName: input.name,
               payPeriod: payroll.toDate,
-              vacationUsed: input.vacationUsed ?? 0,
-              holidayUsed: input.holidayUsed ?? 0,
-              sickUsed: input.sickUsed ?? 0,
+              vacationUsed: input.ptoUsed ?? 0, // Assuming ptoUsed is vacation for now
+              holidayUsed: 0,
+              sickUsed: 0,
             });
           }
         });
@@ -133,11 +132,6 @@ export default function PtoTrackerPage() {
 
   return (
     <div className="space-y-6">
-      <Button variant="outline" asChild className="w-fit">
-        <Link href="/dashboard/manager">
-            <ArrowLeft className="mr-2 h-4 w-4" /> Back to Manager Dashboard
-        </Link>
-      </Button>
       <div>
         <h1 className="text-3xl font-bold">PTO Tracker</h1>
         <p className="text-muted-foreground">Review employee Paid Time Off balances from live payroll data.</p>
@@ -268,5 +262,3 @@ export default function PtoTrackerPage() {
     </div>
   );
 }
-
-    

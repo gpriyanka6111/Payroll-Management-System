@@ -1,3 +1,4 @@
+
 import { AddEmployeeForm } from '@/components/employees/add-employee-form';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,8 +9,8 @@ export default function AddEmployeePage() {
   return (
     <div className="space-y-6">
        <Button variant="outline" asChild className="w-fit">
-        <Link href="/dashboard">
-            <ArrowLeft className="mr-2 h-4 w-4" /> Back to Dashboard
+        <Link href="/dashboard/manager/employees">
+            <ArrowLeft className="mr-2 h-4 w-4" /> Back to Employees
         </Link>
       </Button>
       <h1 className="text-3xl font-bold">Add New Employee</h1>

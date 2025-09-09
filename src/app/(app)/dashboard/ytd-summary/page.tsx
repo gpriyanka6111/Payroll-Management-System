@@ -4,10 +4,8 @@
 import * as React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
-import { DollarSign, ArrowLeft } from 'lucide-react';
-import { format, startOfYear, endOfYear } from 'date-fns';
-import { Button } from '@/components/ui/button';
-import Link from 'next/link';
+import { DollarSign } from 'lucide-react';
+import { format, startOfYear } from 'date-fns';
 import { useAuth } from '@/contexts/auth-context';
 import { collection, query, orderBy, getDocs, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -134,11 +132,6 @@ export default function YtdSummaryPage() {
 
   return (
     <div className="space-y-6">
-       <Button variant="outline" asChild className="w-fit">
-        <Link href="/dashboard/manager">
-            <ArrowLeft className="mr-2 h-4 w-4" /> Back to Manager Dashboard
-        </Link>
-      </Button>
       <div>
         <h1 className="text-3xl font-bold">Year-to-Date Summary</h1>
         <p className="text-muted-foreground">Review total gross pay for all employees for the current calendar year.</p>

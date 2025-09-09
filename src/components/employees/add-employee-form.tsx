@@ -114,7 +114,7 @@ export function AddEmployeeForm() {
             description: `${values.firstName} has been added successfully.`,
             variant: "default",
         });
-        router.push('/dashboard/employees');
+        router.push('/dashboard/manager/employees');
     } catch (error) {
         console.error("Error adding employee: ", error);
         toast({

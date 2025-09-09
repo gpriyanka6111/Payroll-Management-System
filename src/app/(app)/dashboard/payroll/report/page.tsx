@@ -115,7 +115,7 @@ function PayrollReportContent() {
                     }
                 } catch (error) {
                     console.error("Error fetching payroll data:", error);
-                    router.replace('/dashboard/payroll');
+                    router.replace('/dashboard/manager/payroll');
                     return;
                 }
             } else {
@@ -131,7 +131,7 @@ function PayrollReportContent() {
                     toDate = new Date(parsedPeriod.to);
 
                      if (!isValid(fromDate) || !isValid(toDate)) {
-                        router.replace('/dashboard/payroll/run');
+                        router.replace('/dashboard/manager/payroll/run');
                         return;
                     }
 
@@ -153,7 +153,7 @@ function PayrollReportContent() {
                     sessionStorage.removeItem('companyName');
                     sessionStorage.removeItem('payrollSummaryData');
                  } else {
-                     router.replace('/dashboard/payroll/run');
+                     router.replace('/dashboard/manager/payroll/run');
                      return;
                  }
             }
@@ -211,7 +211,7 @@ function PayrollReportContent() {
         return (
             <div className="text-center py-10">
                 <p>No payroll data found or you do not have permission to view it.</p>
-                <Button onClick={() => router.push('/dashboard/payroll/run')}>Start a new payroll run</Button>
+                <Button onClick={() => router.push('/dashboard/manager/payroll/run')}>Start a new payroll run</Button>
             </div>
         )
     }
@@ -529,7 +529,7 @@ function PayrollReportContent() {
                 <div className="flex items-center gap-2">
                     {payrollId && (
                         <Button variant="outline" asChild>
-                            <Link href={`/dashboard/payroll/run?id=${payrollId}`}>
+                            <Link href={`/dashboard/manager/payroll/run?id=${payrollId}`}>
                                 <Pencil className="mr-2 h-4 w-4" /> Edit
                             </Link>
                         </Button>
@@ -684,12 +684,3 @@ export default function PayrollReportPage() {
         </React.Suspense>
     )
 }
-
-    
-
-    
-
-
-
-
-    

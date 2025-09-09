@@ -5,7 +5,7 @@ import * as React from 'react';
 import { EmployeeTable } from '@/components/employees/employee-table';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { UserPlus, ArrowLeft } from 'lucide-react';
+import { UserPlus } from 'lucide-react';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/auth-context';
@@ -92,19 +92,13 @@ export default function EmployeesPage() {
 
   return (
     <div className="space-y-6">
-       <Button variant="outline" asChild className="w-fit">
-        <Link href="/dashboard/manager">
-            <ArrowLeft className="mr-2 h-4 w-4" /> Back to Manager Dashboard
-        </Link>
-      </Button>
-
        <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold">Employees</h1>
           <p className="text-muted-foreground">Manage your employee records.</p>
         </div>
         <Button asChild>
-           <Link href="/dashboard/employees/add">
+           <Link href="/dashboard/manager/employees/add">
             <UserPlus className="mr-2 h-4 w-4" /> Add Employee
            </Link>
         </Button>

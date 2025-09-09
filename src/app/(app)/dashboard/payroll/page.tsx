@@ -7,7 +7,7 @@ import Link from "next/link";
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { History, Play, ArrowLeft, Pencil, Trash2 } from 'lucide-react';
+import { History, Play, Pencil, Trash2 } from 'lucide-react';
 import { useAuth } from "@/contexts/auth-context";
 import { collection, onSnapshot, query, orderBy, doc, deleteDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -90,18 +90,13 @@ export default function PayrollHistoryPage() {
 
   return (
     <div className="space-y-6">
-       <Button variant="outline" asChild className="w-fit">
-        <Link href="/dashboard/manager">
-            <ArrowLeft className="mr-2 h-4 w-4" /> Back to Manager Dashboard
-        </Link>
-      </Button>
        <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold">Payroll</h1>
           <p className="text-muted-foreground">Run new payroll or review past history.</p>
         </div>
         <Button asChild variant="default" className="bg-accent text-accent-foreground hover:bg-accent/90">
-           <Link href="/dashboard/payroll/run">
+           <Link href="/dashboard/manager/payroll/run">
              <Play className="mr-2 h-4 w-4" /> Run New Payroll
            </Link>
         </Button>
@@ -132,7 +127,7 @@ export default function PayrollHistoryPage() {
                       <p className="font-semibold">{formatCurrency(payroll.totalAmount)}</p>
                       <div className="flex items-center">
                         <Button variant="ghost" size="icon" asChild>
-                            <Link href={`/dashboard/payroll/run?id=${payroll.id}`} aria-label="Edit Payroll">
+                            <Link href={`/dashboard/manager/payroll/run?id=${payroll.id}`} aria-label="Edit Payroll">
                                 <Pencil className="h-4 w-4" />
                             </Link>
                         </Button>
@@ -140,7 +135,7 @@ export default function PayrollHistoryPage() {
                             <Trash2 className="h-4 w-4" />
                         </Button>
                        <Button variant="link" size="sm" className="p-0 h-auto text-xs" asChild>
-                         <Link href={`/dashboard/payroll/report?id=${payroll.id}`}>View Details</Link>
+                         <Link href={`/dashboard/manager/payroll/report?id=${payroll.id}`}>View Details</Link>
                        </Button>
                       </div>
                     </div>
