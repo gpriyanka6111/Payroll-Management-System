@@ -43,25 +43,33 @@ const employeePayrollInputSchema = z.object({
   totalHoursWorked: z.coerce.number().min(0, { message: 'Hours must be non-negative.' }).default(0),
   checkHours: z.coerce.number().min(0, { message: 'Hours must be non-negative.' }).default(0),
   otherHours: z.coerce.number().min(0).default(0),
-  ptoUsed: z.coerce.number().min(0, { message: 'PTO hours must be non-negative.' }).default(0),
-  ptoBalance: z.number().optional(),
+  vdHoursUsed: z.coerce.number().min(0).default(0),
+  hdHoursUsed: z.coerce.number().min(0).default(0),
+  sdHoursUsed: z.coerce.number().min(0).default(0),
+  vacationBalance: z.number().optional(),
+  holidayBalance: z.number().optional(),
+  sickDayBalance: z.number().optional(),
   standardCheckHours: z.number().optional(),
   comment: z.string().optional(),
 }).refine(data => {
     if (data.payMethod === 'Hourly') {
         return data.checkHours <= data.totalHoursWorked;
     }
-    return true; // For salaried employees, this check is ignored
+    return true;
 }, {
     message: "Check hours cannot exceed total hours.",
     path: ["checkHours"],
-}).refine(
-  (data) => data.ptoUsed <= (data.ptoBalance ?? 0),
-  {
-    message: "PTO used cannot exceed available balance.",
-    path: ["ptoUsed"],
-  }
-);
+}).refine(data => data.vdHoursUsed <= (data.vacationBalance ?? 0), {
+    message: "VD hours used cannot exceed available balance.",
+    path: ["vdHoursUsed"],
+}).refine(data => data.hdHoursUsed <= (data.holidayBalance ?? 0), {
+    message: "HD hours used cannot exceed available balance.",
+    path: ["hdHoursUsed"],
+}).refine(data => data.sdHoursUsed <= (data.sickDayBalance ?? 0), {
+    message: "SD hours used cannot exceed available balance.",
+    path: ["sdHoursUsed"],
+});
+
 
 export type EmployeePayrollInput = z.infer<typeof employeePayrollInputSchema>;
 
@@ -80,14 +88,18 @@ export type PayrollResult = {
   totalHoursWorked: number;
   checkHours: number;
   otherHours: number;
-  ptoUsed: number;
+  vdHoursUsed: number;
+  hdHoursUsed: number;
+  sdHoursUsed: number;
   payRateCheck: number;
   payRateOthers: number;
   biWeeklySalary: number;
   otherAdjustment: number;
   grossCheckAmount: number;
   grossOtherAmount: number;
-  newPtoBalance: number;
+  newVacationBalance: number;
+  newHolidayBalance: number;
+  newSickDayBalance: number;
 };
 
 interface PayrollCalculationProps {
@@ -101,7 +113,9 @@ const inputMetrics = [
     { key: 'totalHoursWorked', label: 'Total Hours Worked', props: { step: "0.1", min: "0" } },
     { key: 'checkHours', label: 'Check Hours', props: { step: "0.1", min: "0" } },
     { key: 'otherHours', label: 'Other Hours', props: { readOnly: true, className: "bg-muted/50" } },
-    { key: 'ptoUsed', label: 'PTO Used', props: { step: "0.1", min: "0" } },
+    { key: 'vdHoursUsed', label: 'VD Hours', props: { step: "0.1", min: "0" } },
+    { key: 'hdHoursUsed', label: 'HD Hours', props: { step: "0.1", min: "0" } },
+    { key: 'sdHoursUsed', label: 'SD Hours', props: { step: "0.1", min: "0" } },
 ] as const;
 
 
@@ -227,7 +241,9 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
               const currentEmployee = employeesData.find(e => e.id === initialInput.employeeId);
               return {
                   ...initialInput,
-                  ptoBalance: currentEmployee ? currentEmployee.vacationBalance : initialInput.ptoBalance,
+                  vacationBalance: currentEmployee ? currentEmployee.vacationBalance : initialInput.vacationBalance,
+                  holidayBalance: currentEmployee ? currentEmployee.holidayBalance : initialInput.holidayBalance,
+                  sickDayBalance: currentEmployee ? currentEmployee.sickDayBalance : initialInput.sickDayBalance,
                   comment: currentEmployee ? currentEmployee.comment : initialInput.comment,
               };
           });
@@ -247,12 +263,16 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
                   payRateCheck: emp.payRateCheck,
                   payRateOthers: emp.payRateOthers ?? 0,
                   biWeeklySalary: emp.biWeeklySalary ?? 0,
-                  ptoBalance: emp.vacationBalance,
+                  vacationBalance: emp.vacationBalance,
+                  holidayBalance: emp.holidayBalance,
+                  sickDayBalance: emp.sickDayBalance,
                   standardCheckHours: emp.standardCheckHours ?? 0,
                   totalHoursWorked: 0,
                   checkHours: 0,
                   otherHours: 0,
-                  ptoUsed: 0,
+                  vdHoursUsed: 0,
+                  hdHoursUsed: 0,
+                  sdHoursUsed: 0,
                   comment: emp.comment || '',
               });
           });
@@ -266,12 +286,16 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
               payRateCheck: emp.payRateCheck,
               payRateOthers: emp.payRateOthers ?? 0,
               biWeeklySalary: emp.biWeeklySalary ?? 0,
-              ptoBalance: emp.vacationBalance,
+              vacationBalance: emp.vacationBalance,
+              holidayBalance: emp.holidayBalance,
+              sickDayBalance: emp.sickDayBalance,
               standardCheckHours: emp.standardCheckHours ?? 0,
               totalHoursWorked: 0,
               checkHours: 0,
               otherHours: 0,
-              ptoUsed: 0,
+              vdHoursUsed: 0,
+              hdHoursUsed: 0,
+              sdHoursUsed: 0,
               comment: emp.comment || '',
           }));
           reset({ employees: formValues });
@@ -322,71 +346,84 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
 
   function calculatePayroll(values: PayrollFormValues): PayrollResult[] {
     return values.employees.map((emp) => {
-      const ptoUsed = safeGetNumber(emp.ptoUsed);
-      const initialPtoBalanceFromDb = safeGetNumber(emp.ptoBalance);
-      let newPtoBalance;
+        const vdUsed = safeGetNumber(emp.vdHoursUsed);
+        const hdUsed = safeGetNumber(emp.hdHoursUsed);
+        const sdUsed = safeGetNumber(emp.sdHoursUsed);
 
-      if (isEditMode && initialPayrollData) {
-        const originalInput = initialPayrollData.inputs.find(i => i.employeeId === emp.employeeId);
-        const originalPtoUsed = originalInput ? safeGetNumber(originalInput.ptoUsed) : 0;
-        const effectiveInitialBalance = initialPtoBalanceFromDb + originalPtoUsed;
-        newPtoBalance = effectiveInitialBalance - ptoUsed;
-      } else {
-        newPtoBalance = initialPtoBalanceFromDb - ptoUsed;
-      }
+        let newVacationBalance, newHolidayBalance, newSickDayBalance;
 
-      let result: Omit<PayrollResult, 'newPtoBalance'>;
+        if (isEditMode && initialPayrollData) {
+            const originalInput = initialPayrollData.inputs.find(i => i.employeeId === emp.employeeId);
+            const originalVdUsed = originalInput ? safeGetNumber(originalInput.vdHoursUsed) : 0;
+            const originalHdUsed = originalInput ? safeGetNumber(originalInput.hdHoursUsed) : 0;
+            const originalSdUsed = originalInput ? safeGetNumber(originalInput.sdHoursUsed) : 0;
+            
+            newVacationBalance = (safeGetNumber(emp.vacationBalance) + originalVdUsed) - vdUsed;
+            newHolidayBalance = (safeGetNumber(emp.holidayBalance) + originalHdUsed) - hdUsed;
+            newSickDayBalance = (safeGetNumber(emp.sickDayBalance) + originalSdUsed) - sdUsed;
+        } else {
+            newVacationBalance = safeGetNumber(emp.vacationBalance) - vdUsed;
+            newHolidayBalance = safeGetNumber(emp.holidayBalance) - hdUsed;
+            newSickDayBalance = safeGetNumber(emp.sickDayBalance) - sdUsed;
+        }
 
-      if (emp.payMethod === 'Salaried') {
-        const biWeeklySalary = safeGetNumber(emp.biWeeklySalary);
-        result = {
-          employeeId: emp.employeeId,
-          name: emp.name,
-          payMethod: emp.payMethod,
-          totalHoursWorked: 0,
-          checkHours: 0,
-          otherHours: 0,
-          ptoUsed,
-          payRateCheck: 0,
-          payRateOthers: 0,
-          biWeeklySalary: biWeeklySalary,
-          otherAdjustment: 0,
-          grossCheckAmount: biWeeklySalary, // Salaried pay is fixed
-          grossOtherAmount: 0,
-        };
-      } else { // Hourly
-        const totalHoursWorked = safeGetNumber(emp.totalHoursWorked);
-        const checkHours = safeGetNumber(emp.checkHours);
-        const otherHours = safeGetNumber(emp.otherHours);
-        const payRateCheck = safeGetNumber(emp.payRateCheck);
-        const payRateOthers = safeGetNumber(emp.payRateOthers) ?? 0;
-        const otherAdjustment = 0;
+        let result: Omit<PayrollResult, 'newVacationBalance' | 'newHolidayBalance' | 'newSickDayBalance'>;
 
-        const regularPay = payRateCheck * checkHours;
-        const ptoPay = payRateCheck * ptoUsed;
-        const grossCheckAmount = regularPay + ptoPay;
+        if (emp.payMethod === 'Salaried') {
+            const biWeeklySalary = safeGetNumber(emp.biWeeklySalary);
+            result = {
+                employeeId: emp.employeeId,
+                name: emp.name,
+                payMethod: emp.payMethod,
+                totalHoursWorked: 0,
+                checkHours: 0,
+                otherHours: 0,
+                vdHoursUsed: vdUsed,
+                hdHoursUsed: hdUsed,
+                sdHoursUsed: sdUsed,
+                payRateCheck: 0,
+                payRateOthers: 0,
+                biWeeklySalary: biWeeklySalary,
+                otherAdjustment: 0,
+                grossCheckAmount: biWeeklySalary, // Salaried pay is fixed
+                grossOtherAmount: 0,
+            };
+        } else { // Hourly
+            const totalHoursWorked = safeGetNumber(emp.totalHoursWorked);
+            const checkHours = safeGetNumber(emp.checkHours);
+            const otherHours = safeGetNumber(emp.otherHours);
+            const payRateCheck = safeGetNumber(emp.payRateCheck);
+            const payRateOthers = safeGetNumber(emp.payRateOthers) ?? 0;
+            const otherAdjustment = 0;
+            
+            const ptoHours = vdUsed + hdUsed + sdUsed;
+            const regularPay = payRateCheck * checkHours;
+            const ptoPay = payRateCheck * ptoHours;
+            const grossCheckAmount = regularPay + ptoPay;
 
-        const otherPay = payRateOthers * otherHours;
-        const grossOtherAmount = otherPay + otherAdjustment;
+            const otherPay = payRateOthers * otherHours;
+            const grossOtherAmount = otherPay + otherAdjustment;
 
-        result = {
-          employeeId: emp.employeeId,
-          name: emp.name,
-          payMethod: emp.payMethod,
-          totalHoursWorked,
-          checkHours,
-          otherHours,
-          ptoUsed,
-          payRateCheck,
-          payRateOthers,
-          biWeeklySalary: 0,
-          otherAdjustment,
-          grossCheckAmount,
-          grossOtherAmount,
-        };
-      }
-      
-      return { ...result, newPtoBalance };
+            result = {
+                employeeId: emp.employeeId,
+                name: emp.name,
+                payMethod: emp.payMethod,
+                totalHoursWorked,
+                checkHours,
+                otherHours,
+                vdHoursUsed: vdUsed,
+                hdHoursUsed: hdUsed,
+                sdHoursUsed: sdUsed,
+                payRateCheck,
+                payRateOthers,
+                biWeeklySalary: 0,
+                otherAdjustment,
+                grossCheckAmount,
+                grossOtherAmount,
+            };
+        }
+        
+        return { ...result, newVacationBalance, newHolidayBalance, newSickDayBalance };
     });
   }
 
@@ -459,23 +496,26 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
             finalPayrollId = newDocRef.id;
         }
 
-        // 2. Update employee PTO balances in a batch
+        // 2. Update employee balances in a batch
         const batch = writeBatch(db);
         payrollResults.forEach(result => {
             const employeeDocRef = doc(db, 'users', user.uid, 'employees', result.employeeId);
-            batch.update(employeeDocRef, { vacationBalance: result.newPtoBalance });
+            batch.update(employeeDocRef, { 
+                vacationBalance: result.newVacationBalance,
+                holidayBalance: result.newHolidayBalance,
+                sickDayBalance: result.newSickDayBalance,
+            });
         });
         await batch.commit();
 
         // 3. Save end date to local storage for next period automation
         localStorage.setItem('lastPayrollEndDate', to.toISOString());
-        // Remove timesheet-specific saved dates so the new default can take effect
         localStorage.removeItem('timesheetDateRange');
 
         
         toast({
             title: `Payroll ${isEditMode ? 'Updated' : 'Approved'}`,
-            description: "Payroll history saved and PTO balances updated. Redirecting to report...",
+            description: "Payroll history saved and balances updated. Redirecting to report...",
         });
 
         router.push(`/dashboard/manager/payroll/report?id=${finalPayrollId}`);
@@ -560,6 +600,7 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
                            <TableCell className="font-medium">{metric.label}</TableCell>
                             {fields.map((field, index) => {
                                 const isSalaried = watchedEmployees[index]?.payMethod === 'Salaried';
+                                const isDisabled = isSalaried && metric.key !== 'vdHoursUsed' && metric.key !== 'hdHoursUsed' && metric.key !== 'sdHoursUsed';
                                 return (
                                 <TableCell key={field.id} className="text-left p-2">
                                     <FormField
@@ -574,8 +615,8 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
                                                     placeholder="0" 
                                                     {...inputField} 
                                                     {...metric.props} 
-                                                    className={cn("h-8 w-28 text-left", isSalaried && "bg-muted/50")}
-                                                    disabled={isSalaried}
+                                                    className={cn("h-8 w-28 text-left", isDisabled && "bg-muted/50")}
+                                                    disabled={isDisabled}
                                                 />
                                             </FormControl>
                                             <FormMessage className="text-xs mt-1" />
@@ -588,10 +629,12 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
                       </TableRow>
                     ))}
                      <TableRow className="bg-muted/20 hover:bg-muted/20">
-                        <TableCell className="font-medium">Available PTO</TableCell>
+                        <TableCell className="font-medium">Available Balances</TableCell>
                         {fields.map((field, index) => (
-                            <TableCell key={field.id} className="text-left pl-4 text-sm text-muted-foreground tabular-nums">
-                                ({formatHours(watchedEmployees[index]?.ptoBalance)})
+                            <TableCell key={field.id} className="text-left pl-4 text-xs text-muted-foreground tabular-nums">
+                                <div>VD: ({formatHours(watchedEmployees[index]?.vacationBalance)})</div>
+                                <div>HD: ({formatHours(watchedEmployees[index]?.holidayBalance)})</div>
+                                <div>SD: ({formatHours(watchedEmployees[index]?.sickDayBalance)})</div>
                             </TableCell>
                         ))}
                      </TableRow>
@@ -645,7 +688,7 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
                         <AlertTriangle className="h-4 w-4" />
                         <AlertTitle>Error</AlertTitle>
                         <AlertDescription>
-                          Please check the form for errors. Total or PTO hours may be invalid.
+                          Please check the form for errors. Hours may be invalid or exceed available balances.
                         </AlertDescription>
                     </Alert>
                 )}
@@ -679,7 +722,9 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
                         <TableRow><TableCell>Total Hours Worked</TableCell>{payrollResults.map(r => <TableCell key={r.employeeId} className="text-left tabular-nums">{r.payMethod === 'Hourly' ? formatHours(r.totalHoursWorked) : 'N/A'}</TableCell>)}</TableRow>
                         <TableRow><TableCell>Check Hours</TableCell>{payrollResults.map(r => <TableCell key={r.employeeId} className="text-left tabular-nums">{r.payMethod === 'Hourly' ? formatHours(r.checkHours) : 'N/A'}</TableCell>)}</TableRow>
                         <TableRow><TableCell>Other Hours</TableCell>{payrollResults.map(r => <TableCell key={r.employeeId} className="text-left tabular-nums">{r.payMethod === 'Hourly' ? formatHours(r.otherHours) : 'N/A'}</TableCell>)}</TableRow>
-                        <TableRow><TableCell>PTO Used</TableCell>{payrollResults.map(r => <TableCell key={r.employeeId} className="text-left tabular-nums">{formatHours(r.ptoUsed)}</TableCell>)}</TableRow>
+                        <TableRow><TableCell>VD Hours Used</TableCell>{payrollResults.map(r => <TableCell key={r.employeeId} className="text-left tabular-nums">{formatHours(r.vdHoursUsed)}</TableCell>)}</TableRow>
+                        <TableRow><TableCell>HD Hours Used</TableCell>{payrollResults.map(r => <TableCell key={r.employeeId} className="text-left tabular-nums">{formatHours(r.hdHoursUsed)}</TableCell>)}</TableRow>
+                        <TableRow><TableCell>SD Hours Used</TableCell>{payrollResults.map(r => <TableCell key={r.employeeId} className="text-left tabular-nums">{formatHours(r.sdHoursUsed)}</TableCell>)}</TableRow>
 
                         <TableRow><TableCell colSpan={payrollResults.length + 1} className="p-2 bg-muted/20 font-semibold text-muted-foreground">Pay</TableCell></TableRow>
                         <TableRow><TableCell>Rate/Check</TableCell>{payrollResults.map(r => <TableCell key={r.employeeId} className="text-left tabular-nums">{r.payMethod === 'Hourly' ? formatCurrency(r.payRateCheck) : 'N/A'}</TableCell>)}</TableRow>
@@ -689,8 +734,10 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
                         <TableRow><TableCell className="font-semibold">Gross Check Amount</TableCell>{payrollResults.map(r => <TableCell key={r.employeeId} className="font-semibold text-left tabular-nums">{formatCurrency(r.grossCheckAmount)}</TableCell>)}</TableRow>
                         <TableRow><TableCell className="font-semibold">Gross Other Amount</TableCell>{payrollResults.map(r => <TableCell key={r.employeeId} className="font-semibold text-left tabular-nums">{formatCurrency(r.grossOtherAmount)}</TableCell>)}</TableRow>
                         
-                        <TableRow><TableCell colSpan={payrollResults.length + 1} className="p-2 bg-muted/20 font-semibold text-muted-foreground">PTO Balance</TableCell></TableRow>
-                        <TableRow><TableCell>New PTO Balance</TableCell>{payrollResults.map(r => <TableCell key={r.employeeId} className="text-left tabular-nums">({formatHours(r.newPtoBalance)})</TableCell>)}</TableRow>
+                        <TableRow><TableCell colSpan={payrollResults.length + 1} className="p-2 bg-muted/20 font-semibold text-muted-foreground">New Balances</TableCell></TableRow>
+                        <TableRow><TableCell>New VD Balance</TableCell>{payrollResults.map(r => <TableCell key={r.employeeId} className="text-left tabular-nums">({formatHours(r.newVacationBalance)})</TableCell>)}</TableRow>
+                        <TableRow><TableCell>New HD Balance</TableCell>{payrollResults.map(r => <TableCell key={r.employeeId} className="text-left tabular-nums">({formatHours(r.newHolidayBalance)})</TableCell>)}</TableRow>
+                        <TableRow><TableCell>New SD Balance</TableCell>{payrollResults.map(r => <TableCell key={r.employeeId} className="text-left tabular-nums">({formatHours(r.newSickDayBalance)})</TableCell>)}</TableRow>
                     </TableBody>
                 </Table>
             </div>

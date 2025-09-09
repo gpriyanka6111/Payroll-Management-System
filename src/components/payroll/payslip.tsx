@@ -31,9 +31,11 @@ const formatHours = (hours: number): string => {
 };
 
 export function Payslip({ companyName, payPeriod, result, input, ytdGrossPay }: PayslipProps) {
+    const ptoHours = result.vdHoursUsed + result.hdHoursUsed + result.sdHoursUsed;
+    
     const earnings = [
         { description: 'Regular Pay', hours: result.checkHours, rate: result.payRateCheck, total: result.checkHours * result.payRateCheck },
-        { description: 'PTO Pay', hours: result.ptoUsed, rate: result.payRateCheck, total: result.ptoUsed * result.payRateCheck },
+        { description: 'Leave Pay (VD/HD/SD)', hours: ptoHours, rate: result.payRateCheck, total: ptoHours * result.payRateCheck },
         { description: 'Other Pay', hours: result.otherHours, rate: result.payRateOthers, total: result.otherHours * result.payRateOthers },
         { description: 'Other Adjustments', hours: '-', rate: '-', total: result.otherAdjustment },
     ].filter(item => item.total !== 0 || item.description === 'Other Adjustments' && item.total !== 0);
@@ -74,8 +76,8 @@ export function Payslip({ companyName, payPeriod, result, input, ytdGrossPay }: 
                             <p className="font-medium tabular-nums">{formatHours(result.otherHours)}</p>
                         </div>
                         <div>
-                            <p className="text-xs text-muted-foreground">PTO</p>
-                            <p className="font-medium tabular-nums">{formatHours(result.ptoUsed)}</p>
+                            <p className="text-xs text-muted-foreground">Leave</p>
+                            <p className="font-medium tabular-nums">{formatHours(ptoHours)}</p>
                         </div>
                     </div>
                 </div>

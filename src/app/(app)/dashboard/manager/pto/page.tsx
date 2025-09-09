@@ -65,14 +65,14 @@ export default function PtoTrackerPage() {
 
       payrollsData.forEach(payroll => {
         payroll.inputs.forEach((input: any) => {
-          if ((input.ptoUsed ?? 0) > 0) {
+          if ((input.vdHoursUsed ?? 0) > 0 || (input.hdHoursUsed ?? 0) > 0 || (input.sdHoursUsed ?? 0) > 0) {
             usageHistory.push({
               employeeId: input.employeeId,
               employeeName: input.name,
               payPeriod: payroll.toDate,
-              vacationUsed: input.ptoUsed ?? 0, // Assuming ptoUsed is vacation for now
-              holidayUsed: 0,
-              sickUsed: 0,
+              vacationUsed: input.vdHoursUsed ?? 0,
+              holidayUsed: input.hdHoursUsed ?? 0,
+              sickUsed: input.sdHoursUsed ?? 0,
             });
           }
         });

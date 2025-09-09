@@ -220,7 +220,9 @@ function PayrollReportContent() {
         { key: 'totalHoursWorked', label: 'TOTAL HOURS WORKED' },
         { key: 'checkHours', label: 'CHECK HOURS' },
         { key: 'otherHours', label: 'OTHER HOURS' },
-        { key: 'ptoUsed', label: 'PTO USED' },
+        { key: 'vdHoursUsed', label: 'VD HOURS' },
+        { key: 'hdHoursUsed', label: 'HD HOURS' },
+        { key: 'sdHoursUsed', label: 'SD HOURS' },
     ] as const;
 
     const totals = {
@@ -514,10 +516,9 @@ function PayrollReportContent() {
             getValue: (result) => formatCurrency(result.grossOtherAmount),
             isBold: true,
         },
-        {
-            label: "New PTO Balance",
-            getValue: (result) => `(${formatHours(result.newPtoBalance)})`
-        },
+        { label: "New VD Balance", getValue: (result) => `(${formatHours(result.newVacationBalance)})` },
+        { label: "New HD Balance", getValue: (result) => `(${formatHours(result.newHolidayBalance)})` },
+        { label: "New SD Balance", getValue: (result) => `(${formatHours(result.newSickDayBalance)})` },
     ];
 
     return (
@@ -568,9 +569,9 @@ function PayrollReportContent() {
                                         <TableCell className="font-medium">{metric.label}</TableCell>
                                         {inputs.map(input => (
                                             <TableCell key={input.employeeId} className="text-right tabular-nums">
-                                                {metric.key === 'ptoUsed' 
-                                                    ? `(${formatHours(input[metric.key])})`
-                                                    : formatHours(input[metric.key])
+                                                {metric.key.toLowerCase().includes('hours') 
+                                                    ? formatHours((input as any)[metric.key])
+                                                    : (input as any)[metric.key]
                                                 }
                                             </TableCell>
                                         ))}
