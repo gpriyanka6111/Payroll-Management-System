@@ -4,9 +4,10 @@
 import * as React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Star } from 'lucide-react';
+import { Star, ChevronLeft, ChevronRight } from 'lucide-react';
 import { getHolidaysForYear, Holiday } from '@/lib/holidays';
 import { format } from 'date-fns';
+import { Button } from '@/components/ui/button';
 
 export default function HolidaysPage() {
   const [year, setYear] = React.useState(new Date().getFullYear());
@@ -16,11 +17,30 @@ export default function HolidaysPage() {
     setHolidays(getHolidaysForYear(year));
   }, [year]);
 
+  const handlePreviousYear = () => {
+    setYear(prevYear => prevYear - 1);
+  };
+
+  const handleNextYear = () => {
+    setYear(prevYear => prevYear + 1);
+  };
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Company Holidays</h1>
-        <p className="text-muted-foreground">A list of recognized US holidays for {year}.</p>
+      <div className="flex justify-between items-center">
+        <div>
+            <h1 className="text-3xl font-bold">Company Holidays</h1>
+            <p className="text-muted-foreground">A list of recognized US holidays for {year}.</p>
+        </div>
+        <div className="flex items-center gap-2">
+            <Button variant="outline" size="icon" onClick={handlePreviousYear}>
+                <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <span className="text-lg font-semibold w-24 text-center">{year}</span>
+            <Button variant="outline" size="icon" onClick={handleNextYear}>
+                <ChevronRight className="h-4 w-4" />
+            </Button>
+        </div>
       </div>
       <Card>
         <CardHeader>
