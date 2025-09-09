@@ -5,7 +5,7 @@ import * as React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { Users, History, DollarSign, CalendarClock, Calendar, Star, PlayCircle, ChevronLeft, ChevronRight, Briefcase } from 'lucide-react';
+import { Users, History, DollarSign, CalendarClock, Calendar, Star, PlayCircle, ChevronLeft, Briefcase, LayoutDashboard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 
@@ -18,6 +18,7 @@ export default function ManagerLayout({
   const [isCollapsed, setIsCollapsed] = React.useState(false);
 
   const navLinks = [
+    { href: '/dashboard/manager', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/dashboard/manager/employees', label: 'Employees', icon: Users },
     { href: '/dashboard/manager/payroll/run', label: 'Run Payroll', icon: PlayCircle },
     { href: '/dashboard/manager/payroll', label: 'Payroll History', icon: History },
@@ -85,7 +86,7 @@ export default function ManagerLayout({
           </div>
         </div>
         <div className="flex flex-col">
-          <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6">
+          <main className="flex flex-1 flex-col gap-4 lg:gap-6">
             {children}
           </main>
         </div>

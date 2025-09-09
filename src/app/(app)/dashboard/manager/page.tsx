@@ -4,7 +4,7 @@
 import * as React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Users, PlayCircle, History, DollarSign, CalendarClock, ChevronRight, Loader2, FileText, ArrowRight } from "lucide-react";
+import { History, ChevronRight, Loader2, ArrowRight } from "lucide-react";
 import Link from 'next/link';
 import { useAuth } from '@/contexts/auth-context';
 import { collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
@@ -67,7 +67,7 @@ export default function ManagerDashboardPage() {
 
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-6 p-4 lg:p-6">
             <div>
                 <h1 className="text-3xl font-bold">Manager Dashboard</h1>
                 <p className="text-muted-foreground">Access payroll, employee, and reporting tools.</p>
