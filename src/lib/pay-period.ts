@@ -11,6 +11,7 @@ export interface PayPeriod {
  * Calculates the current bi-weekly pay period based on a given date.
  * A pay period starts on a Sunday and ends 13 days later on a Saturday.
  * The pay date is the Thursday following the end of the pay period.
+ * The "current" period is the one whose pay date has not yet passed.
  *
  * @param date The date to calculate the pay period for.
  * @returns An object with the start date, end date, and pay date of the period.
@@ -26,16 +27,17 @@ export function getCurrentPayPeriod(date: Date): PayPeriod {
     const daysSinceAnchor = differenceInDays(normalizedDate, anchorDate);
 
     // Determine which 14-day cycle the date falls into.
+    // We adjust this to ensure we find the period whose pay date is *after* today.
     const cyclesSinceAnchor = Math.floor(daysSinceAnchor / 14);
 
-    // Calculate the start date of the current pay period
+    // Calculate the start date of the pay period containing today's date
     const periodStart = addDays(anchorDate, cyclesSinceAnchor * 14);
     
     const periodEnd = addDays(periodStart, 13);
     const payDate = nextThursday(periodEnd);
 
-    // If the pay date for the calculated period has already passed,
-    // it means we are in the next pay period.
+    // If the pay date for the calculated period is *before* today, it means the current
+    // active period is the *next* one.
     if (isBefore(payDate, normalizedDate)) {
         const nextPeriodStart = addDays(periodStart, 14);
         const nextPeriodEnd = addDays(nextPeriodStart, 13);
