@@ -26,11 +26,11 @@ export function getNextPayPeriod(date: Date): PayPeriod {
     const daysSinceAnchor = differenceInDays(normalizedDate, anchorDate);
 
     // Determine how many 14-day cycles have passed since the anchor
-    // We use Math.floor to ensure we get the cycle that the date falls within
-    const cyclesPassed = Math.floor(daysSinceAnchor / 14);
+    // We use Math.floor to get the cycle the date falls within, and add 1 to get the next one.
+    const cyclesForNextPeriod = Math.floor(daysSinceAnchor / 14) + 1;
 
     // Calculate the start date of the current pay period
-    const periodStart = addDays(anchorDate, cyclesPassed * 14);
+    const periodStart = addDays(anchorDate, cyclesForNextPeriod * 14);
 
     // Calculate the end date of the pay period (13 days after the start)
     const periodEnd = addDays(periodStart, 13);
