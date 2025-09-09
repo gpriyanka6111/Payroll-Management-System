@@ -121,7 +121,7 @@ export default function ManagerDashboardPage() {
                                         </div>
                                     </div>
                                     <Button variant="outline" className="w-full" asChild>
-                                        <Link href={`/dashboard/payroll/report?id=${lastPayroll.id}`}>
+                                        <Link href={`/dashboard/manager/payroll/report?id=${lastPayroll.id}`}>
                                             View Full Report
                                             <ChevronRight className="ml-2 h-4 w-4"/>
                                         </Link>
