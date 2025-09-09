@@ -34,7 +34,7 @@ export default function YtdSummaryPage() {
   const { user } = useAuth();
   const [ytdEarnings, setYtdEarnings] = React.useState<YtdEarningsRecord[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
-  const [dateRange, setDateRange] = React.useState({ from: '', to: '' });
+  const [dateRange, setDateRange] = React.useState({ from: new Date(), to: new Date() });
   const [selectedQuarter, setSelectedQuarter] = React.useState<string>(`q${getQuarter(new Date())}`);
 
   React.useEffect(() => {
@@ -65,10 +65,7 @@ export default function YtdSummaryPage() {
         toDate = endOfQuarter(targetDate);
       }
       
-      setDateRange({
-          from: format(fromDate, "MMMM d, yyyy"),
-          to: format(toDate, "MMMM d, yyyy")
-      });
+      setDateRange({ from: fromDate, to: toDate });
 
       const payrollsCollectionRef = collection(db, 'users', user.uid, 'payrolls');
       const payrollsQuery = query(
@@ -141,6 +138,14 @@ export default function YtdSummaryPage() {
     return ytdEarnings.reduce((sum, employee) => sum + employee.totalGrossOtherAmount, 0);
   }, [ytdEarnings]);
 
+  const getPeriodDescription = () => {
+    if (selectedQuarter === 'all') {
+      return `Full Year (${format(dateRange.from, 'MM/dd/yy')} - ${format(dateRange.to, 'MM/dd/yy')})`;
+    }
+    const quarterNumber = selectedQuarter.replace('q', '');
+    return `Quarter ${quarterNumber} (${format(dateRange.from, 'MM/dd/yy')} - ${format(dateRange.to, 'MM/dd/yy')})`;
+  };
+
 
   return (
     <div className="space-y-6">
@@ -158,7 +163,7 @@ export default function YtdSummaryPage() {
                 Earnings Report
               </CardTitle>
               <CardDescription>
-                Summary of total gross pay from finalized payrolls from <span className="font-semibold">{dateRange.from}</span> to <span className="font-semibold">{dateRange.to}</span>.
+                Summary of total gross pay from finalized payrolls for <span className="font-semibold">{getPeriodDescription()}</span>.
               </CardDescription>
             </div>
              <div className="w-48">
@@ -261,3 +266,5 @@ export default function YtdSummaryPage() {
     </div>
   );
 }
+
+    
