@@ -4,10 +4,11 @@
 import * as React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Users, Calculator, CalendarClock, DollarSign, ArrowLeft, CheckCircle, Calendar, CornerDownRight, Banknote } from "lucide-react";
+import { Users, Calculator, CalendarClock, DollarSign, ArrowLeft, CheckCircle, Calendar, CornerDownRight, Banknote, PanelLeft, PanelRight } from "lucide-react";
 import Link from 'next/link';
 import { getNextPayPeriod } from '@/lib/pay-period';
 import { format } from 'date-fns';
+import { cn } from '@/lib/utils';
 
 const managerLinks = [
     {
@@ -47,6 +48,8 @@ export default function ManagerDashboardPage() {
         current: null,
         next: null
     });
+    const [isSidebarOpen, setIsSidebarOpen] = React.useState(true);
+
 
     React.useEffect(() => {
         const today = new Date();
@@ -76,68 +79,75 @@ export default function ManagerDashboardPage() {
                 <p className="text-muted-foreground">Access payroll, employee, and reporting tools.</p>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                 {/* Left Column: Navigation Links */}
-                <div className="lg:col-span-1 space-y-4">
-                   {managerLinks.map((link) => (
-                        <Link href={link.href} key={link.href} className="block">
-                            <Card className="hover:shadow-md hover:border-primary/50 transition-all h-full">
-                                <CardHeader className="flex flex-row items-center gap-4">
-                                <div className="bg-primary/10 text-primary p-3 rounded-full">
+            <div className="flex gap-6">
+                {/* Collapsible Sidebar */}
+                <div className={cn(
+                    "bg-card border rounded-lg transition-all duration-300 ease-in-out",
+                    isSidebarOpen ? "w-72" : "w-20"
+                )}>
+                    <div className="p-4 flex items-center justify-between">
+                        {isSidebarOpen && <h2 className="text-lg font-semibold">Manager Area</h2>}
+                        <Button variant="ghost" size="icon" onClick={() => setIsSidebarOpen(!isSidebarOpen)}>
+                            {isSidebarOpen ? <PanelLeft className="h-5 w-5"/> : <PanelRight className="h-5 w-5"/>}
+                        </Button>
+                    </div>
+                    <div className="space-y-2 p-2">
+                         {managerLinks.map((link) => (
+                            <Link href={link.href} key={link.href}>
+                                <Button variant="ghost" className={cn("w-full flex items-center gap-4", isSidebarOpen ? "justify-start" : "justify-center")}>
                                     <link.icon className="h-5 w-5" />
-                                </div>
-                                <div>
-                                    <CardTitle className="text-base">{link.title}</CardTitle>
-                                    <CardDescription className="text-xs mt-1">{link.description}</CardDescription>
-                                </div>
-                                </CardHeader>
-                            </Card>
-                        </Link>
-                    ))}
+                                    {isSidebarOpen && <span className="text-sm">{link.title}</span>}
+                                </Button>
+                            </Link>
+                        ))}
+                    </div>
                 </div>
 
-                {/* Center Column: Pay Period */}
-                <div className="lg:col-span-1">
-                    <Card className="bg-primary/5 border-primary/20 h-full">
-                        <CardHeader className="text-center">
-                            <div className="mx-auto bg-primary/10 text-primary p-3 rounded-full w-fit mb-2">
-                                <Calendar className="h-6 w-6" />
-                            </div>
-                            <CardTitle>Current Pay Period</CardTitle>
-                            <CardDescription>{formatDateRange(payPeriod.current?.start, payPeriod.current?.end)}</CardDescription>
-                        </CardHeader>
-                        <CardContent className="text-center space-y-4">
-                            <div className="p-3 bg-background/50 rounded-md">
-                               <p className="text-sm font-semibold text-muted-foreground flex items-center justify-center gap-2"><Banknote className="h-4 w-4"/> Payroll Date</p>
-                               <p className="text-lg font-bold text-primary">{payPeriod.current?.payDate ? format(payPeriod.current.payDate, 'eeee, MMM dd') : '...'}</p>
-                            </div>
-                             <div className="p-3 rounded-md">
-                               <p className="text-sm font-semibold text-muted-foreground">Next Pay Period</p>
-                               <p className="text-sm font-medium">{formatDateRange(payPeriod.next?.start, payPeriod.next?.end)}</p>
-                            </div>
-                        </CardContent>
-                    </Card>
-                </div>
+                {/* Main Content */}
+                <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* Center Column: Pay Period */}
+                    <div className="">
+                        <Card className="bg-primary/5 border-primary/20 h-full">
+                            <CardHeader className="text-center">
+                                <div className="mx-auto bg-primary/10 text-primary p-3 rounded-full w-fit mb-2">
+                                    <Calendar className="h-6 w-6" />
+                                </div>
+                                <CardTitle>Current Pay Period</CardTitle>
+                                <CardDescription>{formatDateRange(payPeriod.current?.start, payPeriod.current?.end)}</CardDescription>
+                            </CardHeader>
+                            <CardContent className="text-center space-y-4">
+                                <div className="p-3 bg-background/50 rounded-md">
+                                <p className="text-sm font-semibold text-muted-foreground flex items-center justify-center gap-2"><Banknote className="h-4 w-4"/> Payroll Date</p>
+                                <p className="text-lg font-bold text-primary">{payPeriod.current?.payDate ? format(payPeriod.current.payDate, 'eeee, MMM dd') : '...'}</p>
+                                </div>
+                                <div className="p-3 rounded-md">
+                                <p className="text-sm font-semibold text-muted-foreground">Next Pay Period</p>
+                                <p className="text-sm font-medium">{formatDateRange(payPeriod.next?.start, payPeriod.next?.end)}</p>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </div>
 
-                {/* Right Column: Things to Do */}
-                <div className="lg:col-span-1">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Top Things to Do</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <ul className="space-y-4">
-                                {thingsToDo.map((item, index) => (
-                                    <li key={index} className="flex items-start gap-3">
-                                        <div className="bg-primary/10 text-primary p-2 rounded-full mt-1">
-                                            <item.icon className="h-4 w-4" />
-                                        </div>
-                                        <span className="text-sm text-muted-foreground">{item.text}</span>
-                                    </li>
-                                ))}
-                            </ul>
-                        </CardContent>
-                    </Card>
+                    {/* Right Column: Things to Do */}
+                    <div className="">
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Top Things to Do</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <ul className="space-y-4">
+                                    {thingsToDo.map((item, index) => (
+                                        <li key={index} className="flex items-start gap-3">
+                                            <div className="bg-primary/10 text-primary p-2 rounded-full mt-1">
+                                                <item.icon className="h-4 w-4" />
+                                            </div>
+                                            <span className="text-sm text-muted-foreground">{item.text}</span>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </CardContent>
+                        </Card>
+                    </div>
                 </div>
             </div>
         </div>
