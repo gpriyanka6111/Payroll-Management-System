@@ -1,5 +1,5 @@
 
-import { addDays, differenceInDays, getYear, isBefore, nextThursday, startOfDay, startOfYear } from 'date-fns';
+import { addDays, differenceInDays, getYear, isAfter, isBefore, nextThursday, startOfDay, startOfYear } from 'date-fns';
 
 export interface PayPeriod {
     start: Date;
@@ -9,34 +9,35 @@ export interface PayPeriod {
 
 /**
  * Calculates the current bi-weekly pay period based on a given date.
- * A pay period starts on a Sunday and ends 13 days later on a Saturday.
- * The pay date is the Thursday following the end of the pay period.
  * The "current" period is the one whose pay date has not yet passed.
  *
  * @param date The date to calculate the pay period for.
  * @returns An object with the start date, end date, and pay date of the period.
  */
 export function getCurrentPayPeriod(date: Date): PayPeriod {
-    // A fixed anchor date for a known pay period start (Sunday, August 24, 2025)
+    const today = startOfDay(date);
+    const year = getYear(today);
+    
+    // Get all pay periods for the current year and the next to handle year-end transitions
+    const allPeriods = [...getYearlyPayPeriods(year), ...getYearlyPayPeriods(year + 1)];
+
+    // Find the first period where the pay date is on or after today
+    const currentPeriod = allPeriods.find(period => isAfter(period.payDate, today) || period.payDate.getTime() === today.getTime());
+
+    if (currentPeriod) {
+        return currentPeriod;
+    }
+    
+    // Fallback logic in case something goes wrong (should be rare)
+    // This calculates from a fixed anchor point
     const anchorDate = new Date('2025-08-24T00:00:00');
-    
-    // Normalize the input date to the start of the day to avoid time zone issues
-    const normalizedDate = startOfDay(date);
-
-    // Calculate the number of days between the target date and the anchor.
-    const daysDifference = differenceInDays(normalizedDate, anchorDate);
-
-    // Determine how many 14-day cycles are between the dates.
-    // Math.floor correctly handles both past and future dates.
+    const daysDifference = differenceInDays(today, anchorDate);
     const cycles = Math.floor(daysDifference / 14);
-    
-    // Calculate the start of the period that CONTAINS the normalizedDate.
     let periodStart = addDays(anchorDate, cycles * 14);
     let periodEnd = addDays(periodStart, 13);
     let payDate = nextThursday(periodEnd);
 
-    // If the calculated pay date is before today, we need the *next* period to be the "current" one.
-    if (isBefore(payDate, normalizedDate)) {
+    if (isBefore(payDate, today)) {
         periodStart = addDays(periodStart, 14);
         periodEnd = addDays(periodStart, 13);
         payDate = nextThursday(periodEnd);
@@ -46,30 +47,6 @@ export function getCurrentPayPeriod(date: Date): PayPeriod {
         start: periodStart,
         end: periodEnd,
         payDate: payDate,
-    };
-}
-
-
-/**
- * Calculates the *next* bi-weekly pay period based on a given date.
- * This is useful for predicting the upcoming pay cycle.
- *
- * @param date The date to calculate the next pay period from.
- * @returns An object for the next pay period.
- */
-export function getNextPayPeriod(date: Date): PayPeriod {
-    // Get the current period first
-    const currentPeriod = getCurrentPayPeriod(date);
-    
-    // The next period starts 14 days after the current one starts
-    const nextPeriodStart = addDays(currentPeriod.start, 14);
-    const nextPeriodEnd = addDays(nextPeriodStart, 13);
-    const nextPayDate = nextThursday(nextPeriodEnd);
-
-    return {
-        start: nextPeriodStart,
-        end: nextPeriodEnd,
-        payDate: nextPayDate,
     };
 }
 
