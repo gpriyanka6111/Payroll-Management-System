@@ -4,7 +4,7 @@
 import * as React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { History, ChevronRight, Loader2, ArrowRight } from "lucide-react";
+import { History, ChevronRight, Loader2, ArrowRight, CalendarIcon } from "lucide-react";
 import Link from 'next/link';
 import { useAuth } from '@/contexts/auth-context';
 import { collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
@@ -78,17 +78,19 @@ export default function ManagerDashboardPage() {
                 <div className="lg:col-span-2 space-y-6">
                      <Card>
                         <CardHeader>
-                            <CardTitle>Current Pay Period</CardTitle>
-                            <CardDescription>Bi-weekly payroll, starting Sunday and ending Saturday.</CardDescription>
-                        </CardHeader>
-                        <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
-                            <div>
-                                <p className="text-sm font-medium text-muted-foreground">Start Date</p>
-                                <p className="text-lg font-semibold">{format(payPeriod.start, 'MMM dd, yyyy')}</p>
+                            <div className="flex justify-between items-center">
+                                <CardTitle>Upcoming Payroll</CardTitle>
+                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                    <CalendarIcon className="h-4 w-4" />
+                                    <span>{format(new Date(), 'MMM dd, yyyy')}</span>
+                                </div>
                             </div>
+                            <CardDescription>The next payroll run that is due.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4 text-center">
                             <div>
-                                <p className="text-sm font-medium text-muted-foreground">End Date</p>
-                                <p className="text-lg font-semibold">{format(payPeriod.end, 'MMM dd, yyyy')}</p>
+                                <p className="text-sm font-medium text-muted-foreground">Pay Period</p>
+                                <p className="text-lg font-semibold">{format(payPeriod.start, 'MMM dd')} - {format(payPeriod.end, 'MMM dd, yyyy')}</p>
                             </div>
                             <div>
                                 <p className="text-sm font-medium text-primary">Pay Date</p>
