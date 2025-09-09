@@ -227,7 +227,7 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
               const currentEmployee = employeesData.find(e => e.id === initialInput.employeeId);
               return {
                   ...initialInput,
-                  ptoBalance: currentEmployee ? currentEmployee.ptoBalance : initialInput.ptoBalance,
+                  ptoBalance: currentEmployee ? currentEmployee.vacationBalance : initialInput.ptoBalance,
                   comment: currentEmployee ? currentEmployee.comment : initialInput.comment,
               };
           });
@@ -247,7 +247,7 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
                   payRateCheck: emp.payRateCheck,
                   payRateOthers: emp.payRateOthers ?? 0,
                   biWeeklySalary: emp.biWeeklySalary ?? 0,
-                  ptoBalance: emp.ptoBalance,
+                  ptoBalance: emp.vacationBalance,
                   standardCheckHours: emp.standardCheckHours ?? 0,
                   totalHoursWorked: 0,
                   checkHours: 0,
@@ -266,7 +266,7 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
               payRateCheck: emp.payRateCheck,
               payRateOthers: emp.payRateOthers ?? 0,
               biWeeklySalary: emp.biWeeklySalary ?? 0,
-              ptoBalance: emp.ptoBalance,
+              ptoBalance: emp.vacationBalance,
               standardCheckHours: emp.standardCheckHours ?? 0,
               totalHoursWorked: 0,
               checkHours: 0,
@@ -463,7 +463,7 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
         const batch = writeBatch(db);
         payrollResults.forEach(result => {
             const employeeDocRef = doc(db, 'users', user.uid, 'employees', result.employeeId);
-            batch.update(employeeDocRef, { ptoBalance: result.newPtoBalance });
+            batch.update(employeeDocRef, { vacationBalance: result.newPtoBalance });
         });
         await batch.commit();
 
@@ -478,7 +478,7 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
             description: "Payroll history saved and PTO balances updated. Redirecting to report...",
         });
 
-        router.push(`/dashboard/payroll/report?id=${finalPayrollId}`);
+        router.push(`/dashboard/manager/payroll/report?id=${finalPayrollId}`);
 
     } catch (error) {
         console.error("Failed to approve payroll:", error);

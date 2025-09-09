@@ -5,7 +5,7 @@ import * as React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { Users, History, DollarSign, CalendarClock, Calendar, Star, PlayCircle, ChevronLeft, Briefcase, LayoutDashboard } from 'lucide-react';
+import { Users, History, DollarSign, CalendarClock, Calendar, Star, PlayCircle, ChevronLeft, Briefcase } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 
@@ -85,7 +85,7 @@ export default function ManagerLayout({
           </div>
         </div>
         <div className="flex flex-col">
-          <main className="flex flex-1 flex-col gap-4 lg:gap-6">
+          <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6">
             {children}
           </main>
         </div>

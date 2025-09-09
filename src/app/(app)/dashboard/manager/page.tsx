@@ -67,7 +67,7 @@ export default function ManagerDashboardPage() {
 
 
     return (
-        <div className="space-y-6 p-4 lg:p-6">
+        <div className="space-y-6">
             <div>
                 <h1 className="text-3xl font-bold">Manager Dashboard</h1>
                 <p className="text-muted-foreground">Access payroll, employee, and reporting tools.</p>
