@@ -105,9 +105,9 @@ export default function PtoTrackerPage() {
       };
 
       const initialBalance = {
-          vacation: remainingBalance.vacation + usedYTD.vacation,
-          holiday: remainingBalance.holiday + usedYTD.holiday,
-          sick: remainingBalance.sick + usedYTD.sick,
+          vacation: (remainingBalance.vacation || 0) + usedYTD.vacation,
+          holiday: (remainingBalance.holiday || 0) + usedYTD.holiday,
+          sick: (remainingBalance.sick || 0) + usedYTD.sick,
       };
 
       return {
@@ -118,8 +118,11 @@ export default function PtoTrackerPage() {
       };
   });
 
-  const formatHours = (hours: number): string => {
-      return `${hours.toFixed(2)}`;
+  const formatHours = (hours: number | undefined): string => {
+      if (typeof hours !== 'number' || isNaN(hours)) {
+        return '0.00';
+      }
+      return hours.toFixed(2);
   };
 
   const formatDate = (dateString: string) => {
@@ -265,3 +268,5 @@ export default function PtoTrackerPage() {
     </div>
   );
 }
+
+    
