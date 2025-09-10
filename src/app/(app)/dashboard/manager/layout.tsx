@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 import { Users, History, DollarSign, CalendarClock, Calendar, Star, PlayCircle, ChevronLeft, Briefcase } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
+import { Separator } from '@/components/ui/separator';
 
 export default function ManagerLayout({
   children,
@@ -42,18 +43,19 @@ export default function ManagerLayout({
       )}>
         <div className="hidden border-r bg-muted/40 md:block">
           <div className="flex h-full max-h-screen flex-col relative">
-            <div className="flex h-14 items-center justify-between border-b px-4 lg:h-[60px] lg:px-6">
+            <div className="flex-1 overflow-y-auto pt-4">
+              <div className={cn("flex items-center justify-between mb-4", isCollapsed ? "px-2" : "px-4")}>
                 <Link href="/dashboard/manager" className={cn("flex items-center gap-2", isCollapsed && "justify-center w-full")}>
-                    <Briefcase className="h-6 w-6" />
-                    <h2 className={cn("text-lg font-semibold transition-opacity duration-300", isCollapsed && "opacity-0 w-0")}>Manager Dashboard</h2>
+                    <Briefcase className="h-5 w-5" />
+                    <h2 className={cn("text-lg font-semibold transition-opacity duration-300", isCollapsed && "opacity-0 w-0")}>Manager</h2>
                 </Link>
-                 <Button variant="outline" size="icon" onClick={() => setIsCollapsed(!isCollapsed)} className={cn("rounded-full", isCollapsed && "rotate-180")}>
+                 <Button variant="outline" size="icon" onClick={() => setIsCollapsed(!isCollapsed)} className={cn("rounded-full h-7 w-7", isCollapsed && "rotate-180")}>
                     <ChevronLeft className="h-4 w-4"/>
                     <span className="sr-only">Toggle sidebar</span>
                 </Button>
-            </div>
-            <div className="flex-1 overflow-y-auto">
-              <nav className={cn("grid items-start py-4 text-sm font-medium", isCollapsed ? "px-2" : "px-4")}>
+              </div>
+              <Separator className="mb-4" />
+              <nav className={cn("grid items-start text-sm font-medium", isCollapsed ? "px-2" : "px-4")}>
                 {navLinks.map(link => (
                   isCollapsed ? (
                     <Tooltip key={link.href} delayDuration={0}>
