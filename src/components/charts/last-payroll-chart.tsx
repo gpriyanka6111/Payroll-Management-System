@@ -81,7 +81,7 @@ export function LastPayrollChart({ totalAmount }: { totalAmount: number }) {
                                 dominantBaseline="middle"
                                 className="fill-muted-foreground text-sm"
                             >
-                                Cash required
+                                Last Pay
                             </text>
                         </g>
                         )

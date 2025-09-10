@@ -76,8 +76,7 @@ export default function ManagerDashboardPage() {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-                 {/* Center Column */}
-                <div className="lg:col-span-2 space-y-6">
+                <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
                      <Card>
                         <CardHeader>
                             <div className="flex justify-between items-center">
@@ -102,7 +101,7 @@ export default function ManagerDashboardPage() {
                     </Card>
                     <Card>
                         <CardHeader>
-                           <CardTitle>Last payroll</CardTitle>
+                           <CardTitle>Last Payroll</CardTitle>
                         </CardHeader>
                         <CardContent>
                              {isLoading ? (
@@ -113,13 +112,13 @@ export default function ManagerDashboardPage() {
                                 <div className="space-y-4">
                                     <div className="grid grid-cols-2 gap-4">
                                         <div>
-                                            <p className="text-sm text-muted-foreground">Check date</p>
+                                            <p className="text-sm text-muted-foreground">Pay Date</p>
                                             <p className="font-semibold">
                                                 {lastPayroll.payDate ? format(new Date(lastPayroll.payDate.replace(/-/g, '/')), 'MM/dd/yyyy') : 'N/A'}
                                             </p>
                                         </div>
                                          <div className="text-right">
-                                            <p className="text-sm text-muted-foreground">Pay period</p>
+                                            <p className="text-sm text-muted-foreground">Pay Period</p>
                                             <p className="font-semibold">
                                                  {format(new Date(lastPayroll.fromDate.replace(/-/g, '/')), 'MM/dd')} → {format(new Date(lastPayroll.toDate.replace(/-/g, '/')), 'MM/dd')}
                                             </p>
