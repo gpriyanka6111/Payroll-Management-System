@@ -32,6 +32,7 @@ import { collection, getDocs, query, orderBy, addDoc, doc, updateDoc, writeBatch
 import { db } from '@/lib/firebase';
 import { Skeleton } from '../ui/skeleton';
 import { Label } from '../ui/label';
+import { getPayDateForPeriod } from '@/lib/pay-period';
 
 const employeePayrollInputSchema = z.object({
   employeeId: z.string(),
@@ -470,10 +471,12 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
 
     try {
         const totalAmount = payrollResults.reduce((sum, r) => sum + r.grossCheckAmount + r.grossOtherAmount, 0);
+        const payDate = getPayDateForPeriod(from);
         
         const payrollDocData = {
             fromDate: format(from, 'yyyy-MM-dd'),
             toDate: format(to, 'yyyy-MM-dd'),
+            payDate: payDate ? format(payDate, 'yyyy-MM-dd') : undefined,
             totalAmount: totalAmount,
             status: 'Completed',
             results: payrollResults,

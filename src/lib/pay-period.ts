@@ -1,5 +1,5 @@
 
-import { addDays, differenceInDays, getYear, isAfter, isBefore, nextThursday, startOfDay, startOfYear } from 'date-fns';
+import { addDays, differenceInDays, getYear, isAfter, isBefore, isSameDay, nextThursday, startOfDay, startOfYear } from 'date-fns';
 
 export interface PayPeriod {
     start: Date;
@@ -86,4 +86,16 @@ export function getYearlyPayPeriods(year: number): PayPeriod[] {
     }
 
     return periods;
+}
+
+/**
+ * Finds the pay date for a given pay period start date.
+ * @param periodStartDate The start date of the pay period.
+ * @returns The pay date, or null if not found.
+ */
+export function getPayDateForPeriod(periodStartDate: Date): Date | null {
+    const year = getYear(periodStartDate);
+    const periods = getYearlyPayPeriods(year);
+    const period = periods.find(p => isSameDay(p.start, periodStartDate));
+    return period ? period.payDate : null;
 }

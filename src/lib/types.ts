@@ -28,6 +28,7 @@ export type Payroll = {
     id: string; // Document ID from Firestore
     fromDate: string; // YYYY-MM-DD
     toDate: string; // YYYY-MM-DD
+    payDate?: string; // YYYY-MM-DD
     totalAmount: number;
     status: 'Completed';
     // Store the data used to generate the report for historical viewing

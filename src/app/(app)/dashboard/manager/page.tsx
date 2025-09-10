@@ -2,9 +2,9 @@
 'use client';
 
 import * as React from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { History, ChevronRight, Loader2, ListChecks, CalendarIcon } from "lucide-react";
+import { Loader2, ListChecks, CalendarIcon, Package, Truck } from "lucide-react";
 import Link from 'next/link';
 import { useAuth } from '@/contexts/auth-context';
 import { collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
@@ -12,6 +12,7 @@ import { db } from '@/lib/firebase';
 import type { Payroll } from '@/lib/types';
 import { format } from 'date-fns';
 import { getCurrentPayPeriod } from '@/lib/pay-period';
+import { LastPayrollChart } from '@/components/charts/last-payroll-chart';
 
 
 const formatCurrency = (amount: number | undefined) => {
@@ -101,39 +102,52 @@ export default function ManagerDashboardPage() {
                     </Card>
                     <Card>
                         <CardHeader>
-                            <CardTitle className="flex items-center"><History className="mr-2 h-5 w-5"/> Last Payroll</CardTitle>
-                            <CardDescription>Summary of your most recent payroll run.</CardDescription>
+                           <CardTitle>Last payroll</CardTitle>
                         </CardHeader>
                         <CardContent>
-                            {isLoading ? (
-                                <div className="flex justify-center items-center h-24">
+                             {isLoading ? (
+                                <div className="flex justify-center items-center h-48">
                                     <Loader2 className="h-8 w-8 animate-spin text-muted-foreground"/>
                                 </div>
                             ) : lastPayroll ? (
                                 <div className="space-y-4">
-                                    <div className="grid grid-cols-2 gap-4 text-center">
+                                    <div className="grid grid-cols-2 gap-4">
                                         <div>
-                                            <p className="text-sm text-muted-foreground">Pay Period</p>
+                                            <p className="text-sm text-muted-foreground">Check date</p>
                                             <p className="font-semibold">
-                                                {format(new Date(lastPayroll.fromDate.replace(/-/g, '/')), 'MMM dd')} - {format(new Date(lastPayroll.toDate.replace(/-/g, '/')), 'MMM dd, yyyy')}
+                                                {lastPayroll.payDate ? format(new Date(lastPayroll.payDate.replace(/-/g, '/')), 'MM/dd/yyyy') : 'N/A'}
                                             </p>
                                         </div>
-                                         <div>
-                                            <p className="text-sm text-muted-foreground">Total Payroll</p>
-                                            <p className="font-semibold text-primary">{formatCurrency(lastPayroll.totalAmount)}</p>
+                                         <div className="text-right">
+                                            <p className="text-sm text-muted-foreground">Pay period</p>
+                                            <p className="font-semibold">
+                                                 {format(new Date(lastPayroll.fromDate.replace(/-/g, '/')), 'MM/dd')} → {format(new Date(lastPayroll.toDate.replace(/-/g, '/')), 'MM/dd')}
+                                            </p>
                                         </div>
                                     </div>
-                                    <Button variant="outline" className="w-full" asChild>
-                                        <Link href={`/dashboard/manager/payroll/report?id=${lastPayroll.id}`}>
-                                            View Full Report
-                                            <ChevronRight className="ml-2 h-4 w-4"/>
-                                        </Link>
-                                    </Button>
+                                    <LastPayrollChart totalAmount={lastPayroll.totalAmount}/>
                                 </div>
                             ) : (
-                                <p className="text-center text-muted-foreground py-8">No payroll history found.</p>
+                                <p className="text-center text-muted-foreground py-8 h-48 flex items-center justify-center">No payroll history found.</p>
                             )}
                         </CardContent>
+                         {lastPayroll && (
+                            <CardFooter className="flex-col items-start gap-4 border-t pt-4">
+                                <div className="flex w-full gap-4 text-sm">
+                                    <Button variant="ghost" className="p-0 h-auto text-primary hover:text-primary/90">
+                                        <Package className="mr-2"/> Report package
+                                    </Button>
+                                    <Button variant="ghost" className="p-0 h-auto text-muted-foreground cursor-not-allowed">
+                                        <Truck className="mr-2"/> Track delivery
+                                    </Button>
+                                </div>
+                                <Button variant="link" className="p-0 h-auto font-semibold" asChild>
+                                    <Link href={`/dashboard/manager/payroll/report?id=${lastPayroll.id}`}>
+                                        Payroll details
+                                    </Link>
+                                </Button>
+                            </CardFooter>
+                         )}
                     </Card>
                 </div>
 
