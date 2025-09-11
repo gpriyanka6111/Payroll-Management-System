@@ -40,7 +40,7 @@ export default function ManagerDashboardPage() {
                     setLastPayroll({ id: payrollSnapshot.docs[0].id, ...payrollSnapshot.docs[0].data() } as Payroll);
                 }
                 
-            } catch (error) => {
+            } catch (error) {
                 console.error("Error fetching manager dashboard data:", error);
             } finally {
                 setIsLoading(false);
