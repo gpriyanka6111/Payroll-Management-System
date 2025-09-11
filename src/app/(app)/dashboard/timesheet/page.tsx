@@ -690,7 +690,7 @@ export default function TimesheetPage() {
                 </div>
                 <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto items-center">
                    <Select value={selectedPeriodValue} onValueChange={handlePeriodChange}>
-                       <SelectTrigger className="w-full sm:w-[320px]">
+                       <SelectTrigger className="w-full sm:w-[380px]">
                            <SelectValue placeholder="Select a pay period..." />
                        </SelectTrigger>
                        <SelectContent>
