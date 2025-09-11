@@ -10,7 +10,7 @@ import { useAuth } from '@/contexts/auth-context';
 import { collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Payroll } from '@/lib/types';
-import { format } from 'date-fns';
+import { format, parse } from 'date-fns';
 import { getCurrentPayPeriod } from '@/lib/pay-period';
 import { LastPayrollChart } from '@/components/charts/last-payroll-chart';
 import { RemindersCard } from '@/components/dashboard/reminders-card';
@@ -85,7 +85,7 @@ export default function ManagerDashboardPage() {
                         <CardHeader>
                            <CardTitle>Last Payroll</CardTitle>
                              <CardDescription>
-                                {isLoading ? 'Loading...' : lastPayroll ? `Pay period from ${format(new Date(lastPayroll.fromDate.replace(/-/g, '/')), 'MMM dd')} to ${format(new Date(lastPayroll.toDate.replace(/-/g, '/')), 'MMM dd')}` : 'No history found.'}
+                                {isLoading ? 'Loading...' : lastPayroll ? `Pay period from ${format(parse(lastPayroll.fromDate, 'yyyy-MM-dd', new Date()), 'MMM dd')} to ${format(parse(lastPayroll.toDate, 'yyyy-MM-dd', new Date()), 'MMM dd')}` : 'No history found.'}
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
@@ -99,7 +99,7 @@ export default function ManagerDashboardPage() {
                                         <div>
                                             <p className="text-sm text-muted-foreground">Pay Date</p>
                                             <p className="font-semibold">
-                                                {lastPayroll.payDate ? format(new Date(lastPayroll.payDate.replace(/-/g, '/')), 'MM/dd/yyyy') : 'N/A'}
+                                                {lastPayroll.payDate ? format(parse(lastPayroll.payDate, 'yyyy-MM-dd', new Date()), 'MM/dd/yyyy') : 'N/A'}
                                             </p>
                                         </div>
                                     </div>
