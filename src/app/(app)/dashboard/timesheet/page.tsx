@@ -5,7 +5,7 @@ import * as React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Calendar as CalendarIcon, ArrowLeft, Users, Pencil, AlertTriangle, Loader2, FileSpreadsheet, Trash2 } from "lucide-react";
-import { format, differenceInMinutes, startOfDay, isSameDay, subDays, eachDayOfInterval, parse, isValid, addDays } from "date-fns";
+import { format, differenceInMinutes, startOfDay, isSameDay, subDays, eachDayOfInterval, parse, isValid, addDays, getYear } from "date-fns";
 import { useAuth } from '@/contexts/auth-context';
 import { collection, query, where, getDocs, Timestamp, orderBy, doc, getDoc, updateDoc, addDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -32,6 +32,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import * as XLSX from 'xlsx-js-style';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { getYearlyPayPeriods, PayPeriod, getCurrentPayPeriod } from '@/lib/pay-period';
 
 
 interface TimeEntry {
@@ -400,45 +401,34 @@ export default function TimesheetPage() {
   const [isLoading, setIsLoading] = React.useState(true);
   
   const [dateRange, setDateRange] = React.useState<DateRange | undefined>();
-  const [rememberDates, setRememberDates] = React.useState(false);
+  const [payPeriods, setPayPeriods] = React.useState<PayPeriod[]>([]);
+  const [selectedPeriodValue, setSelectedPeriodValue] = React.useState('');
   
   const headerRef = React.useRef<HTMLDivElement>(null);
   const bodyRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
-    const saved = localStorage.getItem('timesheetDateRange');
-    const lastPayrollEndDateStr = localStorage.getItem('lastPayrollEndDate');
-
-    if (saved) {
-      const { from, to, remembered } = JSON.parse(saved);
-      const fromDate = new Date(from);
-      const toDate = new Date(to);
-      if (isValid(fromDate) && isValid(toDate) && remembered) {
-        setDateRange({ from: fromDate, to: toDate });
-        setRememberDates(true);
-        return; // Prioritize saved dates
-      }
-    }
+    const today = new Date();
+    const currentYear = getYear(today);
+    const periods = getYearlyPayPeriods(currentYear);
+    setPayPeriods(periods);
     
-    if (lastPayrollEndDateStr) {
-        const lastEndDate = new Date(lastPayrollEndDateStr);
-        const newStartDate = addDays(lastEndDate, 1);
-        const newEndDate = addDays(newStartDate, 13);
-        setDateRange({ from: newStartDate, to: newEndDate });
-    } else {
-        // Fallback to last 14 days if nothing is stored
-        const fourteenDaysAgo = subDays(new Date(), 13);
-        setDateRange({ from: fourteenDaysAgo, to: new Date() });
-    }
-  }, []);
+    const currentPeriod = getCurrentPayPeriod(today);
+    const initialValue = `${format(currentPeriod.start, 'yyyy-MM-dd')}_${format(currentPeriod.end, 'yyyy-MM-dd')}`;
+    setSelectedPeriodValue(initialValue);
+    setDateRange({ from: currentPeriod.start, to: currentPeriod.end });
 
-  React.useEffect(() => {
-    if (rememberDates && dateRange?.from && dateRange?.to) {
-      localStorage.setItem('timesheetDateRange', JSON.stringify({ from: dateRange.from, to: dateRange.to, remembered: true }));
-    } else {
-      localStorage.removeItem('timesheetDateRange');
+  }, []);
+  
+  const handlePeriodChange = (value: string) => {
+    setSelectedPeriodValue(value);
+    const [fromStr, toStr] = value.split('_');
+    const fromDate = parse(fromStr, 'yyyy-MM-dd', new Date());
+    const toDate = parse(toStr, 'yyyy-MM-dd', new Date());
+    if (isValid(fromDate) && isValid(toDate)) {
+        setDateRange({ from: fromDate, to: toDate });
     }
-  }, [dateRange, rememberDates]);
+  };
 
 
   const [isDetailsDialogOpen, setIsDetailsDialogOpen] = React.useState(false);
@@ -695,52 +685,25 @@ export default function TimesheetPage() {
                 <div className="flex-1">
                     <CardTitle>Time Log Summary</CardTitle>
                     <CardDescription>
-                        Displaying time entries for the selected period.
+                        Select a pay period to view time entries.
                     </CardDescription>
                 </div>
                 <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto items-center">
-                    <Popover>
-                        <PopoverTrigger asChild>
-                        <Button
-                            id="date"
-                            variant={"outline"}
-                            className={cn(
-                            "w-full sm:w-[300px] justify-start text-left font-normal",
-                            !dateRange && "text-muted-foreground"
-                            )}
-                        >
-                            <CalendarIcon className="mr-2 h-4 w-4" />
-                            {dateRange?.from ? (
-                            dateRange.to ? (
-                                <>
-                                {format(dateRange.from, "LLL dd, y")} -{" "}
-                                {format(dateRange.to, "LLL dd, y")}
-                                </>
-                            ) : (
-                                format(dateRange.from, "LLL dd, y")
-                            )
-                            ) : (
-                            <span>Pick a date</span>
-                            )}
-                        </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="end">
-                        <Calendar
-                            initialFocus
-                            mode="range"
-                            defaultMonth={dateRange?.from}
-                            selected={dateRange}
-                            onSelect={setDateRange}
-                            numberOfMonths={2}
-                        />
-                        </PopoverContent>
-                    </Popover>
-                    <div className="flex items-center space-x-2">
-                        <Checkbox id="remember-dates" checked={rememberDates} onCheckedChange={(checked) => setRememberDates(!!checked)} />
-                        <Label htmlFor="remember-dates" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                            Remember these dates
-                        </Label>
-                    </div>
+                   <Select value={selectedPeriodValue} onValueChange={handlePeriodChange}>
+                       <SelectTrigger className="w-full sm:w-[320px]">
+                           <SelectValue placeholder="Select a pay period..." />
+                       </SelectTrigger>
+                       <SelectContent>
+                           {payPeriods.map((period, index) => {
+                               const value = `${format(period.start, 'yyyy-MM-dd')}_${format(period.end, 'yyyy-MM-dd')}`;
+                               return (
+                                   <SelectItem key={index} value={value}>
+                                       {format(period.start, 'MM/dd/yy')} - {format(period.end, 'MM/dd/yy')} (Pay Date: {format(period.payDate, 'MM/dd/yy')})
+                                   </SelectItem>
+                               )
+                           })}
+                       </SelectContent>
+                   </Select>
                     <Button variant="outline" onClick={handleExportToExcel}>
                         <FileSpreadsheet className="mr-2 h-4 w-4" />
                         Export
