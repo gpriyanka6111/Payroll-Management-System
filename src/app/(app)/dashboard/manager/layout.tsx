@@ -16,7 +16,41 @@ export default function ManagerLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const sidebarRef = React.useRef<HTMLDivElement>(null);
+  const [isResizing, setIsResizing] = React.useState(false);
+  const [sidebarWidth, setSidebarWidth] = React.useState(280);
   const [isCollapsed, setIsCollapsed] = React.useState(false);
+
+  React.useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizing) return;
+      let newWidth = e.clientX - (sidebarRef.current?.getBoundingClientRect().left ?? 0);
+      if (newWidth < 200) newWidth = 200;
+      if (newWidth > 400) newWidth = 400;
+      setSidebarWidth(newWidth);
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+      document.body.style.cursor = 'default';
+    };
+
+    if (isResizing) {
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+    }
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizing]);
+  
+   const handleMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+    document.body.style.cursor = 'col-resize';
+  };
 
   const navLinks = [
     { href: '/dashboard/manager/employees', label: 'Employees', icon: Users },
@@ -34,28 +68,40 @@ export default function ManagerLayout({
     }
     return pathname.startsWith(href);
   };
+  
+   const toggleCollapse = () => {
+    setIsCollapsed(!isCollapsed);
+    if(isCollapsed) {
+        setSidebarWidth(280);
+    } else {
+        setSidebarWidth(64);
+    }
+  };
+
 
   return (
     <TooltipProvider>
-      <div className={cn(
-        "grid w-full transition-[grid-template-columns] duration-300 ease-in-out",
-        isCollapsed ? "md:grid-cols-[5rem_1fr]" : "md:grid-cols-[280px_1fr]"
-      )}>
-        <div className="hidden border-r bg-muted/40 md:block">
-          <div className="flex h-full max-h-screen flex-col relative">
-            <div className="flex-1 overflow-y-auto pt-4">
-              <div className={cn("flex items-center justify-between mb-4", isCollapsed ? "px-2" : "px-4")}>
+      <div 
+        className="grid w-full"
+        style={{
+             gridTemplateColumns: isCollapsed ? '64px 1fr' : `${sidebarWidth}px 1fr`,
+        }}
+      >
+        <div ref={sidebarRef} className="relative hidden border-r bg-muted/40 md:flex">
+          <div className="flex h-screen flex-col w-full">
+            <div className="flex-1 pt-4">
+               <div className={cn("flex items-center justify-between mb-4 px-4")}>
                 <Link href="/dashboard/manager" className={cn("flex items-center gap-2", isCollapsed && "justify-center w-full")}>
                     <Briefcase className="h-5 w-5" />
-                    <h2 className={cn("text-lg font-semibold transition-opacity duration-300", isCollapsed && "opacity-0 w-0")}>Manager</h2>
+                    <h2 className={cn("text-lg font-semibold transition-opacity duration-300", isCollapsed && "opacity-0 w-0")}>Dashboard</h2>
                 </Link>
-                 <Button variant="outline" size="icon" onClick={() => setIsCollapsed(!isCollapsed)} className={cn("rounded-full h-7 w-7", isCollapsed && "rotate-180")}>
+                 <Button variant="outline" size="icon" onClick={toggleCollapse} className={cn("rounded-full h-7 w-7", isCollapsed && "rotate-180")}>
                     <ChevronLeft className="h-4 w-4"/>
                     <span className="sr-only">Toggle sidebar</span>
                 </Button>
               </div>
               <Separator className="mb-4" />
-              <nav className={cn("grid items-start text-sm font-medium", isCollapsed ? "px-2" : "px-4")}>
+              <nav className={cn("grid items-start text-base font-medium gap-y-3 px-4")}>
                 {navLinks.map(link => (
                   isCollapsed ? (
                     <Tooltip key={link.href} delayDuration={0}>
@@ -92,6 +138,10 @@ export default function ManagerLayout({
               </nav>
             </div>
           </div>
+          <div 
+            onMouseDown={handleMouseDown}
+            className="absolute top-0 right-0 h-full w-2 cursor-col-resize bg-border/40 hover:bg-border transition-colors" 
+           />
         </div>
         <div className="flex flex-col">
           <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6">

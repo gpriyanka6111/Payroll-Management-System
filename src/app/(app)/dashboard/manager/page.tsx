@@ -61,10 +61,7 @@ export default function ManagerDashboardPage() {
     }, [user]);
 
     const topThingsToDo = [
-        "Review and approve timesheets.",
-        "Process payroll for the upcoming period.",
-        "Onboard new hire documentation.",
-        "Review PTO requests and balances.",
+        
     ];
 
 
