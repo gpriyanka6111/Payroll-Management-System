@@ -433,12 +433,13 @@ function PayrollReportContent() {
 
                 if (R === 0) {
                     currentStyle = {
+                        ...currentStyle,
                         font: { bold: true, sz: 14 },
                         alignment: { horizontal: 'center', vertical: 'center' },
                         ...thickBorderStyle
                     };
                 } else if (R === 1) {
-                    currentStyle = { ...currentStyle, ...thickBorderStyle, font: { bold: true } };
+                     currentStyle = { ...currentStyle, ...thickBorderStyle, font: { ...(currentStyle.font || {}), bold: true } };
                 }
 
                 const secondCellValue = ws[XLSX.utils.encode_cell({c:1, r:R})]?.v;
@@ -447,7 +448,7 @@ function PayrollReportContent() {
                         for (let c = 0; c <= range.e.c; c++) {
                             const totalCellRef = XLSX.utils.encode_cell({c, r: R});
                             if (!ws[totalCellRef]) ws[totalCellRef] = { t: 's', v: ''};
-                            ws[totalCellRef].s = { ...(ws[totalCellRef].s || {}), ...thickBorderStyle, ...boldFont };
+                            ws[totalCellRef].s = { ...(ws[totalCellRef].s || {}), ...thickBorderStyle, font: { ...(ws[totalCellRef].s?.font || {}), bold: true } };
                         }
                     } else if (C === 1 && (secondCellValue === 'In:' || secondCellValue === 'Out:')) {
                         currentStyle = { ...currentStyle, ...thickBorderStyle };
@@ -470,7 +471,7 @@ function PayrollReportContent() {
                 if (summaryMetrics.some(m => m.label === rowLabel && m.isBold)) {
                     const firstCellRef = XLSX.utils.encode_cell({ c: 0, r: R });
                     if (ws[firstCellRef]) {
-                        ws[firstCellRef].s = { ...(ws[firstCellRef].s || {}), ...boldFont };
+                        ws[firstCellRef].s = { ...(ws[firstCellRef].s || {}), font: { ...(ws[firstCellRef].s?.font || {}), bold: true } };
                     }
                 }
                 
@@ -484,10 +485,10 @@ function PayrollReportContent() {
                         const targetCellRef = XLSX.utils.encode_cell({c: i, r: R});
                         if (!ws[targetCellRef]) ws[targetCellRef] = { t: 's', v: '' };
                         const existingStyle = ws[targetCellRef].s || {};
-                        ws[targetCellRef].s = { ...existingStyle, ...thickBorderStyle, ...existingStyle };
+                        ws[targetCellRef].s = { ...existingStyle, ...thickBorderStyle };
                      }
                 }
-
+                
                 const lastDataRowLabel = ws_data[ws_data.length - 2]?.[0];
                 if(lastDataRowLabel === 'GP' && R === ws_data.length - 1){
                      for(let i = 0; i <= range.e.c; i++){
@@ -495,6 +496,10 @@ function PayrollReportContent() {
                         if (!ws[targetCellRef]) ws[targetCellRef] = { t: 's', v: '' };
                         ws[targetCellRef].s = { ...(ws[targetCellRef].s || {}), ...thickBorderStyle };
                      }
+                }
+
+                if (R === ws_data.length - 4 && C > 1) { // Employee name row in summary
+                     currentStyle = { ...currentStyle, font: { ...(currentStyle.font || {}), bold: true } };
                 }
                 
                 cell.s = currentStyle;
