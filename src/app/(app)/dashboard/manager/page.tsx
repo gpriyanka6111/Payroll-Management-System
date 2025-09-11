@@ -4,7 +4,7 @@
 import * as React from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, ListChecks, CalendarIcon, Package, Truck } from "lucide-react";
+import { Loader2, CalendarIcon, Package, Truck } from "lucide-react";
 import Link from 'next/link';
 import { useAuth } from '@/contexts/auth-context';
 import { collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
@@ -13,17 +13,12 @@ import type { Payroll } from '@/lib/types';
 import { format } from 'date-fns';
 import { getCurrentPayPeriod } from '@/lib/pay-period';
 import { LastPayrollChart } from '@/components/charts/last-payroll-chart';
+import { RemindersCard } from '@/components/dashboard/reminders-card';
 
-
-const formatCurrency = (amount: number | undefined) => {
-    if (amount === undefined) return '$0.00';
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
-};
 
 export default function ManagerDashboardPage() {
     const { user } = useAuth();
     const [lastPayroll, setLastPayroll] = React.useState<Payroll | null>(null);
-    const [employeeCount, setEmployeeCount] = React.useState<number>(0);
     const [isLoading, setIsLoading] = React.useState(true);
     const [payPeriod, setPayPeriod] = React.useState({ start: new Date(), end: new Date(), payDate: new Date() });
 
@@ -44,13 +39,8 @@ export default function ManagerDashboardPage() {
                 if (!payrollSnapshot.empty) {
                     setLastPayroll({ id: payrollSnapshot.docs[0].id, ...payrollSnapshot.docs[0].data() } as Payroll);
                 }
-
-                // Fetch employee count
-                const employeesRef = collection(db, 'users', user.uid, 'employees');
-                const employeeSnapshot = await getDocs(employeesRef);
-                setEmployeeCount(employeeSnapshot.size);
                 
-            } catch (error) {
+            } catch (error) => {
                 console.error("Error fetching manager dashboard data:", error);
             } finally {
                 setIsLoading(false);
@@ -60,11 +50,6 @@ export default function ManagerDashboardPage() {
         fetchData();
     }, [user]);
 
-    const topThingsToDo = [
-        
-    ];
-
-
     return (
         <div className="space-y-6">
             <div>
@@ -73,7 +58,7 @@ export default function ManagerDashboardPage() {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-                <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="lg:col-span-2 grid grid-cols-1 gap-6">
                      <Card>
                         <CardHeader>
                             <div className="flex justify-between items-center">
@@ -83,14 +68,14 @@ export default function ManagerDashboardPage() {
                                     <span>{format(new Date(), 'MMM dd, yyyy')}</span>
                                 </div>
                             </div>
-                            <CardDescription>The next payroll run that is due. Click the pay date to start.</CardDescription>
+                            <CardDescription>The next payroll run is due. Click the pay date to start.</CardDescription>
                         </CardHeader>
                         <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4 text-center">
                             <div>
                                 <p className="text-sm font-medium text-muted-foreground">Pay Period</p>
                                 <p className="text-lg font-semibold">{format(payPeriod.start, 'MMM dd')} - {format(payPeriod.end, 'MMM dd, yyyy')}</p>
                             </div>
-                            <Link href={`/dashboard/manager/payroll/run?from=${format(payPeriod.start, 'yyyy-MM-dd')}&to=${format(payPeriod.end, 'yyyy-MM-dd')}`} className="block rounded-lg p-4 -m-4 transition-all hover:bg-muted/50">
+                             <Link href={`/dashboard/manager/payroll/run?from=${format(payPeriod.start, 'yyyy-MM-dd')}&to=${format(payPeriod.end, 'yyyy-MM-dd')}`} className="block rounded-lg p-4 -m-4 transition-all hover:bg-muted/50">
                                 <p className="text-sm font-medium text-primary">Pay Date</p>
                                 <p className="text-lg font-semibold text-primary">{format(payPeriod.payDate, 'MMM dd, yyyy')}</p>
                             </Link>
@@ -99,6 +84,9 @@ export default function ManagerDashboardPage() {
                     <Card>
                         <CardHeader>
                            <CardTitle>Last Payroll</CardTitle>
+                             <CardDescription>
+                                {isLoading ? 'Loading...' : lastPayroll ? `Pay period from ${format(new Date(lastPayroll.fromDate.replace(/-/g, '/')), 'MMM dd')} to ${format(new Date(lastPayroll.toDate.replace(/-/g, '/')), 'MMM dd')}` : 'No history found.'}
+                            </CardDescription>
                         </CardHeader>
                         <CardContent>
                              {isLoading ? (
@@ -112,12 +100,6 @@ export default function ManagerDashboardPage() {
                                             <p className="text-sm text-muted-foreground">Pay Date</p>
                                             <p className="font-semibold">
                                                 {lastPayroll.payDate ? format(new Date(lastPayroll.payDate.replace(/-/g, '/')), 'MM/dd/yyyy') : 'N/A'}
-                                            </p>
-                                        </div>
-                                         <div className="text-right">
-                                            <p className="text-sm text-muted-foreground">Pay Period</p>
-                                            <p className="font-semibold">
-                                                 {format(new Date(lastPayroll.fromDate.replace(/-/g, '/')), 'MM/dd')} → {format(new Date(lastPayroll.toDate.replace(/-/g, '/')), 'MM/dd')}
                                             </p>
                                         </div>
                                     </div>
@@ -149,21 +131,7 @@ export default function ManagerDashboardPage() {
 
                 {/* Right Column */}
                 <div className="lg:col-span-1 space-y-6">
-                   <Card>
-                        <CardHeader>
-                            <CardTitle className="flex items-center">
-                                <ListChecks className="mr-2 h-5 w-5"/>
-                                Top Things To Do
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <ul className="space-y-3 list-disc list-inside text-sm text-muted-foreground">
-                                {topThingsToDo.map((item, index) => (
-                                    <li key={index}>{item}</li>
-                                ))}
-                            </ul>
-                        </CardContent>
-                    </Card>
+                   <RemindersCard />
                 </div>
             </div>
         </div>
