@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import * as React from 'react';
@@ -26,7 +27,8 @@ const formatCurrency = (amount: unknown) => {
     if (isNaN(num)) {
         return '$ --.--';
     }
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(num);
+    // Using 'en-IN' locale adds a space after the currency symbol, then we replace rupee with dollar.
+    return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'USD' }).format(num);
 };
 
 const formatHours = (hours: unknown): string => {
@@ -412,6 +414,10 @@ function PayrollReportContent() {
         const thickBorderStyle = { 
             border: { top: { style: "thick" }, bottom: { style: "thick" }, left: { style: "thick" }, right: { style: "thick" } }
         };
+
+        const blueFill = { fill: { fgColor: { rgb: "ADD8E6" } } }; // Light Blue
+        const yellowFill = { fill: { fgColor: { rgb: "FFFF00" } } }; // Yellow
+        const redFill = { fill: { fgColor: { rgb: "FFC7CE" } } }; // Light Red
         
         const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
 
@@ -446,9 +452,17 @@ function PayrollReportContent() {
                     }
                 }
 
-                // Apply thick right border to employee time cells
                 if (C > 1 && secondCellValue && (secondCellValue === 'In:' || secondCellValue === 'Out:')) {
                      currentStyle.border = { ...(currentStyle.border || {}), right: { style: "thick" } };
+                }
+                
+                const rowLabel = ws_data[R]?.[0] as string;
+                if (rowLabel === 'Total Hours') {
+                    currentStyle = { ...currentStyle, ...blueFill };
+                } else if (rowLabel === 'GROSS CHECK AMOUNT') {
+                    currentStyle = { ...currentStyle, ...yellowFill };
+                } else if (rowLabel === 'GROSS OTHER AMOUNT') {
+                    currentStyle = { ...currentStyle, ...redFill };
                 }
                 
                 const summaryRowLabels = new Set([
@@ -456,11 +470,12 @@ function PayrollReportContent() {
                     'RATE/OTHERS', 'OTHER-ADJ$', 'GROSS CHECK AMOUNT', 'GROSS OTHER AMOUNT', 'GP'
                 ]);
 
-                if (summaryRowLabels.has(ws_data[R]?.[0] as string)) {
+                if (summaryRowLabels.has(rowLabel)) {
                      for(let i = 0; i <= range.e.c; i++){
                         const targetCellRef = XLSX.utils.encode_cell({c: i, r: R});
                         if (!ws[targetCellRef]) ws[targetCellRef] = { t: 's', v: '' };
-                        ws[targetCellRef].s = { ...(ws[targetCellRef].s || {}), ...thickBorderStyle };
+                        const existingStyle = ws[targetCellRef].s || {};
+                        ws[targetCellRef].s = { ...existingStyle, ...thickBorderStyle, ...existingStyle };
                      }
                 }
 
