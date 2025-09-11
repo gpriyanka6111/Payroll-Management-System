@@ -28,7 +28,7 @@ const formatCurrency = (amount: unknown) => {
         return '$ --.--';
     }
     // Using 'en-IN' locale adds a space after the currency symbol, then we replace rupee with dollar.
-    return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'USD' }).format(num);
+    return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'USD' }).format(num).replace('₹', '$ ');
 };
 
 const formatHours = (hours: unknown): string => {
@@ -340,13 +340,13 @@ function PayrollReportContent() {
         const grandTotalRow: (string | number | null)[] = ['Total Hours', null, ...employeeTotals.map(t => t > 0 ? parseFloat(t.toFixed(2)) : '')];
         ws_data.push(grandTotalRow);
         
-        const summaryMetrics: { label: string; key: keyof EmployeePayrollInput | keyof PayrollResult; type: 'input' | 'result'; format?: 'currency' | 'hours' }[] = [
-            { label: 'COMMENTS', key: 'comment', type: 'input' },
-            { label: 'CHECK HOURS', key: 'checkHours', type: 'input', format: 'hours' },
-            { label: 'OTHER HOURS', key: 'otherHours', type: 'input', format: 'hours' },
-            { label: 'RATE/CHECK', key: 'payRateCheck', type: 'result', format: 'currency' },
-            { label: 'RATE/OTHERS', key: 'payRateOthers', type: 'result', format: 'currency' },
-            { label: 'OTHER-ADJ$', key: 'otherAdjustment', type: 'result', format: 'currency' },
+        const summaryMetrics: { label: string; key: keyof EmployeePayrollInput | keyof PayrollResult; type: 'input' | 'result'; format?: 'currency' | 'hours'; isBold?: boolean }[] = [
+            { label: 'COMMENTS', key: 'comment', type: 'input', isBold: true },
+            { label: 'CHECK HOURS', key: 'checkHours', type: 'input', format: 'hours', isBold: true },
+            { label: 'OTHER HOURS', key: 'otherHours', type: 'input', format: 'hours', isBold: true },
+            { label: 'RATE/CHECK', key: 'payRateCheck', type: 'result', format: 'currency', isBold: true },
+            { label: 'RATE/OTHERS', key: 'payRateOthers', type: 'result', format: 'currency', isBold: true },
+            { label: 'OTHER-ADJ$', key: 'otherAdjustment', type: 'result', format: 'currency', isBold: true },
         ];
         
         summaryMetrics.forEach(metric => {
@@ -419,6 +419,8 @@ function PayrollReportContent() {
         const yellowFill = { fill: { fgColor: { rgb: "FFFF00" } } }; // Yellow
         const redFill = { fill: { fgColor: { rgb: "FFC7CE" } } }; // Light Red
         
+        const boldFont = { font: { bold: true } };
+
         const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
 
         for (let R = range.s.r; R <= range.e.r; ++R) {
@@ -436,7 +438,7 @@ function PayrollReportContent() {
                         ...thickBorderStyle
                     };
                 } else if (R === 1) {
-                    currentStyle = { ...currentStyle, ...thickBorderStyle };
+                    currentStyle = { ...currentStyle, ...thickBorderStyle, font: { bold: true } };
                 }
 
                 const secondCellValue = ws[XLSX.utils.encode_cell({c:1, r:R})]?.v;
@@ -445,7 +447,7 @@ function PayrollReportContent() {
                         for (let c = 0; c <= range.e.c; c++) {
                             const totalCellRef = XLSX.utils.encode_cell({c, r: R});
                             if (!ws[totalCellRef]) ws[totalCellRef] = { t: 's', v: ''};
-                            ws[totalCellRef].s = { ...(ws[totalCellRef].s || {}), ...thickBorderStyle };
+                            ws[totalCellRef].s = { ...(ws[totalCellRef].s || {}), ...thickBorderStyle, ...boldFont };
                         }
                     } else if (C === 1 && (secondCellValue === 'In:' || secondCellValue === 'Out:')) {
                         currentStyle = { ...currentStyle, ...thickBorderStyle };
@@ -463,6 +465,13 @@ function PayrollReportContent() {
                     currentStyle = { ...currentStyle, ...yellowFill };
                 } else if (rowLabel === 'GROSS OTHER AMOUNT') {
                     currentStyle = { ...currentStyle, ...redFill };
+                }
+
+                if (summaryMetrics.some(m => m.label === rowLabel && m.isBold)) {
+                    const firstCellRef = XLSX.utils.encode_cell({ c: 0, r: R });
+                    if (ws[firstCellRef]) {
+                        ws[firstCellRef].s = { ...(ws[firstCellRef].s || {}), ...boldFont };
+                    }
                 }
                 
                 const summaryRowLabels = new Set([
