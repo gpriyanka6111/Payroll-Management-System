@@ -8,7 +8,7 @@ import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import type { PayrollResult, EmployeePayrollInput } from '@/components/payroll/payroll-calculation';
 import { Payslip } from '@/components/payroll/payslip';
-import { format, startOfYear, eachDayOfInterval, isSameDay, getDay, isValid, parseISO } from 'date-fns';
+import { format, startOfYear, eachDayOfInterval, isSameDay, getDay, isValid, parseISO, parse } from 'date-fns';
 import { ArrowLeft, Users, Pencil, FileSpreadsheet } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -18,6 +18,8 @@ import { doc, getDoc, collection, getDocs, query, where, orderBy, Timestamp } fr
 import { db } from '@/lib/firebase';
 import Link from 'next/link';
 import * as XLSX from 'xlsx-js-style';
+import { getPayDateForPeriod } from '@/lib/pay-period';
+
 
 const formatCurrency = (amount: unknown) => {
     const num = Number(amount);
@@ -283,7 +285,11 @@ function PayrollReportContent() {
         const wb = XLSX.utils.book_new();
         const ws_data: (string | number | null)[][] = [];
         
-        ws_data.push([`${companyName} - Pay Period: ${format(period.from, 'LLL dd, yyyy')} - ${format(period.to, 'LLL dd, yyyy')}`]);
+        const payDate = getPayDateForPeriod(period.from);
+        const payDateStr = payDate ? `Pay Date: ${format(payDate, 'LLL dd, yyyy')}` : '';
+        const title = `${companyName} - Pay Period: ${format(period.from, 'LLL dd, yyyy')} - ${format(period.to, 'LLL dd, yyyy')} - ${payDateStr}`;
+
+        ws_data.push([title]);
         ws_data.push(['Date', 'Metric', ...inputs.map(i => i.name.toUpperCase())]);
         let currentRow = 2; // Start after header
     
