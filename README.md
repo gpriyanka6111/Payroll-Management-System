@@ -1,16 +1,33 @@
-# Payroll Management System
+# 💼 Payroll Management System
 
-A comprehensive, web-based application designed to streamline and automate payroll processes for businesses. It provides a user-friendly interface for managing employees, calculating payroll, and generating reports.
+A simplified **Payroll Management System** designed for small organizations with limited features.  
+The application calculates salaries based on hourly wages and provides administrators with tools to manage employees, track hours, and generate reports.
 
-## Uses of this Application
+---
 
-*   **Authentication:** Secure user login and registration.
-*   **Employee Management:** Add, edit, and view employee information.
-*   **Payroll Processing:** Run payroll, calculate taxes and deductions.
-*   **Reporting:** Generate payroll reports and payslips.
-*   **Dashboard:** An intuitive dashboard for a quick overview of payroll activities.
+## 🚀 Features
+- **Employee Management**: Add, update, and remove employee records.
+- **Time Tracking**: Record employee work hours (future option: fingerprint/QR login).
+- **Payroll Calculation**: Auto calculate salary based on hourly wages.
+- **Reporting**: Export payroll summaries for admins.
+- **Authentication & Roles**: Basic access control for admins vs employees.
+- **Frontend UI**: Clean and simple web interface.
 
-## Tech Stack
+---
 
-*   **Frontend:** Next.js, React, TypeScript, Tailwind CSS
-*   **Backend:** Firebase (for authentication and database)
+## 🧰 Tech Stack
+- **Frontend**: Next.js, React (Firebase Hosting for UI)  
+- **Backend**: Node.js with TypeScript (REST APIs)  
+- **Database**: MySQL, Firebase Firestore  
+- **Auth & Security**: Firebase Authentication  
+- **DevOps**: GitHub Actions, Docker
+
+---
+
+## 📦 Requirements
+- Node.js (>=18.x)
+- MySQL (or Firebase setup)
+- npm / yarn
+
+---
+
