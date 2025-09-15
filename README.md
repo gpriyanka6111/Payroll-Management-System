@@ -1,18 +1,33 @@
-# Payroll Management System - WorkRoll
+# 💼 Payroll Management System
 
-This WorkRoll is a modern, web-based platform designed to simplify and automate the complexities of payroll for any business. What makes it unique is its real-time, collaborative core, powered by a serverless architecture; this ensures that all data, from employee details to payroll calculations, is instantly synchronized for all users without needing a page refresh. This eliminates data conflicts and streamlines workflow, offering an all-in-one, intuitive dashboard for managing staff, processing payroll with automated deductions, and generating insightful reports, making it a highly efficient and reliable solution.
+A simplified **Payroll Management System** designed for small organizations with limited features.  
+The application calculates salaries based on hourly wages and provides administrators with tools to manage employees, track hours, and generate reports.
 
-## Uses of this Application
+---
 
-*   **Authentication:** Secure user login and registration.
-*   **Employee Management:** Add, edit, and view employee information.
-*   **Payroll Processing:** Run payroll, calculate taxes and deductions.
-*   **Reporting:** Generate payroll reports and payslips.
-*   **Dashboard:** An intuitive dashboard for a quick overview of payroll activities.
+## 🚀 Features
+- **Employee Management**: Add, update, and remove employee records.
+- **Time Tracking**: Record employee work hours (future option: fingerprint/QR login).
+- **Payroll Calculation**: Auto calculate salary based on hourly wages.
+- **Reporting**: Export payroll summaries for admins.
+- **Authentication & Roles**: Basic access control for admins vs employees.
+- **Frontend UI**: Clean and simple web interface.
 
-## Tech Stack
+---
 
-*   **Frontend:** Next.js, React, TypeScript, Tailwind CSS
-  
-*   **Backend:** Firebase (for authentication and database)
-For the Payroll Management System, I chose Firebase as the backend provider primarily for its ability to accelerate development and provide robust, scalable services without the need for managing server infrastructure.
+## 🧰 Tech Stack
+- **Frontend**: Next.js, React (Firebase Hosting for UI)  
+- **Backend**: Node.js with TypeScript (REST APIs)  
+- **Database**: MySQL, Firebase Firestore  
+- **Auth & Security**: Firebase Authentication  
+- **DevOps**: GitHub Actions, Docker
+
+---
+
+## 📦 Requirements
+- Node.js (>=18.x)
+- MySQL (or Firebase setup)
+- npm / yarn
+
+---
+
