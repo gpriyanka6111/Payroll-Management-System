@@ -511,17 +511,30 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
         });
         await batch.commit();
 
-        // 3. Save end date to local storage for next period automation
-        localStorage.setItem('lastPayrollEndDate', to.toISOString());
-        localStorage.removeItem('timesheetDateRange');
-
-        
         toast({
             title: `Payroll ${isEditMode ? 'Updated' : 'Approved'}`,
             description: "Payroll history saved and balances updated. Redirecting to report...",
         });
+        
+        // Save data to session storage for the report page
+        const summaryData = {
+          employer: summaryEmployer,
+          employee: summaryEmployee,
+          deductions: summaryDeductions,
+          netPay: summaryNetPay,
+        };
+        sessionStorage.setItem('payrollResultsData', JSON.stringify(payrollResults));
+        sessionStorage.setItem('payrollPeriodData', JSON.stringify({ from: from.toISOString(), to: to.toISOString() }));
+        sessionStorage.setItem('payrollInputData', JSON.stringify(currentInputs));
+        sessionStorage.setItem('companyName', companyName);
+        sessionStorage.setItem('payrollSummaryData', JSON.stringify(summaryData));
+        
+        // Pass the ID if it's a new payroll, otherwise the report page will use session data
+        const url = finalPayrollId
+            ? `/dashboard/manager/payroll/report?id=${finalPayrollId}`
+            : '/dashboard/manager/payroll/report';
 
-        router.push(`/dashboard/manager/payroll/report?id=${finalPayrollId}`);
+        router.push(url);
 
     } catch (error) {
         console.error("Failed to approve payroll:", error);
