@@ -39,3 +39,13 @@ export type Payroll = {
     summaryDeductions?: string;
     summaryNetPay?: string;
 };
+
+// Structure for storing holiday hour assignments
+// { "employeeId": { "YYYY-MM-DD": 8, "YYYY-MM-DD": 4 }, ... }
+export type HolidayAssignment = {
+  [employeeId: string]: {
+    [holidayDate: string]: number; // key is YYYY-MM-DD date string
+  };
+};
+
+    
