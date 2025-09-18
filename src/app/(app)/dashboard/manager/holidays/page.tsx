@@ -108,9 +108,9 @@ export default function HolidaysPage() {
     if (!user) return;
     try {
         const assignmentsDocRef = doc(db, 'users', user.uid, 'holidayAssignments', String(year));
-        // Using setDoc without merge will create the document if it doesn't exist,
-        // or overwrite it if it does. This is what we want because `dataToSave` is the complete state.
-        await setDoc(assignmentsDocRef, dataToSave); 
+        // Using setDoc with merge:true will create the document if it doesn't exist,
+        // or update it if it does. This is safer than a plain setDoc.
+        await setDoc(assignmentsDocRef, dataToSave, { merge: true }); 
         toast({
             title: "Saved",
             description: "Holiday assignments have been updated.",
