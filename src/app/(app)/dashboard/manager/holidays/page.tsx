@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/auth-context';
-import { collection, doc, getDoc, getDocs, onSnapshot, query, setDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, onSnapshot, query, setDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Employee, HolidayAssignment } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -28,75 +28,75 @@ export default function HolidaysPage() {
 
   React.useEffect(() => {
     if (!user || authLoading) {
-        if (!authLoading) setIsLoading(false);
-        return;
+      if (!authLoading) setIsLoading(false);
+      return;
     }
 
-    const fetchAndListen = async () => {
-        setIsLoading(true);
+    const loadData = async () => {
+      setIsLoading(true);
 
-        // Step 1: Get static holidays for the selected year.
-        setHolidays(getHolidaysForYear(year));
-        
-        // Step 2: Fetch Employees and listen for changes.
-        const employeesCollectionRef = collection(db, 'users', user.uid, 'employees');
-        const employeesQuery = query(employeesCollectionRef);
-        const employeeUnsubscribe = onSnapshot(employeesQuery, (snapshot) => {
-            const employeesData: Employee[] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
-            employeesData.sort((a, b) => a.firstName.localeCompare(b.firstName));
-            setEmployees(employeesData);
-        }, (error) => {
-            console.error("Error fetching employees:", error);
-            toast({ title: "Error", description: "Could not fetch employee data.", variant: "destructive" });
-        });
+      // 1. Get static holidays for the year
+      setHolidays(getHolidaysForYear(year));
 
-        // Step 3: Ensure holiday assignment document exists, then listen for changes.
-        const assignmentsDocRef = doc(db, 'users', user.uid, 'holidayAssignments', String(year));
-        
-        try {
-            const docSnap = await getDoc(assignmentsDocRef);
-            if (!docSnap.exists()) {
-                // Document doesn't exist, create it.
-                await setDoc(assignmentsDocRef, {});
-            }
-        } catch (error) {
-            console.error("Error ensuring assignment document exists:", error);
-            toast({ title: "Initialization Error", description: "Could not set up the holiday page.", variant: "destructive" });
-            setIsLoading(false);
-            return; // Stop execution if we can't create the doc
+      const assignmentsDocRef = doc(db, 'users', user.uid, 'holidayAssignments', String(year));
+      
+      // 2. Ensure the holiday assignment document for the year exists before setting up listeners
+      try {
+        const docSnap = await getDoc(assignmentsDocRef);
+        if (!docSnap.exists()) {
+          // Document doesn't exist, create it. This is a critical step.
+          await setDoc(assignmentsDocRef, {});
         }
+      } catch (error) {
+        console.error("Error ensuring assignment document exists:", error);
+        toast({ title: "Initialization Error", description: "Could not set up the holiday page.", variant: "destructive" });
+        setIsLoading(false);
+        return; // Stop if we can't create the essential document
+      }
 
-        const assignmentUnsubscribe = onSnapshot(assignmentsDocRef, (docSnap) => {
-            if (docSnap.exists()) {
-                setAssignments(docSnap.data());
-            } else {
-                setAssignments({}); // Should not happen after the check above, but good for safety
-            }
-            setIsLoading(false); // Set loading to false only after assignments are loaded
-        }, (error) => {
-            console.error("Error fetching holiday assignments:", error);
-            toast({ title: "Error", description: "Could not fetch holiday assignments.", variant: "destructive" });
-            setIsLoading(false);
-        });
+      // 3. Now that we know the document exists, set up the listeners
+      const employeesCollectionRef = collection(db, 'users', user.uid, 'employees');
+      const employeesQuery = query(employeesCollectionRef);
+      const employeeUnsubscribe = onSnapshot(employeesQuery, (snapshot) => {
+        const employeesData: Employee[] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
+        employeesData.sort((a, b) => a.firstName.localeCompare(b.firstName));
+        setEmployees(employeesData);
+      }, (error) => {
+        console.error("Error fetching employees:", error);
+        toast({ title: "Error", description: "Could not fetch employee data.", variant: "destructive" });
+      });
 
-        // Return a cleanup function to unsubscribe from all listeners
-        return () => {
-            employeeUnsubscribe();
-            assignmentUnsubscribe();
-        };
+      const assignmentUnsubscribe = onSnapshot(assignmentsDocRef, (docSnap) => {
+        if (docSnap.exists()) {
+          setAssignments(docSnap.data());
+        } else {
+          setAssignments({});
+        }
+        setIsLoading(false); // Data is ready
+      }, (error) => {
+        console.error("Error fetching holiday assignments:", error);
+        toast({ title: "Error", description: "Could not fetch holiday assignments.", variant: "destructive" });
+        setIsLoading(false);
+      });
+
+      // Return a cleanup function to unsubscribe from all listeners
+      return () => {
+        employeeUnsubscribe();
+        assignmentUnsubscribe();
+      };
     };
 
-    const cleanupPromise = fetchAndListen();
+    const cleanupPromise = loadData();
 
     return () => {
-        cleanupPromise.then(cleanup => {
-            if (cleanup) {
-                cleanup();
-            }
-        });
-        if (debounceTimeoutRef.current) {
-            clearTimeout(debounceTimeoutRef.current);
+      cleanupPromise.then(cleanup => {
+        if (cleanup) {
+          cleanup();
         }
+      });
+      if (debounceTimeoutRef.current) {
+        clearTimeout(debounceTimeoutRef.current);
+      }
     };
   }, [user, year, toast, authLoading]);
   
@@ -137,7 +137,7 @@ export default function HolidaysPage() {
     if (!user) return;
     try {
         const assignmentsDocRef = doc(db, 'users', user.uid, 'holidayAssignments', String(year));
-        // Using setDoc with merge:true will create the document if it doesn't exist,
+        // Using setDoc with merge will create the document if it doesn't exist,
         // or update it if it does. This is safer than a plain setDoc.
         await setDoc(assignmentsDocRef, dataToSave, { merge: true }); 
         toast({
