@@ -6,12 +6,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Star, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { getHolidaysForYear, Holiday } from '@/lib/holidays';
-import { format, isSameDay } from 'date-fns';
+import { format } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/auth-context';
-import { collection, doc, getDoc, getDocs, orderBy, query, setDoc, updateDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, orderBy, query, setDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Employee, HolidayAssignment } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -26,40 +26,43 @@ export default function HolidaysPage() {
   const [isLoading, setIsLoading] = React.useState(true);
   const debounceTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
 
-  const fetchHolidayData = React.useCallback(async () => {
-    if (!user) return;
-    setIsLoading(true);
-    try {
-      // Fetch employees
-      const employeesCollectionRef = collection(db, 'users', user.uid, 'employees');
-      const q = query(employeesCollectionRef, orderBy('firstName', 'asc'));
-      const employeesSnapshot = await getDocs(q);
-      const employeesData: Employee[] = employeesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
-      setEmployees(employeesData);
-
-      // Get holidays for the year
-      setHolidays(getHolidaysForYear(year));
-
-      // Fetch holiday assignments
-      const assignmentsDocRef = doc(db, 'users', user.uid, 'holidayAssignments', String(year));
-      const assignmentsSnap = await getDoc(assignmentsDocRef);
-      if (assignmentsSnap.exists()) {
-        setAssignments(assignmentsSnap.data());
-      } else {
-        setAssignments({});
-      }
-
-    } catch (error) {
-      console.error("Error fetching holiday data:", error);
-      toast({ title: "Error", description: "Could not fetch holiday data.", variant: "destructive" });
-    } finally {
-      setIsLoading(false);
-    }
-  }, [user, year, toast]);
-
   React.useEffect(() => {
+    const fetchHolidayData = async () => {
+      if (!user) return;
+      setIsLoading(true);
+      try {
+        // Step 1: Fetch Employees first to ensure the grid can be structured.
+        const employeesCollectionRef = collection(db, 'users', user.uid, 'employees');
+        const q = query(employeesCollectionRef, orderBy('firstName', 'asc'));
+        const employeesSnapshot = await getDocs(q);
+        const employeesData: Employee[] = employeesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
+        setEmployees(employeesData);
+
+        // Step 2: Get static holidays for the selected year.
+        setHolidays(getHolidaysForYear(year));
+
+        // Step 3: Ensure the holiday assignment document exists, then fetch it.
+        const assignmentsDocRef = doc(db, 'users', user.uid, 'holidayAssignments', String(year));
+        const assignmentsSnap = await getDoc(assignmentsDocRef);
+        
+        if (assignmentsSnap.exists()) {
+          setAssignments(assignmentsSnap.data());
+        } else {
+          // If it doesn't exist, create it with an empty object.
+          await setDoc(assignmentsDocRef, {});
+          setAssignments({});
+        }
+
+      } catch (error) {
+        console.error("Error fetching holiday data:", error);
+        toast({ title: "Error", description: "Could not fetch holiday data.", variant: "destructive" });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
     fetchHolidayData();
-  }, [fetchHolidayData]);
+  }, [user, year, toast]);
   
   const handleHoursChange = (employeeId: string, holidayDate: Date, hours: string) => {
     const holidayKey = format(holidayDate, 'yyyy-MM-dd');
@@ -74,6 +77,9 @@ export default function HolidaysPage() {
        newAssignments[employeeId][holidayKey] = numericHours;
     } else if (hours === '') {
        delete newAssignments[employeeId][holidayKey];
+       if (Object.keys(newAssignments[employeeId]).length === 0) {
+         delete newAssignments[employeeId];
+       }
     }
     
     setAssignments(newAssignments);
@@ -91,6 +97,7 @@ export default function HolidaysPage() {
     if (!user) return;
     try {
         const assignmentsDocRef = doc(db, 'users', user.uid, 'holidayAssignments', String(year));
+        // Use setDoc instead of updateDoc to handle cases where the object might be empty.
         await setDoc(assignmentsDocRef, dataToSave, { merge: true });
         toast({
             title: "Saved",
@@ -195,5 +202,3 @@ export default function HolidaysPage() {
     </div>
   );
 }
-
-    
