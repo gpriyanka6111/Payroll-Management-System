@@ -4,20 +4,20 @@
 import * as React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Star, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { Star, ChevronLeft, ChevronRight } from 'lucide-react';
 import { getHolidaysForYear, Holiday } from '@/lib/holidays';
 import { format } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/auth-context';
-import { collection, doc, getDoc, getDocs, orderBy, query, setDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, query, setDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Employee, HolidayAssignment } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export default function HolidaysPage() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { toast } = useToast();
   const [year, setYear] = React.useState(new Date().getFullYear());
   const [holidays, setHolidays] = React.useState<Holiday[]>([]);
@@ -28,28 +28,32 @@ export default function HolidaysPage() {
 
   React.useEffect(() => {
     const fetchHolidayData = async () => {
-      if (!user) return;
+      if (!user) {
+        setIsLoading(false);
+        return;
+      }
       setIsLoading(true);
       try {
-        // Step 1: Fetch Employees first to ensure the grid can be structured.
+        // Step 1: Fetch Employees.
         const employeesCollectionRef = collection(db, 'users', user.uid, 'employees');
-        const q = query(employeesCollectionRef, orderBy('firstName', 'asc'));
-        const employeesSnapshot = await getDocs(q);
+        const employeesSnapshot = await getDocs(employeesCollectionRef);
         const employeesData: Employee[] = employeesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
+        
+        // Step 2: Sort employees alphabetically by first name.
+        employeesData.sort((a, b) => a.firstName.localeCompare(b.firstName));
         setEmployees(employeesData);
 
-        // Step 2: Get static holidays for the selected year.
+        // Step 3: Get static holidays for the selected year.
         setHolidays(getHolidaysForYear(year));
 
-        // Step 3: Ensure the holiday assignment document exists, then fetch it.
+        // Step 4: Fetch holiday assignments for the year.
         const assignmentsDocRef = doc(db, 'users', user.uid, 'holidayAssignments', String(year));
         const assignmentsSnap = await getDoc(assignmentsDocRef);
         
         if (assignmentsSnap.exists()) {
           setAssignments(assignmentsSnap.data());
         } else {
-          // If it doesn't exist, create it with an empty object.
-          await setDoc(assignmentsDocRef, {});
+          // If no document exists, initialize with an empty object.
           setAssignments({});
         }
 
@@ -61,12 +65,17 @@ export default function HolidaysPage() {
       }
     };
     
-    fetchHolidayData();
-  }, [user, year, toast]);
+    // Wait for auth to finish before fetching data
+    if (!authLoading) {
+      fetchHolidayData();
+    }
+  }, [user, year, toast, authLoading]);
   
   const handleHoursChange = (employeeId: string, holidayDate: Date, hours: string) => {
     const holidayKey = format(holidayDate, 'yyyy-MM-dd');
-    const newAssignments = { ...assignments };
+    
+    // Create a deep copy to ensure state updates correctly
+    const newAssignments = JSON.parse(JSON.stringify(assignments));
 
     if (!newAssignments[employeeId]) {
       newAssignments[employeeId] = {};
@@ -76,46 +85,105 @@ export default function HolidaysPage() {
     if (!isNaN(numericHours) && numericHours >= 0) {
        newAssignments[employeeId][holidayKey] = numericHours;
     } else if (hours === '') {
-       delete newAssignments[employeeId][holidayKey];
-       if (Object.keys(newAssignments[employeeId]).length === 0) {
-         delete newAssignments[employeeId];
+       // Safely delete the property
+       if (newAssignments[employeeId]) {
+         delete newAssignments[employeeId][holidayKey];
+         if (Object.keys(newAssignments[employeeId]).length === 0) {
+           delete newAssignments[employeeId];
+         }
        }
     }
     
     setAssignments(newAssignments);
 
-    // Debounce the save operation
     if (debounceTimeoutRef.current) {
       clearTimeout(debounceTimeoutRef.current);
     }
     debounceTimeoutRef.current = setTimeout(() => {
       saveAssignments(newAssignments);
-    }, 1000); // Save after 1 second of inactivity
+    }, 1000);
   };
   
   const saveAssignments = async (dataToSave: HolidayAssignment) => {
     if (!user) return;
     try {
         const assignmentsDocRef = doc(db, 'users', user.uid, 'holidayAssignments', String(year));
-        // Use setDoc instead of updateDoc to handle cases where the object might be empty.
-        await setDoc(assignmentsDocRef, dataToSave, { merge: true });
+        // Using setDoc without merge will create the document if it doesn't exist,
+        // or overwrite it if it does. This is what we want because `dataToSave` is the complete state.
+        await setDoc(assignmentsDocRef, dataToSave); 
         toast({
             title: "Saved",
-            description: "Holiday assignments have been saved.",
+            description: "Holiday assignments have been updated.",
         });
     } catch (error) {
         console.error("Error saving assignments:", error);
-        toast({ title: "Error", description: "Could not save holiday assignments.", variant: "destructive" });
+        toast({ title: "Save Error", description: "Could not save assignments.", variant: "destructive" });
     }
   };
 
+  const handlePreviousYear = () => setYear(prevYear => prevYear - 1);
+  const handleNextYear = () => setYear(prevYear => prevYear + 1);
 
-  const handlePreviousYear = () => {
-    setYear(prevYear => prevYear - 1);
-  };
+  const renderContent = () => {
+    if (isLoading || authLoading) {
+      return (
+        <div className="space-y-2">
+           <Skeleton className="h-12 w-full" />
+           <Skeleton className="h-12 w-full" />
+           <Skeleton className="h-12 w-full" />
+        </div>
+      );
+    }
 
-  const handleNextYear = () => {
-    setYear(prevYear => prevYear + 1);
+    if (employees.length === 0) {
+      return (
+        <p className="text-center text-muted-foreground py-10">
+          No employees found. Please add an employee to assign holiday hours.
+        </p>
+      );
+    }
+
+    return (
+      <div className="overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="min-w-[250px] font-semibold sticky left-0 bg-card z-10">Holiday</TableHead>
+              {employees.map(emp => (
+                <TableHead key={emp.id} className="text-center min-w-[120px]">{emp.firstName}</TableHead>
+              ))}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {holidays.map((holiday) => (
+              <TableRow key={holiday.name}>
+                <TableCell className="font-medium sticky left-0 bg-card z-10">
+                  {holiday.name}
+                  <div className="text-xs text-muted-foreground">{format(holiday.date, 'MM/dd (EEEE)')}</div>
+                </TableCell>
+                {employees.map(emp => {
+                  const holidayKey = format(holiday.date, 'yyyy-MM-dd');
+                  const assignedHours = assignments[emp.id]?.[holidayKey] ?? '';
+                  return (
+                     <TableCell key={emp.id} className="text-center">
+                        <Input
+                          type="number"
+                          step="0.5"
+                          min="0"
+                          placeholder="0"
+                          className="w-20 text-center mx-auto"
+                          value={assignedHours}
+                          onChange={(e) => handleHoursChange(emp.id, holiday.date, e.target.value)}
+                        />
+                     </TableCell>
+                  )
+                })}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    );
   };
 
   return (
@@ -126,11 +194,11 @@ export default function HolidaysPage() {
             <p className="text-muted-foreground">Assign specific paid holiday hours for each employee.</p>
         </div>
         <div className="flex items-center gap-2">
-            <Button variant="outline" size="icon" onClick={handlePreviousYear}>
+            <Button variant="outline" size="icon" onClick={handlePreviousYear} disabled={isLoading || authLoading}>
                 <ChevronLeft className="h-4 w-4" />
             </Button>
             <span className="text-lg font-semibold w-24 text-center">{year}</span>
-            <Button variant="outline" size="icon" onClick={handleNextYear}>
+            <Button variant="outline" size="icon" onClick={handleNextYear} disabled={isLoading || authLoading}>
                 <ChevronRight className="h-4 w-4" />
             </Button>
         </div>
@@ -146,57 +214,7 @@ export default function HolidaysPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
-             <div className="space-y-2">
-                <Skeleton className="h-12 w-full" />
-                <Skeleton className="h-12 w-full" />
-                <Skeleton className="h-12 w-full" />
-             </div>
-          ) : employees.length > 0 ? (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="min-w-[250px] font-semibold sticky left-0 bg-card z-10">Holiday</TableHead>
-                    {employees.map(emp => (
-                      <TableHead key={emp.id} className="text-center min-w-[120px]">{emp.firstName}</TableHead>
-                    ))}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {holidays.map((holiday) => (
-                    <TableRow key={holiday.name}>
-                      <TableCell className="font-medium sticky left-0 bg-card z-10">
-                        {holiday.name}
-                        <div className="text-xs text-muted-foreground">{format(holiday.date, 'MM/dd (EEEE)')}</div>
-                      </TableCell>
-                      {employees.map(emp => {
-                        const holidayKey = format(holiday.date, 'yyyy-MM-dd');
-                        const assignedHours = assignments[emp.id]?.[holidayKey] ?? '';
-                        return (
-                           <TableCell key={emp.id} className="text-center">
-                              <Input
-                                type="number"
-                                step="0.5"
-                                min="0"
-                                placeholder="0"
-                                className="w-20 text-center mx-auto"
-                                value={assignedHours}
-                                onChange={(e) => handleHoursChange(emp.id, holiday.date, e.target.value)}
-                              />
-                           </TableCell>
-                        )
-                      })}
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-           ) : (
-            <p className="text-center text-muted-foreground py-10">
-              No employees found. Please add an employee to assign holiday hours.
-            </p>
-           )}
+          {renderContent()}
         </CardContent>
       </Card>
     </div>
