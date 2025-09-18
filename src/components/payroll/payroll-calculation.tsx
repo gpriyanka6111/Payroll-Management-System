@@ -466,7 +466,20 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
             };
         }
         
-        return { ...result, newVacationBalance, newHolidayBalance, newSickDayBalance };
+        // Sanitize all numeric fields to ensure they are not NaN
+        const sanitizedResult = Object.fromEntries(
+            Object.entries(result).map(([key, value]) => [
+                key,
+                typeof value === 'number' && isNaN(value) ? 0 : value
+            ])
+        ) as Omit<PayrollResult, 'newVacationBalance' | 'newHolidayBalance' | 'newSickDayBalance'>;
+
+        return { 
+            ...sanitizedResult, 
+            newVacationBalance: isNaN(newVacationBalance) ? 0 : newVacationBalance, 
+            newHolidayBalance: isNaN(newHolidayBalance) ? 0 : newHolidayBalance, 
+            newSickDayBalance: isNaN(newSickDayBalance) ? 0 : newSickDayBalance,
+        };
     });
   }
 
@@ -518,7 +531,7 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
         const payrollDocData: Omit<Payroll, 'id'> = {
             fromDate: format(from, 'yyyy-MM-dd'),
             toDate: format(to, 'yyyy-MM-dd'),
-            totalAmount: totalAmount,
+            totalAmount: isNaN(totalAmount) ? 0 : totalAmount,
             status: 'Completed',
             results: payrollResults,
             inputs: currentInputs,
@@ -845,5 +858,3 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
      </>
    );
 }
-
-    
