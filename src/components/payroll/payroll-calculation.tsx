@@ -474,16 +474,38 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
     );
   };
 
+  // Recursively convert undefined values to null for Firestore compatibility.
+  const sanitizeForFirestore = (data: any): any => {
+    if (Array.isArray(data)) {
+        return data.map(item => sanitizeForFirestore(item));
+    }
+    if (data !== null && typeof data === 'object') {
+        const sanitizedObject: { [key: string]: any } = {};
+        for (const key in data) {
+            if (Object.prototype.hasOwnProperty.call(data, key)) {
+                const value = data[key];
+                sanitizedObject[key] = value === undefined ? null : sanitizeForFirestore(value);
+            }
+        }
+        return sanitizedObject;
+    }
+    return data;
+  };
+
   async function handleApprovePayroll() {
     if (!user) {
         toast({ title: "Not Authenticated", variant: "destructive" });
         return;
     }
     setIsApproving(true);
-    const currentInputs = form.getValues().employees;
+    const currentInputs = getValues().employees;
+    
+    // Sanitize data before saving
+    const sanitizedInputs = sanitizeForFirestore(currentInputs);
+    const sanitizedResults = sanitizeForFirestore(payrollResults);
 
     try {
-        const totalAmount = payrollResults.reduce((sum, r) => sum + r.grossCheckAmount + r.grossOtherAmount, 0);
+        const totalAmount = sanitizedResults.reduce((sum: number, r: PayrollResult) => sum + r.grossCheckAmount + r.grossOtherAmount, 0);
         const payDate = getPayDateForPeriod(from);
         
         const payrollDocData: Omit<Payroll, 'id'> = {
@@ -491,8 +513,8 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
             toDate: format(to, 'yyyy-MM-dd'),
             totalAmount: isNaN(totalAmount) ? 0 : totalAmount,
             status: 'Completed',
-            results: payrollResults,
-            inputs: currentInputs,
+            results: sanitizedResults,
+            inputs: sanitizedInputs,
             summaryEmployer: summaryEmployer,
             summaryEmployee: summaryEmployee,
             summaryDeductions: summaryDeductions,
@@ -517,7 +539,7 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
 
         // 2. Update employee balances in a batch
         const batch = writeBatch(db);
-        payrollResults.forEach(result => {
+        sanitizedResults.forEach((result: PayrollResult) => {
             const employeeDocRef = doc(db, 'users', user.uid, 'employees', result.employeeId);
             batch.update(employeeDocRef, { 
                 vacationBalance: result.newVacationBalance,
@@ -539,9 +561,9 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
           deductions: summaryDeductions,
           netPay: summaryNetPay,
         };
-        sessionStorage.setItem('payrollResultsData', JSON.stringify(payrollResults));
+        sessionStorage.setItem('payrollResultsData', JSON.stringify(sanitizedResults));
         sessionStorage.setItem('payrollPeriodData', JSON.stringify({ from: from.toISOString(), to: to.toISOString() }));
-        sessionStorage.setItem('payrollInputData', JSON.stringify(currentInputs));
+        sessionStorage.setItem('payrollInputData', JSON.stringify(sanitizedInputs));
         sessionStorage.setItem('companyName', companyName);
         sessionStorage.setItem('payrollSummaryData', JSON.stringify(summaryData));
         
