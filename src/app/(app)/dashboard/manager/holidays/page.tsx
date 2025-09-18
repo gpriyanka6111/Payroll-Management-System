@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/auth-context';
-import { collection, doc, getDoc, getDocs, query, setDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, onSnapshot, query, setDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Employee, HolidayAssignment } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -27,48 +27,77 @@ export default function HolidaysPage() {
   const debounceTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
 
   React.useEffect(() => {
-    const fetchHolidayData = async () => {
-      if (!user) {
-        setIsLoading(false);
+    if (!user || authLoading) {
+        if (!authLoading) setIsLoading(false);
         return;
-      }
-      setIsLoading(true);
-      try {
-        // Step 1: Fetch Employees.
-        const employeesCollectionRef = collection(db, 'users', user.uid, 'employees');
-        const employeesSnapshot = await getDocs(employeesCollectionRef);
-        const employeesData: Employee[] = employeesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
-        
-        // Step 2: Sort employees alphabetically by first name.
-        employeesData.sort((a, b) => a.firstName.localeCompare(b.firstName));
-        setEmployees(employeesData);
+    }
 
-        // Step 3: Get static holidays for the selected year.
+    const fetchAndListen = async () => {
+        setIsLoading(true);
+
+        // Step 1: Get static holidays for the selected year.
         setHolidays(getHolidaysForYear(year));
-
-        // Step 4: Fetch holiday assignments for the year.
-        const assignmentsDocRef = doc(db, 'users', user.uid, 'holidayAssignments', String(year));
-        const assignmentsSnap = await getDoc(assignmentsDocRef);
         
-        if (assignmentsSnap.exists()) {
-          setAssignments(assignmentsSnap.data());
-        } else {
-          // If no document exists, initialize with an empty object.
-          setAssignments({});
+        // Step 2: Fetch Employees and listen for changes.
+        const employeesCollectionRef = collection(db, 'users', user.uid, 'employees');
+        const employeesQuery = query(employeesCollectionRef);
+        const employeeUnsubscribe = onSnapshot(employeesQuery, (snapshot) => {
+            const employeesData: Employee[] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
+            employeesData.sort((a, b) => a.firstName.localeCompare(b.firstName));
+            setEmployees(employeesData);
+        }, (error) => {
+            console.error("Error fetching employees:", error);
+            toast({ title: "Error", description: "Could not fetch employee data.", variant: "destructive" });
+        });
+
+        // Step 3: Ensure holiday assignment document exists, then listen for changes.
+        const assignmentsDocRef = doc(db, 'users', user.uid, 'holidayAssignments', String(year));
+        
+        try {
+            const docSnap = await getDoc(assignmentsDocRef);
+            if (!docSnap.exists()) {
+                // Document doesn't exist, create it.
+                await setDoc(assignmentsDocRef, {});
+            }
+        } catch (error) {
+            console.error("Error ensuring assignment document exists:", error);
+            toast({ title: "Initialization Error", description: "Could not set up the holiday page.", variant: "destructive" });
+            setIsLoading(false);
+            return; // Stop execution if we can't create the doc
         }
 
-      } catch (error) {
-        console.error("Error fetching holiday data:", error);
-        toast({ title: "Error", description: "Could not fetch holiday data.", variant: "destructive" });
-      } finally {
-        setIsLoading(false);
-      }
+        const assignmentUnsubscribe = onSnapshot(assignmentsDocRef, (docSnap) => {
+            if (docSnap.exists()) {
+                setAssignments(docSnap.data());
+            } else {
+                setAssignments({}); // Should not happen after the check above, but good for safety
+            }
+            setIsLoading(false); // Set loading to false only after assignments are loaded
+        }, (error) => {
+            console.error("Error fetching holiday assignments:", error);
+            toast({ title: "Error", description: "Could not fetch holiday assignments.", variant: "destructive" });
+            setIsLoading(false);
+        });
+
+        // Return a cleanup function to unsubscribe from all listeners
+        return () => {
+            employeeUnsubscribe();
+            assignmentUnsubscribe();
+        };
     };
-    
-    // Wait for auth to finish before fetching data
-    if (!authLoading) {
-      fetchHolidayData();
-    }
+
+    const cleanupPromise = fetchAndListen();
+
+    return () => {
+        cleanupPromise.then(cleanup => {
+            if (cleanup) {
+                cleanup();
+            }
+        });
+        if (debounceTimeoutRef.current) {
+            clearTimeout(debounceTimeoutRef.current);
+        }
+    };
   }, [user, year, toast, authLoading]);
   
   const handleHoursChange = (employeeId: string, holidayDate: Date, hours: string) => {
