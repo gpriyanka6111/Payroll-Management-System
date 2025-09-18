@@ -22,18 +22,17 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { cn } from '@/lib/utils';
-import { format, differenceInMinutes, eachDayOfInterval } from 'date-fns';
+import { format, differenceInMinutes } from 'date-fns';
 import { useRouter } from 'next/navigation';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { Textarea } from '../ui/textarea';
-import type { Employee, Payroll, HolidayAssignment } from '@/lib/types';
+import type { Employee, Payroll } from '@/lib/types';
 import { useAuth } from '@/contexts/auth-context';
-import { collection, getDocs, query, orderBy, addDoc, doc, updateDoc, writeBatch, getDoc, where, Timestamp, collectionGroup } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, addDoc, doc, updateDoc, writeBatch, getDoc, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Skeleton } from '../ui/skeleton';
 import { Label } from '../ui/label';
 import { getPayDateForPeriod } from '@/lib/pay-period';
-import { getHolidaysForYear } from '@/lib/holidays';
 
 const employeePayrollInputSchema = z.object({
   employeeId: z.string(),
@@ -215,46 +214,6 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
        }
    }, [user, from, to, setValue, toast]);
 
-   const autoPopulateHolidayHours = React.useCallback(async (employeesList: EmployeePayrollInput[]) => {
-        if (!user) return;
-        
-        const periodDays = eachDayOfInterval({ start: from, end: to });
-        const fromYear = from.getFullYear();
-        const toYear = to.getFullYear();
-
-        // Fetch assignments for all relevant years
-        const years = Array.from(new Set([fromYear, toYear]));
-        const assignmentsByYear: { [year: string]: HolidayAssignment } = {};
-        for (const year of years) {
-            const assignmentsDocRef = doc(db, 'users', user.uid, 'holidayAssignments', String(year));
-            const assignmentsSnap = await getDoc(assignmentsDocRef);
-            if (assignmentsSnap.exists()) {
-                assignmentsByYear[year] = assignmentsSnap.data() as HolidayAssignment;
-            }
-        }
-        
-        // Get all holidays for the relevant years
-        const holidays = years.flatMap(year => getHolidaysForYear(year));
-
-        employeesList.forEach((employee, index) => {
-            let totalHolidayHours = 0;
-            periodDays.forEach(day => {
-                const holiday = holidays.find(h => format(h.date, 'yyyy-MM-dd') === format(day, 'yyyy-MM-dd'));
-                if (holiday) {
-                    const year = day.getFullYear();
-                    const holidayKey = format(day, 'yyyy-MM-dd');
-                    const assignedHours = assignmentsByYear[year]?.[employee.employeeId]?.[holidayKey] ?? 0;
-                    totalHolidayHours += assignedHours;
-                }
-            });
-
-            if (totalHolidayHours > 0) {
-                setValue(`employees.${index}.hdHoursUsed`, totalHolidayHours, { shouldValidate: true, shouldDirty: true });
-            }
-        });
-
-   }, [user, from, to, setValue]);
-
    React.useEffect(() => {
     if (!user) return;
 
@@ -343,7 +302,6 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
           reset({ employees: formValues });
           if (formValues.length > 0) {
               await fetchHoursFromTimeEntries(formValues);
-              await autoPopulateHolidayHours(formValues);
           }
         }
       } catch (error) {
@@ -455,7 +413,7 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
                 checkHours,
                 otherHours,
                 vdHoursUsed: vdUsed,
-                hdHoursUsed: sdUsed,
+                hdHoursUsed: hdUsed,
                 sdHoursUsed: sdUsed,
                 payRateCheck,
                 payRateOthers,
@@ -672,7 +630,6 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
                             {fields.map((field, index) => {
                                 const isSalaried = watchedEmployees[index]?.payMethod === 'Salaried';
                                 let isDisabled = isSalaried && metric.key !== 'vdHoursUsed' && metric.key !== 'hdHoursUsed' && metric.key !== 'sdHoursUsed';
-                                if (metric.key === 'hdHoursUsed') isDisabled = true; // Always disable direct editing of HD hours
 
                                 return (
                                 <TableCell key={field.id} className="text-left p-2">
