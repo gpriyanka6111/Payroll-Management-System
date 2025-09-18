@@ -455,7 +455,7 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
                 checkHours,
                 otherHours,
                 vdHoursUsed: vdUsed,
-                hdHoursUsed: hdUsed,
+                hdHoursUsed: sdUsed,
                 sdHoursUsed: sdUsed,
                 payRateCheck,
                 payRateOthers,
@@ -515,10 +515,9 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
         const totalAmount = payrollResults.reduce((sum, r) => sum + r.grossCheckAmount + r.grossOtherAmount, 0);
         const payDate = getPayDateForPeriod(from);
         
-        const payrollDocData = {
+        const payrollDocData: Omit<Payroll, 'id'> = {
             fromDate: format(from, 'yyyy-MM-dd'),
             toDate: format(to, 'yyyy-MM-dd'),
-            payDate: payDate ? format(payDate, 'yyyy-MM-dd') : undefined,
             totalAmount: totalAmount,
             status: 'Completed',
             results: payrollResults,
@@ -528,6 +527,10 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
             summaryDeductions: summaryDeductions,
             summaryNetPay: summaryNetPay,
         };
+
+        if (payDate) {
+            payrollDocData.payDate = format(payDate, 'yyyy-MM-dd');
+        }
 
         let finalPayrollId = payrollId;
 
