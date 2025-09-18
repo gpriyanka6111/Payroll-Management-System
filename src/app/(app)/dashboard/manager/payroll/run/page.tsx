@@ -3,7 +3,7 @@
 
 import * as React from 'react';
 import { useSearchParams } from 'next/navigation';
-import { format, parse } from 'date-fns';
+import { format, parse, isValid, getYear } from 'date-fns';
 
 import { PayrollCalculation } from '@/components/payroll/payroll-calculation';
 import { Button } from '@/components/ui/button';
@@ -18,7 +18,8 @@ import { db } from '@/lib/firebase';
 import { useAuth } from '@/contexts/auth-context';
 import type { Payroll } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
-import { getYearlyPayPeriods } from '@/lib/pay-period';
+import { getYearlyPayPeriods, PayPeriod, getCurrentPayPeriod } from '@/lib/pay-period';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 function RunPayrollPageContent() {
   const { user } = useAuth();
@@ -35,9 +36,37 @@ function RunPayrollPageContent() {
   const [isFetchingRanges, setIsFetchingRanges] = React.useState(true);
   const [disabledDateRanges, setDisabledDateRanges] = React.useState<{ from: Date; to: Date }[]>([]);
   const [lastPayrollDate, setLastPayrollDate] = React.useState<string | null>(null);
+  const [payPeriods, setPayPeriods] = React.useState<PayPeriod[]>([]);
+  const [selectedPeriodValue, setSelectedPeriodValue] = React.useState('');
+
 
   const isEditMode = !!payrollId;
   const isPreselectedMode = !!fromParam && !!toParam;
+  
+  React.useEffect(() => {
+    const today = new Date();
+    const currentYear = getYear(today);
+    const periods = getYearlyPayPeriods(currentYear);
+    setPayPeriods(periods);
+  }, []);
+
+  const handlePeriodChange = (value: string) => {
+    setSelectedPeriodValue(value);
+    const [fromStr, toStr] = value.split('_');
+    const fromDate = parse(fromStr, 'yyyy-MM-dd', new Date());
+    const toDate = parse(toStr, 'yyyy-MM-dd', new Date());
+
+    if (isValid(fromDate) && isValid(toDate)) {
+        setFrom(fromDate);
+        setTo(toDate);
+        // Find the pay date for this pre-selected period
+        const currentPeriod = payPeriods.find(p => p.start.getTime() === fromDate.getTime());
+        if (currentPeriod) {
+            setPayDate(currentPeriod.payDate);
+        }
+    }
+  };
+
 
   // Handle URL parameters for pre-selected dates
   React.useEffect(() => {
@@ -53,20 +82,17 @@ function RunPayrollPageContent() {
               if (currentPeriod) {
                   setPayDate(currentPeriod.payDate);
               }
+              const value = `${format(fromDate, 'yyyy-MM-dd')}_${format(toDate, 'yyyy-MM-dd')}`;
+              setSelectedPeriodValue(value);
+
           } catch (error) {
               console.error("Error parsing dates from URL", error);
           }
       }
-  }, [fromParam, toParam, isPreselectedMode]);
+  }, [fromParam, toParam, isPreselectedMode, payPeriods]);
 
   // Fetch existing payroll ranges to disable dates and get the last payroll date
   React.useEffect(() => {
-    // Skip if dates are already set from URL
-    if (isPreselectedMode) {
-        setIsFetchingRanges(false);
-        return;
-    }
-
     if (!user) {
         setIsFetchingRanges(false);
         return;
@@ -93,7 +119,7 @@ function RunPayrollPageContent() {
           });
         setDisabledDateRanges(ranges);
 
-        // Get the most recent payroll for display and setting the next period
+        // Get the most recent payroll for display
         if (!allPayrollsSnapshot.empty) {
             const lastPayroll = allPayrollsSnapshot.docs[0].data();
             const [fromY, fromM, fromD] = lastPayroll.fromDate.split('-').map(Number);
@@ -101,38 +127,19 @@ function RunPayrollPageContent() {
             const fromDate = new Date(fromY, fromM - 1, fromD);
             const toDate = new Date(toY, toM - 1, toD);
             setLastPayrollDate(`${format(fromDate, 'LLL dd, y')} - ${format(toDate, 'LLL dd, y')}`);
-
-            if (!isEditMode) {
-                // Find the next official pay period from the calendar
-                const lastEndDate = toDate;
-                const payPeriodsForYear = getYearlyPayPeriods(lastEndDate.getFullYear());
-                const nextPeriod = payPeriodsForYear.find(p => p.start > lastEndDate);
-
-                if (nextPeriod) {
-                    setFrom(nextPeriod.start);
-                    setTo(nextPeriod.end);
-                    setPayDate(nextPeriod.payDate);
-                } else {
-                    // Handle case where next period is in the next year
-                    const nextYearPeriods = getYearlyPayPeriods(lastEndDate.getFullYear() + 1);
-                    if (nextYearPeriods.length > 0) {
-                         setFrom(nextYearPeriods[0].start);
-                         setTo(nextYearPeriods[0].end);
-                         setPayDate(nextYearPeriods[0].payDate);
-                    }
-                }
-            }
-        } else if (!isEditMode) {
-            // First payroll run, find the period for today
-            const today = new Date();
-            const payPeriodsForYear = getYearlyPayPeriods(today.getFullYear());
-            const currentPeriod = payPeriodsForYear.find(p => today >= p.start && today <= p.end) || payPeriodsForYear.find(p => today < p.start);
-            if (currentPeriod) {
-                 setFrom(currentPeriod.start);
-                 setTo(currentPeriod.end);
-                 setPayDate(currentPeriod.payDate);
-            }
         }
+        
+         // Set default period if not editing or pre-selected
+        if (!isEditMode && !isPreselectedMode) {
+            const today = new Date();
+            const currentPeriod = getCurrentPayPeriod(today);
+             if (currentPeriod) {
+                 const initialValue = `${format(currentPeriod.start, 'yyyy-MM-dd')}_${format(currentPeriod.end, 'yyyy-MM-dd')}`;
+                 setSelectedPeriodValue(initialValue);
+                 handlePeriodChange(initialValue);
+             }
+        }
+
 
       } catch (error) {
         console.error("Error fetching payroll data:", error);
@@ -140,8 +147,13 @@ function RunPayrollPageContent() {
         setIsFetchingRanges(false);
       }
     };
-
-    fetchPayrollData();
+    
+    // Only run this if we don't have dates from URL or edit mode
+    if (!isPreselectedMode && !isEditMode) {
+      fetchPayrollData();
+    } else {
+        setIsFetchingRanges(false);
+    }
   }, [user, isEditMode, isPreselectedMode]);
 
 
@@ -154,18 +166,18 @@ function RunPayrollPageContent() {
           if (docSnap.exists()) {
             const data = { id: docSnap.id, ...docSnap.data() } as Payroll;
             setInitialData(data);
-            const [fromY, fromM, fromD] = data.fromDate.split('-').map(Number);
-            const [toY, toM, toD] = data.toDate.split('-').map(Number);
-            setFrom(new Date(fromY, fromM - 1, fromD));
-            setTo(new Date(toY, toM - 1, toD));
-            
-            const payPeriodsForYear = getYearlyPayPeriods(new Date(fromY, fromM - 1, fromD).getFullYear());
-            const currentPeriod = payPeriodsForYear.find(p => p.start.getTime() === new Date(fromY, fromM - 1, fromD).getTime());
-            if (currentPeriod) {
-                setPayDate(currentPeriod.payDate);
+            const fromDate = parse(data.fromDate, 'yyyy-MM-dd', new Date());
+            const toDate = parse(data.toDate, 'yyyy-MM-dd', new Date());
+            setFrom(fromDate);
+            setTo(toDate);
+            if (data.payDate) {
+                setPayDate(parse(data.payDate, 'yyyy-MM-dd', new Date()));
+            } else {
+                const payPeriodsForYear = getYearlyPayPeriods(fromDate.getFullYear());
+                const currentPeriod = payPeriodsForYear.find(p => p.start.getTime() === fromDate.getTime());
+                if (currentPeriod) setPayDate(currentPeriod.payDate);
             }
           } else {
-            // Handle case where payroll is not found, e.g., redirect or show error
             console.error('No such payroll document!');
           }
         })
@@ -182,7 +194,6 @@ function RunPayrollPageContent() {
 
   const isDateDisabled = (date: Date) => {
     // When editing or pre-selected, no dates should be considered "disabled" by past payrolls.
-    // The date pickers themselves will be locked.
     if (isEditMode || isPreselectedMode) return false;
 
     for (const range of disabledDateRanges) {
@@ -238,11 +249,29 @@ function RunPayrollPageContent() {
                 <CardDescription>
                     {arePickersDisabled
                     ? 'The pay period for this run is locked.'
-                    : 'Choose the date range for this payroll run. Previously used dates are disabled.'}
+                    : 'Choose a pay period from the dropdown, or select a custom date range below.'}
                 </CardDescription>
                 </CardHeader>
                 <CardContent>
-                <div className="flex flex-wrap items-center gap-6">
+                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 items-end">
+                    <div className="lg:col-span-2">
+                        <Label>Select Official Pay Period</Label>
+                        <Select value={selectedPeriodValue} onValueChange={handlePeriodChange} disabled={arePickersDisabled}>
+                           <SelectTrigger>
+                               <SelectValue placeholder="Select a pay period..." />
+                           </SelectTrigger>
+                           <SelectContent>
+                               {payPeriods.map((period, index) => {
+                                   const value = `${format(period.start, 'yyyy-MM-dd')}_${format(period.end, 'yyyy-MM-dd')}`;
+                                   return (
+                                       <SelectItem key={index} value={value}>
+                                           {format(period.start, 'MM/dd/yy')} - {format(period.end, 'MM/dd/yy')} (Pay Date: {format(period.payDate, 'MM/dd/yy')})
+                                       </SelectItem>
+                                   )
+                               })}
+                           </SelectContent>
+                       </Select>
+                    </div>
                     <div className="flex items-end gap-4">
                         <div className="grid gap-2">
                         <Label htmlFor="from-date">From</Label>
@@ -252,13 +281,13 @@ function RunPayrollPageContent() {
                                 id="from-date"
                                 variant={'outline'}
                                 className={cn(
-                                'w-[240px] justify-start text-left font-normal',
+                                'w-full justify-start text-left font-normal',
                                 !from && 'text-muted-foreground'
                                 )}
                                 disabled={arePickersDisabled}
                             >
                                 <CalendarIcon className="mr-2 h-4 w-4" />
-                                {from ? format(from, 'LLL dd, y') : <span>Pick a start date</span>}
+                                {from ? format(from, 'LLL dd, y') : <span>Pick a date</span>}
                             </Button>
                             </PopoverTrigger>
                             <PopoverContent className="w-auto p-0" align="start">
@@ -266,7 +295,7 @@ function RunPayrollPageContent() {
                                 mode="single"
                                 selected={from}
                                 onSelect={setFrom}
-                                disabled={(date) => (to && date > to) || date > new Date() || arePickersDisabled || isDateDisabled(date)}
+                                disabled={(date) => (to && date > to) || arePickersDisabled || isDateDisabled(date)}
                                 initialFocus
                             />
                             </PopoverContent>
@@ -281,13 +310,13 @@ function RunPayrollPageContent() {
                                 id="to-date"
                                 variant={'outline'}
                                 className={cn(
-                                'w-[240px] justify-start text-left font-normal',
+                                'w-full justify-start text-left font-normal',
                                 !to && 'text-muted-foreground'
                                 )}
                                 disabled={arePickersDisabled}
                             >
                                 <CalendarIcon className="mr-2 h-4 w-4" />
-                                {to ? format(to, 'LLL dd, y') : <span>Pick an end date</span>}
+                                {to ? format(to, 'LLL dd, y') : <span>Pick a date</span>}
                             </Button>
                             </PopoverTrigger>
                             <PopoverContent className="w-auto p-0" align="start">
@@ -295,19 +324,41 @@ function RunPayrollPageContent() {
                                 mode="single"
                                 selected={to}
                                 onSelect={setTo}
-                                disabled={(date) => !from || date < from || date > new Date() || arePickersDisabled || isDateDisabled(date)}
+                                disabled={(date) => !from || date < from || arePickersDisabled || isDateDisabled(date)}
                                 initialFocus
                             />
                             </PopoverContent>
                         </Popover>
                         </div>
                     </div>
-                    {payDate && (
-                         <div className="border-l-4 border-primary pl-4">
-                            <p className="text-sm font-medium text-muted-foreground">Pay Date</p>
-                            <p className="text-lg font-semibold text-primary">{format(payDate, 'LLL dd, yyyy')}</p>
-                         </div>
-                    )}
+                    <div className="grid gap-2">
+                        <Label htmlFor="pay-date">Pay Date</Label>
+                         <Popover>
+                            <PopoverTrigger asChild>
+                            <Button
+                                id="pay-date"
+                                variant={'outline'}
+                                className={cn(
+                                'w-full justify-start text-left font-normal text-primary border-primary/50',
+                                !payDate && 'text-muted-foreground'
+                                )}
+                                 disabled={isEditMode}
+                            >
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {payDate ? format(payDate, 'LLL dd, y') : <span>Pick a date</span>}
+                            </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                                mode="single"
+                                selected={payDate}
+                                onSelect={setPayDate}
+                                disabled={isEditMode}
+                                initialFocus
+                            />
+                            </PopoverContent>
+                        </Popover>
+                    </div>
                 </div>
                 </CardContent>
             </Card>
@@ -353,3 +404,4 @@ export default function RunPayrollPage() {
     </React.Suspense>
   );
 }
+
