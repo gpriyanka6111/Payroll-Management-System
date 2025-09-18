@@ -5,7 +5,7 @@ import * as React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
 import { DollarSign } from 'lucide-react';
-import { format, startOfYear, endOfYear, startOfQuarter, endOfQuarter, getQuarter } from 'date-fns';
+import { format, startOfYear, endOfYear, startOfQuarter, endOfQuarter, getQuarter, parse } from 'date-fns';
 import { useAuth } from '@/contexts/auth-context';
 import { collection, query, orderBy, getDocs, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -13,9 +13,11 @@ import type { Employee, Payroll } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { getPayDateForPeriod } from '@/lib/pay-period';
 
 interface PayPeriodEarning {
     period: string; // "MM/dd/yy - MM/dd/yy"
+    payDate: string; // "MM/dd/yy"
     grossPay: number;
     grossCheckAmount: number;
     grossOtherAmount: number;
@@ -106,13 +108,23 @@ export default function YtdSummaryPage() {
               ytdTotals[result.employeeId].totalGrossCheckAmount += grossCheck;
               ytdTotals[result.employeeId].totalGrossOtherAmount += grossOther;
               
-              const [fromY, fromM, fromD] = payroll.fromDate.split('-').map(Number);
-              const [toY, toM, toD] = payroll.toDate.split('-').map(Number);
-              const fromDatePayroll = new Date(fromY, fromM - 1, fromD);
-              const toDatePayroll = new Date(toY, toM - 1, toD);
+              const fromDatePayroll = parse(payroll.fromDate, 'yyyy-MM-dd', new Date());
+              const toDatePayroll = parse(payroll.toDate, 'yyyy-MM-dd', new Date());
+              
+              let payDateStr = 'N/A';
+              if (payroll.payDate) {
+                  payDateStr = format(parse(payroll.payDate, 'yyyy-MM-dd', new Date()), 'MM/dd/yy');
+              } else {
+                  // Fallback to calculate from calendar if not stored on payroll doc
+                  const payDateFromCalendar = getPayDateForPeriod(fromDatePayroll);
+                  if (payDateFromCalendar) {
+                      payDateStr = format(payDateFromCalendar, 'MM/dd/yy');
+                  }
+              }
 
               ytdTotals[result.employeeId].payPeriods.push({
                   period: `${format(fromDatePayroll, 'MM/dd/yy')} - ${format(toDatePayroll, 'MM/dd/yy')}`,
+                  payDate: payDateStr,
                   grossPay: gross,
                   grossCheckAmount: grossCheck,
                   grossOtherAmount: grossOther,
@@ -232,6 +244,7 @@ export default function YtdSummaryPage() {
                                           <TableHeader>
                                               <TableRow>
                                                   <TableHead>Pay Period</TableHead>
+                                                  <TableHead>Pay Date</TableHead>
                                                   <TableHead className="text-right">Gross Check</TableHead>
                                                   <TableHead className="text-right">Gross Other</TableHead>
                                                   <TableHead className="text-right">Gross Pay</TableHead>
@@ -241,6 +254,7 @@ export default function YtdSummaryPage() {
                                               {employee.payPeriods.map((pp, index) => (
                                                   <TableRow key={index}>
                                                       <TableCell>{pp.period}</TableCell>
+                                                      <TableCell className="font-medium">{pp.payDate}</TableCell>
                                                       <TableCell className="text-right tabular-nums">{formatCurrency(pp.grossCheckAmount)}</TableCell>
                                                       <TableCell className="text-right tabular-nums">{formatCurrency(pp.grossOtherAmount)}</TableCell>
                                                       <TableCell className="text-right tabular-nums">{formatCurrency(pp.grossPay)}</TableCell>
