@@ -456,6 +456,10 @@ export default function TimesheetPage() {
         ws_data.push(grandTotalRow);
         
         const ws = XLSX.utils.aoa_to_sheet(ws_data);
+        
+        // Freeze the first 2 rows and first 2 columns
+        ws['!freeze'] = { xSplit: 2, ySplit: 2, topLeftCell: 'C3', activePane: 'bottomRight', state: 'frozen' };
+
         ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 1 + employees.length } }];
         ws['!cols'] = [{ wch: 15 }, { wch: 8 }, ...Array(employees.length).fill({ wch: 15 })];
 
@@ -477,7 +481,7 @@ export default function TimesheetPage() {
             <p className="text-muted-foreground">Review total logged hours for all employees.</p>
 
             <Card>
-                <div className="p-6 sticky top-0 z-40 bg-card/95 backdrop-blur-sm border-b">
+                <div className="p-6 sticky top-0 z-10 bg-card/95 backdrop-blur-sm border-b">
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                         <div className="flex-1">
                             <CardTitle>Time Log Summary</CardTitle>
@@ -518,11 +522,11 @@ export default function TimesheetPage() {
                         <div className="space-y-2 pt-6"><Skeleton className="h-12 w-full" /><Skeleton className="h-12 w-full" /><Skeleton className="h-12 w-full" /></div>
                     ) : employees.length > 0 ? (
                         <div className="border rounded-lg overflow-auto max-h-[calc(100vh-25rem)] mt-6">
-                            <Table>
-                                <TableHeader className="sticky top-0 z-30 bg-card">
+                            <Table className="relative">
+                                <TableHeader className="sticky top-0 z-20 bg-card">
                                     <TableRow>
-                                        <TableHead className="sticky left-0 bg-card z-20 w-[120px]">Date</TableHead>
-                                        <TableHead className="sticky left-[120px] bg-card z-20 w-[80px]">Metric</TableHead>
+                                        <TableHead className="sticky left-0 bg-card z-10 w-[120px] border-r">Date</TableHead>
+                                        <TableHead className="sticky left-[120px] bg-card z-10 w-[80px] border-r">Metric</TableHead>
                                         {employees.map(emp => (
                                             <TableHead key={emp.id} className="min-w-[200px] text-center">{emp.firstName}</TableHead>
                                         ))}
@@ -534,8 +538,8 @@ export default function TimesheetPage() {
                                         return (
                                             <React.Fragment key={day.toISOString()}>
                                                 <TableRow>
-                                                    <TableCell rowSpan={3} className="sticky left-0 bg-card z-10 font-medium align-top pt-3 border-b">{format(day, 'eee, MMM dd')}</TableCell>
-                                                    <TableCell className="sticky left-[120px] bg-card z-10 font-semibold text-muted-foreground p-2">In:</TableCell>
+                                                    <TableCell rowSpan={3} className="sticky left-0 bg-card z-10 font-medium align-top pt-3 border-b border-r">{format(day, 'eee, MMM dd')}</TableCell>
+                                                    <TableCell className="sticky left-[120px] bg-card z-10 font-semibold text-muted-foreground p-2 border-r">In:</TableCell>
                                                     {employees.map(emp => (
                                                         <TableCell key={`${emp.id}-in`} className="text-center p-1 min-w-[200px]">
                                                             {isEditMode ? (
@@ -553,7 +557,7 @@ export default function TimesheetPage() {
                                                     ))}
                                                 </TableRow>
                                                 <TableRow>
-                                                    <TableCell className="sticky left-[120px] bg-card z-10 font-semibold text-muted-foreground p-2">Out:</TableCell>
+                                                    <TableCell className="sticky left-[120px] bg-card z-10 font-semibold text-muted-foreground p-2 border-r">Out:</TableCell>
                                                     {employees.map(emp => (
                                                          <TableCell key={`${emp.id}-out`} className="text-center p-1 min-w-[200px]">
                                                             {isEditMode ? (
@@ -571,7 +575,7 @@ export default function TimesheetPage() {
                                                     ))}
                                                 </TableRow>
                                                  <TableRow>
-                                                    <TableCell className="sticky left-[120px] bg-card z-10 font-bold p-2">Total:</TableCell>
+                                                    <TableCell className="sticky left-[120px] bg-card z-10 font-bold p-2 border-r">Total:</TableCell>
                                                     {employees.map(emp => (
                                                         <TableCell key={`${emp.id}-total`} className="text-center font-bold tabular-nums p-2 min-w-[200px]">
                                                             {isEditMode
@@ -587,7 +591,7 @@ export default function TimesheetPage() {
                                         )
                                     })}
                                     <TableRow className="sticky bottom-0 bg-card z-10">
-                                        <TableCell colSpan={2} className="sticky left-0 bg-card z-10 font-bold p-2 text-right">Total Hours</TableCell>
+                                        <TableCell colSpan={2} className="sticky left-0 bg-card z-10 font-bold p-2 text-right border-r">Total Hours</TableCell>
                                         {employees.map(emp => (
                                             <TableCell key={emp.id} className="font-bold text-primary tabular-nums p-2 text-center min-w-[200px]">
                                                 {isEditMode ? calculateEmployeeTotal(emp.id).toFixed(2) : (employeeTotals.get(emp.id) || 0).toFixed(2)}
@@ -612,3 +616,5 @@ export default function TimesheetPage() {
         </div>
     );
 }
+
+    
