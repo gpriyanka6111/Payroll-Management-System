@@ -21,6 +21,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import * as XLSX from 'xlsx-js-style';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { getYearlyPayPeriods, PayPeriod, getCurrentPayPeriod } from '@/lib/pay-period';
+import { cn } from '@/lib/utils';
 
 interface TimeEntry {
     id: string;
@@ -37,10 +38,10 @@ interface DailySummary {
 }
 
 interface EditableCell {
-    in: string; // "HH:mm AM/PM"
-    out: string;
+    time: string; // "HH:mm"
+    period: 'AM' | 'PM' | '';
 }
-type EditableGridState = Record<string, Record<string, EditableCell>>; // { [employeeId]: { [dateKey]: { in, out } } }
+type EditableGridState = Record<string, Record<string, { in: EditableCell, out: EditableCell }>>;
 
 function PinDialog({ open, onOpenChange, onPinVerified, description }: { open: boolean, onOpenChange: (open: boolean) => void, onPinVerified: () => void, description: string }) {
     const [pin, setPin] = React.useState('');
@@ -110,11 +111,20 @@ function PinDialog({ open, onOpenChange, onPinVerified, description }: { open: b
     );
 }
 
-const parseTimeInput = (timeStr: string, date: Date): Date | null => {
-    if (!timeStr.trim()) return null;
-    const parsedDate = parse(timeStr, 'p', date);
+const parseTimeInput = (time: string, period: 'AM' | 'PM' | '', date: Date): Date | null => {
+    if (!time.trim() || !period) return null;
+    const timeStr = `${time} ${period}`;
+    const parsedDate = parse(timeStr, 'hh:mm a', date);
     return isValid(parsedDate) ? parsedDate : null;
 };
+
+const formatTimeForEdit = (date: Date | null | undefined): EditableCell => {
+    if (!date || !isValid(date)) return { time: '', period: '' };
+    return {
+        time: format(date, 'hh:mm'),
+        period: format(date, 'a') as 'AM' | 'PM'
+    }
+}
 
 export default function TimesheetPage() {
     const { user } = useAuth();
@@ -222,9 +232,15 @@ export default function TimesheetPage() {
                 const entry = summary?.entries[0]; // Simplified: only supports one entry per day for now.
                 
                 grid[emp.id][dayKey] = {
-                    in: entry?.timeIn ? format(entry.timeIn.toDate(), 'p') : '',
-                    out: entry?.timeOut ? format(entry.timeOut.toDate(), 'p') : ''
+                    in: formatTimeForEdit(entry?.timeIn?.toDate()),
+                    out: formatTimeForEdit(entry?.timeOut?.toDate()),
                 };
+                 if (grid[emp.id][dayKey].in.time && !grid[emp.id][dayKey].in.period) {
+                    grid[emp.id][dayKey].in.period = 'AM';
+                }
+                if (grid[emp.id][dayKey].out.time && !grid[emp.id][dayKey].out.period) {
+                    grid[emp.id][dayKey].out.period = 'PM';
+                }
             });
         });
         setEditableGrid(grid);
@@ -256,14 +272,40 @@ export default function TimesheetPage() {
         setIsPinDialogOpen(true);
     };
     
-    const handleCellChange = (employeeId: string, dateKey: string, field: 'in' | 'out', value: string) => {
+    const handleTimeInputChange = (employeeId: string, dateKey: string, field: 'in' | 'out', value: string) => {
+        const numbers = value.replace(/\D/g, '').substring(0, 4);
+        let formattedTime = numbers;
+        if (numbers.length > 2) {
+            formattedTime = `${numbers.substring(0, 2)}:${numbers.substring(2, 4)}`;
+        }
+        
+        setEditableGrid(prev => {
+            const newGrid = { ...prev };
+            if (!newGrid[employeeId]) newGrid[employeeId] = {};
+            if (!newGrid[employeeId][dateKey]) newGrid[employeeId][dateKey] = { in: { time: '', period: '' }, out: { time: '', period: '' } };
+
+            const currentPeriod = newGrid[employeeId][dateKey][field].period;
+            let newPeriod = currentPeriod;
+            if (formattedTime.length >= 2 && !currentPeriod) {
+                newPeriod = field === 'in' ? 'AM' : 'PM';
+            }
+
+            newGrid[employeeId][dateKey][field] = { time: formattedTime, period: newPeriod };
+            return newGrid;
+        });
+    };
+
+    const handlePeriodChangeForCell = (employeeId: string, dateKey: string, field: 'in' | 'out', period: 'AM' | 'PM') => {
         setEditableGrid(prev => ({
             ...prev,
             [employeeId]: {
                 ...prev[employeeId],
                 [dateKey]: {
                     ...prev[employeeId][dateKey],
-                    [field]: value
+                    [field]: {
+                        ...prev[employeeId][dateKey][field],
+                        period: period
+                    }
                 }
             }
         }));
@@ -285,8 +327,8 @@ export default function TimesheetPage() {
 
                     if (!editedCell) continue;
 
-                    const newTimeIn = parseTimeInput(editedCell.in, day);
-                    const newTimeOut = parseTimeInput(editedCell.out, day);
+                    const newTimeIn = parseTimeInput(editedCell.in.time, editedCell.in.period, day);
+                    const newTimeOut = parseTimeInput(editedCell.out.time, editedCell.out.period, day);
 
                     if (originalEntry) { // Existing entry needs update or deletion
                         if (newTimeIn) { // Update
@@ -324,11 +366,11 @@ export default function TimesheetPage() {
     const calculateTotalHours = (employeeId: string, date: Date) => {
         const dateKey = format(date, 'yyyy-MM-dd');
         const cell = editableGrid[employeeId]?.[dateKey];
-        if (!cell || !cell.in) return 0;
+        if (!cell) return 0;
 
-        const timeIn = parseTimeInput(cell.in, date);
-        const timeOut = parseTimeInput(cell.out, date);
-
+        const timeIn = parseTimeInput(cell.in.time, cell.in.period, date);
+        const timeOut = parseTimeInput(cell.out.time, cell.out.period, date);
+        
         if (timeIn && timeOut && timeOut > timeIn) {
             return differenceInMinutes(timeOut, timeIn) / 60;
         }
@@ -421,7 +463,7 @@ export default function TimesheetPage() {
                                         <TableHead className="w-[120px] sticky left-0 bg-card z-20">Date</TableHead>
                                         <TableHead className="w-[80px] sticky left-[120px] bg-card z-20">Metric</TableHead>
                                         {employees.map(emp => (
-                                            <TableHead key={emp.id} className="min-w-[150px] text-center">{emp.firstName}</TableHead>
+                                            <TableHead key={emp.id} className="min-w-[200px] text-center">{emp.firstName}</TableHead>
                                         ))}
                                     </TableRow>
                                 </TableHeader>
@@ -434,11 +476,17 @@ export default function TimesheetPage() {
                                                     <TableCell rowSpan={3} className="font-medium align-top pt-3 border-b sticky left-0 bg-card z-10 w-[120px]">{format(day, 'eee, MMM dd')}</TableCell>
                                                     <TableCell className="font-semibold text-muted-foreground p-2 sticky left-[120px] bg-card z-10 w-[80px]">In:</TableCell>
                                                     {employees.map(emp => (
-                                                        <TableCell key={`${emp.id}-in`} className="text-center p-1 min-w-[150px]">
+                                                        <TableCell key={`${emp.id}-in`} className="text-center p-1 min-w-[200px]">
                                                             {isEditMode ? (
-                                                                <Input value={editableGrid[emp.id]?.[dateKey]?.in || ''} onChange={(e) => handleCellChange(emp.id, dateKey, 'in', e.target.value)} className="h-8 text-center" placeholder="hh:mm am" />
+                                                                <div className="flex items-center gap-1">
+                                                                    <Input value={editableGrid[emp.id]?.[dateKey]?.in.time || ''} onChange={(e) => handleTimeInputChange(emp.id, dateKey, 'in', e.target.value)} className="h-8 text-center" placeholder="hh:mm" />
+                                                                    <div className="flex flex-col">
+                                                                        <Button size="icon" variant="ghost" className={cn("h-4 w-6 text-xs", editableGrid[emp.id]?.[dateKey]?.in.period === 'AM' && 'bg-accent text-accent-foreground')} onClick={() => handlePeriodChangeForCell(emp.id, dateKey, 'in', 'AM')}>AM</Button>
+                                                                        <Button size="icon" variant="ghost" className={cn("h-4 w-6 text-xs", editableGrid[emp.id]?.[dateKey]?.in.period === 'PM' && 'bg-accent text-accent-foreground')} onClick={() => handlePeriodChangeForCell(emp.id, dateKey, 'in', 'PM')}>PM</Button>
+                                                                    </div>
+                                                                </div>
                                                             ) : (
-                                                                <span>{editableGrid[emp.id]?.[dateKey]?.in || (dailySummaries.find(s => s.employeeId === emp.id && isSameDay(s.date, day))?.entries[0]?.timeIn ? format(dailySummaries.find(s => s.employeeId === emp.id && isSameDay(s.date, day))!.entries[0]!.timeIn.toDate(), 'p') : '-')}</span>
+                                                                <span>{dailySummaries.find(s => s.employeeId === emp.id && isSameDay(s.date, day))?.entries[0]?.timeIn ? format(dailySummaries.find(s => s.employeeId === emp.id && isSameDay(s.date, day))!.entries[0]!.timeIn.toDate(), 'p') : '-'}</span>
                                                             )}
                                                         </TableCell>
                                                     ))}
@@ -446,11 +494,17 @@ export default function TimesheetPage() {
                                                 <TableRow>
                                                     <TableCell className="font-semibold text-muted-foreground p-2 sticky left-[120px] bg-card z-10 w-[80px]">Out:</TableCell>
                                                     {employees.map(emp => (
-                                                         <TableCell key={`${emp.id}-out`} className="text-center p-1 min-w-[150px]">
+                                                         <TableCell key={`${emp.id}-out`} className="text-center p-1 min-w-[200px]">
                                                             {isEditMode ? (
-                                                                <Input value={editableGrid[emp.id]?.[dateKey]?.out || ''} onChange={(e) => handleCellChange(emp.id, dateKey, 'out', e.target.value)} className="h-8 text-center" placeholder="hh:mm pm"/>
+                                                                <div className="flex items-center gap-1">
+                                                                    <Input value={editableGrid[emp.id]?.[dateKey]?.out.time || ''} onChange={(e) => handleTimeInputChange(emp.id, dateKey, 'out', e.target.value)} className="h-8 text-center" placeholder="hh:mm"/>
+                                                                    <div className="flex flex-col">
+                                                                        <Button size="icon" variant="ghost" className={cn("h-4 w-6 text-xs", editableGrid[emp.id]?.[dateKey]?.out.period === 'AM' && 'bg-accent text-accent-foreground')} onClick={() => handlePeriodChangeForCell(emp.id, dateKey, 'out', 'AM')}>AM</Button>
+                                                                        <Button size="icon" variant="ghost" className={cn("h-4 w-6 text-xs", editableGrid[emp.id]?.[dateKey]?.out.period === 'PM' && 'bg-accent text-accent-foreground')} onClick={() => handlePeriodChangeForCell(emp.id, dateKey, 'out', 'PM')}>PM</Button>
+                                                                    </div>
+                                                                </div>
                                                             ) : (
-                                                                <span>{editableGrid[emp.id]?.[dateKey]?.out || (dailySummaries.find(s => s.employeeId === emp.id && isSameDay(s.date, day))?.entries[0]?.timeOut ? format(dailySummaries.find(s => s.employeeId === emp.id && isSameDay(s.date, day))!.entries[0]!.timeOut!.toDate(), 'p') : (dailySummaries.find(s => s.employeeId === emp.id && isSameDay(s.date, day))?.entries[0] ? <span className="text-accent font-semibold">ACTIVE</span> : '-'))}</span>
+                                                                <span>{dailySummaries.find(s => s.employeeId === emp.id && isSameDay(s.date, day))?.entries[0]?.timeOut ? format(dailySummaries.find(s => s.employeeId === emp.id && isSameDay(s.date, day))!.entries[0]!.timeOut!.toDate(), 'p') : (dailySummaries.find(s => s.employeeId === emp.id && isSameDay(s.date, day))?.entries[0] ? <span className="text-accent font-semibold">ACTIVE</span> : '-')}</span>
                                                             )}
                                                         </TableCell>
                                                     ))}
@@ -458,7 +512,7 @@ export default function TimesheetPage() {
                                                  <TableRow>
                                                     <TableCell className="font-bold p-2 sticky left-[120px] bg-card z-10 w-[80px]">Total:</TableCell>
                                                     {employees.map(emp => (
-                                                        <TableCell key={`${emp.id}-total`} className="text-center font-bold tabular-nums p-2 min-w-[150px]">
+                                                        <TableCell key={`${emp.id}-total`} className="text-center font-bold tabular-nums p-2 min-w-[200px]">
                                                             {isEditMode
                                                                 ? calculateTotalHours(emp.id, day).toFixed(2)
                                                                 : employeeTotals.get(emp.id) !== undefined
@@ -474,7 +528,7 @@ export default function TimesheetPage() {
                                     <TableRow>
                                         <TableCell colSpan={2} className="sticky left-0 bg-card z-10 font-bold p-2 text-right w-[200px]">Total Hours</TableCell>
                                         {employees.map(emp => (
-                                            <TableCell key={emp.id} className="font-bold text-primary tabular-nums p-2 text-center min-w-[150px]">
+                                            <TableCell key={emp.id} className="font-bold text-primary tabular-nums p-2 text-center min-w-[200px]">
                                                 {isEditMode ? calculateEmployeeTotal(emp.id).toFixed(2) : (employeeTotals.get(emp.id) || 0).toFixed(2)}
                                             </TableCell>
                                         ))}
