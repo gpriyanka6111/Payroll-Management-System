@@ -4,7 +4,7 @@
 import * as React from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, CalendarIcon, Package, Truck, PlayCircle } from "lucide-react";
+import { Loader2, CalendarIcon, Package, Truck, PlayCircle, CalendarClock } from "lucide-react";
 import Link from 'next/link';
 import { useAuth } from '@/contexts/auth-context';
 import { collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
@@ -14,12 +14,16 @@ import { format, parse } from 'date-fns';
 import { getCurrentPayPeriod } from '@/lib/pay-period';
 import { LastPayrollChart } from '@/components/charts/last-payroll-chart';
 import { RemindersCard } from '@/components/dashboard/reminders-card';
+import { runAutoEnrollment } from '@/ai/flows/auto-enrollment-flow';
+import { useToast } from '@/hooks/use-toast';
 
 
 export default function ManagerDashboardPage() {
     const { user } = useAuth();
+    const { toast } = useToast();
     const [lastPayroll, setLastPayroll] = React.useState<Payroll | null>(null);
     const [isLoading, setIsLoading] = React.useState(true);
+    const [isEnrolling, setIsEnrolling] = React.useState(false);
     const [payPeriod, setPayPeriod] = React.useState({ start: new Date(), end: new Date(), payDate: new Date() });
 
     React.useEffect(() => {
@@ -49,6 +53,32 @@ export default function ManagerDashboardPage() {
 
         fetchData();
     }, [user]);
+
+    const handleRunEnrollment = async () => {
+        if (!user) return;
+        setIsEnrolling(true);
+        try {
+            const result = await runAutoEnrollment(user.uid);
+            if (result.success) {
+                toast({
+                    title: "Auto-Enrollment Complete",
+                    description: result.message,
+                });
+            } else {
+                throw new Error(result.message);
+            }
+        } catch (error) {
+            console.error("Error running auto-enrollment:", error);
+            toast({
+                title: "Auto-Enrollment Failed",
+                description: "Could not generate time entries.",
+                variant: "destructive",
+            });
+        } finally {
+            setIsEnrolling(false);
+        }
+    };
+
 
     return (
         <div className="space-y-6">
@@ -138,6 +168,23 @@ export default function ManagerDashboardPage() {
 
                 {/* Right Column */}
                 <div className="lg:col-span-1 space-y-6">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Automation</CardTitle>
+                            <CardDescription>Run background tasks and automations.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <Button className="w-full" onClick={handleRunEnrollment} disabled={isEnrolling}>
+                                {isEnrolling ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CalendarClock className="mr-2 h-4 w-4" />}
+                                {isEnrolling ? 'Generating Entries...' : 'Run Auto-Enrollment'}
+                            </Button>
+                        </CardContent>
+                        <CardFooter>
+                            <p className="text-xs text-muted-foreground">
+                                This will generate time entries for the next week for all employees with auto-enrollment enabled.
+                            </p>
+                        </CardFooter>
+                    </Card>
                    <RemindersCard />
                 </div>
             </div>
