@@ -20,8 +20,10 @@ import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import * as XLSX from 'xlsx-js-style';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { getYearlyPayPeriods, PayPeriod, getCurrentPayPeriod } from '@/lib/pay-period';
+import { getYearlyPayPeriods, PayPeriod, getCurrentPayPeriod, getPayDateForPeriod } from '@/lib/pay-period';
 import { cn } from '@/lib/utils';
+import { applyRoundingRules } from '@/lib/time-rounding';
+
 
 interface TimeEntry {
     id: string;
@@ -385,8 +387,11 @@ export default function TimesheetPage() {
         const cell = editableGrid[employeeId]?.[dateKey];
         if (!cell) return 0;
 
-        const timeIn = parseTimeInput(cell.in.time, cell.in.period, date);
-        const timeOut = parseTimeInput(cell.out.time, cell.out.period, date);
+        let timeIn = parseTimeInput(cell.in.time, cell.in.period, date);
+        let timeOut = parseTimeInput(cell.out.time, cell.out.period, date);
+
+        if (timeIn) timeIn = applyRoundingRules(timeIn);
+        if (timeOut) timeOut = applyRoundingRules(timeOut);
         
         if (timeIn && timeOut && timeOut > timeIn) {
             return differenceInMinutes(timeOut, timeIn) / 60;
@@ -406,7 +411,9 @@ export default function TimesheetPage() {
                 .filter(s => s.employeeId === emp.id)
                 .reduce((acc, s) => acc + s.entries.reduce((dayTotal, entry) => {
                     if (entry.timeIn && entry.timeOut) {
-                        const minutes = differenceInMinutes(entry.timeOut.toDate(), entry.timeIn.toDate());
+                        const roundedIn = applyRoundingRules(entry.timeIn.toDate());
+                        const roundedOut = applyRoundingRules(entry.timeOut.toDate());
+                        const minutes = differenceInMinutes(roundedOut, roundedIn);
                         return dayTotal + (minutes > 0 ? minutes / 60 : 0);
                     }
                     return dayTotal;
@@ -417,16 +424,20 @@ export default function TimesheetPage() {
     }, [employees, dailySummaries]);
 
     const handleExportToExcel = () => {
-        if (!dateRange || !employees.length) return;
+        if (!dateRange?.from || !employees.length) return;
 
         const wb = XLSX.utils.book_new();
         const ws_data: (string | number | null)[][] = [];
         
-        const title = `${companyName} - Time Report: ${format(dateRange.from!, 'LLL dd, yyyy')} - ${format(dateRange.to!, 'LLL dd, yyyy')}`;
+        const payDate = getPayDateForPeriod(dateRange.from);
+        const payDateStr = payDate ? `Pay Date: ${format(payDate, 'LLL dd, yyyy')}` : '';
+        const title = `${companyName} - Time Report: ${format(dateRange.from, 'LLL dd, yyyy')} - ${format(dateRange.to, 'LLL dd, yyyy')} - ${payDateStr}`;
         ws_data.push([title]);
+        ws_data.push(null); // Blank row for spacing
+        
         ws_data.push(['Date', 'Metric', ...employees.map(e => e.firstName.toUpperCase())]);
 
-        const daysInPeriod = eachDayOfInterval({ start: dateRange.from!, end: dateRange.to! });
+        const daysInPeriod = eachDayOfInterval({ start: dateRange.from, end: dateRange.to });
         
         daysInPeriod.forEach(day => {
             const inRow: (string|number)[] = [format(day, 'eee, MMM dd'), 'In:'];
@@ -442,7 +453,9 @@ export default function TimesheetPage() {
                     inRow.push(format(entry.timeIn.toDate(), 'p'));
                     if (entry.timeOut) {
                         outRow.push(format(entry.timeOut.toDate(), 'p'));
-                        const minutes = differenceInMinutes(entry.timeOut.toDate(), entry.timeIn.toDate());
+                        const roundedIn = applyRoundingRules(entry.timeIn.toDate());
+                        const roundedOut = applyRoundingRules(entry.timeOut.toDate());
+                        const minutes = differenceInMinutes(roundedOut, roundedIn);
                         dailyTotal = minutes > 0 ? minutes / 60 : 0;
                     } else {
                         outRow.push('ACTIVE');
@@ -466,14 +479,21 @@ export default function TimesheetPage() {
         
         const ws = XLSX.utils.aoa_to_sheet(ws_data);
         
-        // Freeze the first 2 rows and first 2 columns
-        ws['!freeze'] = { xSplit: 2, ySplit: 2, topLeftCell: 'C3', activePane: 'bottomRight', state: 'frozen' };
-
-        ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 1 + employees.length } }];
+        ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 2 + employees.length - 1 } }];
         ws['!cols'] = [{ wch: 15 }, { wch: 8 }, ...Array(employees.length).fill({ wch: 15 })];
+        ws['!rows'] = [{ hpt: 25 }];
+
+        // Style the title
+        const titleCellRef = XLSX.utils.encode_cell({ c: 0, r: 0 });
+        if (ws[titleCellRef]) {
+            ws[titleCellRef].s = {
+                font: { bold: true, sz: 14 },
+                alignment: { horizontal: 'center', vertical: 'center' }
+            };
+        }
 
         XLSX.utils.book_append_sheet(wb, ws, "Timesheet");
-        const fileName = `Timesheet_${format(dateRange.from!, 'yyyy-MM-dd')}_to_${format(dateRange.to!, 'yyyy-MM-dd')}.xlsx`;
+        const fileName = `Timesheet_${format(dateRange.from, 'yyyy-MM-dd')}_to_${format(dateRange.to, 'yyyy-MM-dd')}.xlsx`;
         XLSX.writeFile(wb, fileName);
     };
 
@@ -593,16 +613,25 @@ export default function TimesheetPage() {
                                                     </TableRow>
                                                     <TableRow>
                                                         <TableCell className="sticky left-[120px] bg-card z-10 font-bold p-2 w-[80px]">Total:</TableCell>
-                                                        {employees.map(emp => (
-                                                            <TableCell key={`${emp.id}-total`} className="text-center font-bold tabular-nums p-2 min-w-[200px]">
-                                                                {isEditMode
-                                                                    ? calculateTotalHours(emp.id, day).toFixed(2)
-                                                                    : employeeTotals.get(emp.id) !== undefined
-                                                                        ? (dailySummaries.find(s => s.employeeId === emp.id && isSameDay(s.date, day))?.entries.reduce((acc, entry) => acc + (entry.timeOut ? differenceInMinutes(entry.timeOut.toDate(), entry.timeIn.toDate()) / 60 : 0), 0) || 0).toFixed(2)
-                                                                        : '0.00'
+                                                        {employees.map(emp => {
+                                                            let dailyTotal = 0;
+                                                            if (isEditMode) {
+                                                                dailyTotal = calculateTotalHours(emp.id, day);
+                                                            } else {
+                                                                const summary = dailySummaries.find(s => s.employeeId === emp.id && isSameDay(s.date, day));
+                                                                if (summary && summary.entries[0]?.timeIn && summary.entries[0]?.timeOut) {
+                                                                    const roundedIn = applyRoundingRules(summary.entries[0].timeIn.toDate());
+                                                                    const roundedOut = applyRoundingRules(summary.entries[0].timeOut.toDate());
+                                                                    const minutes = differenceInMinutes(roundedOut, roundedIn);
+                                                                    dailyTotal = minutes > 0 ? minutes / 60 : 0;
                                                                 }
-                                                            </TableCell>
-                                                        ))}
+                                                            }
+                                                            return (
+                                                                <TableCell key={`${emp.id}-total`} className="text-center font-bold tabular-nums p-2 min-w-[200px]">
+                                                                    {dailyTotal.toFixed(2)}
+                                                                </TableCell>
+                                                            )
+                                                        })}
                                                     </TableRow>
                                                 </React.Fragment>
                                             )
@@ -634,5 +663,3 @@ export default function TimesheetPage() {
         </div>
     );
 }
-
-    
