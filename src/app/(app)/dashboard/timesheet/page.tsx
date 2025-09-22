@@ -416,7 +416,7 @@ export default function TimesheetPage() {
             <p className="text-muted-foreground">Review total logged hours for all employees.</p>
 
             <Card>
-                <CardHeader>
+                <CardHeader className="sticky top-0 z-40 bg-card/95 backdrop-blur-sm">
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                         <div className="flex-1">
                             <CardTitle>Time Log Summary</CardTitle>
@@ -456,7 +456,7 @@ export default function TimesheetPage() {
                     {isLoading ? (
                         <div className="space-y-2"><Skeleton className="h-12 w-full" /><Skeleton className="h-12 w-full" /><Skeleton className="h-12 w-full" /></div>
                     ) : employees.length > 0 ? (
-                        <div className="border rounded-lg overflow-x-auto">
+                        <div className="border rounded-lg overflow-auto max-h-[calc(100vh-20rem)]">
                             <Table>
                                 <TableHeader>
                                     <TableRow>
@@ -526,9 +526,9 @@ export default function TimesheetPage() {
                                         )
                                     })}
                                     <TableRow>
-                                        <TableCell colSpan={2} className="sticky left-0 bg-card z-20 font-bold p-2 text-right">Total Hours</TableCell>
+                                        <TableCell colSpan={2} className="sticky bottom-0 left-0 bg-card z-20 font-bold p-2 text-right">Total Hours</TableCell>
                                         {employees.map(emp => (
-                                            <TableCell key={emp.id} className="font-bold text-primary tabular-nums p-2 text-center min-w-[200px]">
+                                            <TableCell key={emp.id} className="sticky bottom-0 bg-card font-bold text-primary tabular-nums p-2 text-center min-w-[200px]">
                                                 {isEditMode ? calculateEmployeeTotal(emp.id).toFixed(2) : (employeeTotals.get(emp.id) || 0).toFixed(2)}
                                             </TableCell>
                                         ))}
@@ -551,5 +551,3 @@ export default function TimesheetPage() {
         </div>
     );
 }
-
-    
