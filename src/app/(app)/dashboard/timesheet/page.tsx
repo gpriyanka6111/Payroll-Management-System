@@ -140,6 +140,15 @@ export default function TimesheetPage() {
     const [isPinDialogOpen, setIsPinDialogOpen] = React.useState(false);
     const [pinAction, setPinAction] = React.useState<'enable_edit' | 'save_changes' | null>(null);
     const [companyName, setCompanyName] = React.useState('Your Company');
+    const headerRef = React.useRef<HTMLDivElement>(null);
+    const bodyRef = React.useRef<HTMLDivElement>(null);
+
+
+    const handleScroll = () => {
+        if (headerRef.current && bodyRef.current) {
+            headerRef.current.scrollLeft = bodyRef.current.scrollLeft;
+        }
+    };
 
 
     React.useEffect(() => {
@@ -517,89 +526,98 @@ export default function TimesheetPage() {
                         </div>
                     </div>
                 </div>
-                <CardContent className="pt-0">
+                <CardContent className="pt-6">
                     {isLoading ? (
-                        <div className="space-y-2 pt-6"><Skeleton className="h-12 w-full" /><Skeleton className="h-12 w-full" /><Skeleton className="h-12 w-full" /></div>
+                        <div className="space-y-2"><Skeleton className="h-12 w-full" /><Skeleton className="h-12 w-full" /><Skeleton className="h-12 w-full" /></div>
                     ) : employees.length > 0 ? (
-                        <div className="border rounded-lg overflow-auto max-h-[calc(100vh-25rem)] mt-6">
-                            <Table className="relative">
-                                <TableHeader className="sticky top-0 z-20 bg-card">
-                                    <TableRow>
-                                        <TableHead className="sticky left-0 bg-card z-10 w-[120px] border-r">Date</TableHead>
-                                        <TableHead className="sticky left-[120px] bg-card z-10 w-[80px] border-r">Metric</TableHead>
-                                        {employees.map(emp => (
-                                            <TableHead key={emp.id} className="min-w-[200px] text-center">{emp.firstName}</TableHead>
-                                        ))}
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {days.map(day => {
-                                        const dateKey = format(day, 'yyyy-MM-dd');
-                                        return (
-                                            <React.Fragment key={day.toISOString()}>
-                                                <TableRow>
-                                                    <TableCell rowSpan={3} className="sticky left-0 bg-card z-10 font-medium align-top pt-3 border-b border-r">{format(day, 'eee, MMM dd')}</TableCell>
-                                                    <TableCell className="sticky left-[120px] bg-card z-10 font-semibold text-muted-foreground p-2 border-r">In:</TableCell>
-                                                    {employees.map(emp => (
-                                                        <TableCell key={`${emp.id}-in`} className="text-center p-1 min-w-[200px]">
-                                                            {isEditMode ? (
-                                                                <div className="flex items-center gap-1">
-                                                                    <Input value={editableGrid[emp.id]?.[dateKey]?.in.time || ''} onChange={(e) => handleTimeInputChange(emp.id, dateKey, 'in', e.target.value)} className="h-8 text-center" placeholder="hh:mm" />
-                                                                    <div className="flex flex-col">
-                                                                        <Button size="icon" variant="ghost" className={cn("h-4 w-6 text-xs", editableGrid[emp.id]?.[dateKey]?.in.period === 'AM' && 'bg-accent text-accent-foreground')} onClick={() => handlePeriodChangeForCell(emp.id, dateKey, 'in', 'AM')}>AM</Button>
-                                                                        <Button size="icon" variant="ghost" className={cn("h-4 w-6 text-xs", editableGrid[emp.id]?.[dateKey]?.in.period === 'PM' && 'bg-accent text-accent-foreground')} onClick={() => handlePeriodChangeForCell(emp.id, dateKey, 'in', 'PM')}>PM</Button>
+                       <div className="border rounded-lg">
+                            {/* Synced Sticky Header */}
+                            <div className="relative overflow-hidden" ref={headerRef}>
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead className="w-[120px] sticky left-0 bg-card z-20">Date</TableHead>
+                                            <TableHead className="w-[80px] sticky left-[120px] bg-card z-20">Metric</TableHead>
+                                            {employees.map(emp => (
+                                                <TableHead key={emp.id} className="min-w-[200px] text-center">{emp.firstName}</TableHead>
+                                            ))}
+                                        </TableRow>
+                                    </TableHeader>
+                                </Table>
+                            </div>
+
+                            {/* Scrolling Body */}
+                            <div className="max-h-[calc(100vh-25rem)] overflow-auto" ref={bodyRef} onScroll={handleScroll}>
+                                <Table>
+                                    <TableBody>
+                                        {days.map(day => {
+                                            const dateKey = format(day, 'yyyy-MM-dd');
+                                            return (
+                                                <React.Fragment key={day.toISOString()}>
+                                                    <TableRow>
+                                                        <TableCell rowSpan={3} className="sticky left-0 bg-card z-10 font-medium align-top pt-3 border-b w-[120px]">{format(day, 'eee, MMM dd')}</TableCell>
+                                                        <TableCell className="sticky left-[120px] bg-card z-10 font-semibold text-muted-foreground p-2 w-[80px]">In:</TableCell>
+                                                        {employees.map(emp => (
+                                                            <TableCell key={`${emp.id}-in`} className="text-center p-1 min-w-[200px]">
+                                                                {isEditMode ? (
+                                                                    <div className="flex items-center gap-1">
+                                                                        <Input value={editableGrid[emp.id]?.[dateKey]?.in.time || ''} onChange={(e) => handleTimeInputChange(emp.id, dateKey, 'in', e.target.value)} className="h-8 text-center" placeholder="hh:mm" />
+                                                                        <div className="flex flex-col">
+                                                                            <Button size="icon" variant="ghost" className={cn("h-4 w-6 text-xs", editableGrid[emp.id]?.[dateKey]?.in.period === 'AM' && 'bg-accent text-accent-foreground')} onClick={() => handlePeriodChangeForCell(emp.id, dateKey, 'in', 'AM')}>AM</Button>
+                                                                            <Button size="icon" variant="ghost" className={cn("h-4 w-6 text-xs", editableGrid[emp.id]?.[dateKey]?.in.period === 'PM' && 'bg-accent text-accent-foreground')} onClick={() => handlePeriodChangeForCell(emp.id, dateKey, 'in', 'PM')}>PM</Button>
+                                                                        </div>
                                                                     </div>
-                                                                </div>
-                                                            ) : (
-                                                                <span>{dailySummaries.find(s => s.employeeId === emp.id && isSameDay(s.date, day))?.entries[0]?.timeIn ? format(dailySummaries.find(s => s.employeeId === emp.id && isSameDay(s.date, day))!.entries[0]!.timeIn.toDate(), 'p') : '-'}</span>
-                                                            )}
-                                                        </TableCell>
-                                                    ))}
-                                                </TableRow>
-                                                <TableRow>
-                                                    <TableCell className="sticky left-[120px] bg-card z-10 font-semibold text-muted-foreground p-2 border-r">Out:</TableCell>
-                                                    {employees.map(emp => (
-                                                         <TableCell key={`${emp.id}-out`} className="text-center p-1 min-w-[200px]">
-                                                            {isEditMode ? (
-                                                                <div className="flex items-center gap-1">
-                                                                    <Input value={editableGrid[emp.id]?.[dateKey]?.out.time || ''} onChange={(e) => handleTimeInputChange(emp.id, dateKey, 'out', e.target.value)} className="h-8 text-center" placeholder="hh:mm"/>
-                                                                    <div className="flex flex-col">
-                                                                        <Button size="icon" variant="ghost" className={cn("h-4 w-6 text-xs", editableGrid[emp.id]?.[dateKey]?.out.period === 'AM' && 'bg-accent text-accent-foreground')} onClick={() => handlePeriodChangeForCell(emp.id, dateKey, 'out', 'AM')}>AM</Button>
-                                                                        <Button size="icon" variant="ghost" className={cn("h-4 w-6 text-xs", editableGrid[emp.id]?.[dateKey]?.out.period === 'PM' && 'bg-accent text-accent-foreground')} onClick={() => handlePeriodChangeForCell(emp.id, dateKey, 'out', 'PM')}>PM</Button>
+                                                                ) : (
+                                                                    <span>{dailySummaries.find(s => s.employeeId === emp.id && isSameDay(s.date, day))?.entries[0]?.timeIn ? format(dailySummaries.find(s => s.employeeId === emp.id && isSameDay(s.date, day))!.entries[0]!.timeIn.toDate(), 'p') : '-'}</span>
+                                                                )}
+                                                            </TableCell>
+                                                        ))}
+                                                    </TableRow>
+                                                    <TableRow>
+                                                        <TableCell className="sticky left-[120px] bg-card z-10 font-semibold text-muted-foreground p-2 w-[80px]">Out:</TableCell>
+                                                        {employees.map(emp => (
+                                                            <TableCell key={`${emp.id}-out`} className="text-center p-1 min-w-[200px]">
+                                                                {isEditMode ? (
+                                                                    <div className="flex items-center gap-1">
+                                                                        <Input value={editableGrid[emp.id]?.[dateKey]?.out.time || ''} onChange={(e) => handleTimeInputChange(emp.id, dateKey, 'out', e.target.value)} className="h-8 text-center" placeholder="hh:mm"/>
+                                                                        <div className="flex flex-col">
+                                                                            <Button size="icon" variant="ghost" className={cn("h-4 w-6 text-xs", editableGrid[emp.id]?.[dateKey]?.out.period === 'AM' && 'bg-accent text-accent-foreground')} onClick={() => handlePeriodChangeForCell(emp.id, dateKey, 'out', 'AM')}>AM</Button>
+                                                                            <Button size="icon" variant="ghost" className={cn("h-4 w-6 text-xs", editableGrid[emp.id]?.[dateKey]?.out.period === 'PM' && 'bg-accent text-accent-foreground')} onClick={() => handlePeriodChangeForCell(emp.id, dateKey, 'out', 'PM')}>PM</Button>
+                                                                        </div>
                                                                     </div>
-                                                                </div>
-                                                            ) : (
-                                                                <span>{dailySummaries.find(s => s.employeeId === emp.id && isSameDay(s.date, day))?.entries[0]?.timeOut ? format(dailySummaries.find(s => s.employeeId === emp.id && isSameDay(s.date, day))!.entries[0]!.timeOut!.toDate(), 'p') : (dailySummaries.find(s => s.employeeId === emp.id && isSameDay(s.date, day))?.entries[0] ? <span className="text-accent font-semibold">ACTIVE</span> : '-')}</span>
-                                                            )}
-                                                        </TableCell>
-                                                    ))}
-                                                </TableRow>
-                                                 <TableRow>
-                                                    <TableCell className="sticky left-[120px] bg-card z-10 font-bold p-2 border-r">Total:</TableCell>
-                                                    {employees.map(emp => (
-                                                        <TableCell key={`${emp.id}-total`} className="text-center font-bold tabular-nums p-2 min-w-[200px]">
-                                                            {isEditMode
-                                                                ? calculateTotalHours(emp.id, day).toFixed(2)
-                                                                : employeeTotals.get(emp.id) !== undefined
-                                                                    ? (dailySummaries.find(s => s.employeeId === emp.id && isSameDay(s.date, day))?.entries.reduce((acc, entry) => acc + (entry.timeOut ? differenceInMinutes(entry.timeOut.toDate(), entry.timeIn.toDate()) / 60 : 0), 0) || 0).toFixed(2)
-                                                                    : '0.00'
-                                                            }
-                                                        </TableCell>
-                                                    ))}
-                                                </TableRow>
-                                            </React.Fragment>
-                                        )
-                                    })}
-                                    <TableRow className="sticky bottom-0 bg-card z-10">
-                                        <TableCell colSpan={2} className="sticky left-0 bg-card z-10 font-bold p-2 text-right border-r">Total Hours</TableCell>
-                                        {employees.map(emp => (
-                                            <TableCell key={emp.id} className="font-bold text-primary tabular-nums p-2 text-center min-w-[200px]">
-                                                {isEditMode ? calculateEmployeeTotal(emp.id).toFixed(2) : (employeeTotals.get(emp.id) || 0).toFixed(2)}
-                                            </TableCell>
-                                        ))}
-                                    </TableRow>
-                                </TableBody>
-                            </Table>
+                                                                ) : (
+                                                                    <span>{dailySummaries.find(s => s.employeeId === emp.id && isSameDay(s.date, day))?.entries[0]?.timeOut ? format(dailySummaries.find(s => s.employeeId === emp.id && isSameDay(s.date, day))!.entries[0]!.timeOut!.toDate(), 'p') : (dailySummaries.find(s => s.employeeId === emp.id && isSameDay(s.date, day))?.entries[0] ? <span className="text-accent font-semibold">ACTIVE</span> : '-')}</span>
+                                                                )}
+                                                            </TableCell>
+                                                        ))}
+                                                    </TableRow>
+                                                    <TableRow>
+                                                        <TableCell className="sticky left-[120px] bg-card z-10 font-bold p-2 w-[80px]">Total:</TableCell>
+                                                        {employees.map(emp => (
+                                                            <TableCell key={`${emp.id}-total`} className="text-center font-bold tabular-nums p-2 min-w-[200px]">
+                                                                {isEditMode
+                                                                    ? calculateTotalHours(emp.id, day).toFixed(2)
+                                                                    : employeeTotals.get(emp.id) !== undefined
+                                                                        ? (dailySummaries.find(s => s.employeeId === emp.id && isSameDay(s.date, day))?.entries.reduce((acc, entry) => acc + (entry.timeOut ? differenceInMinutes(entry.timeOut.toDate(), entry.timeIn.toDate()) / 60 : 0), 0) || 0).toFixed(2)
+                                                                        : '0.00'
+                                                                }
+                                                            </TableCell>
+                                                        ))}
+                                                    </TableRow>
+                                                </React.Fragment>
+                                            )
+                                        })}
+                                        <TableRow className="bg-card">
+                                            <TableCell colSpan={2} className="sticky left-0 bg-card z-10 font-bold p-2 text-right">Total Hours</TableCell>
+                                            {employees.map(emp => (
+                                                <TableCell key={emp.id} className="font-bold text-primary tabular-nums p-2 text-center min-w-[200px]">
+                                                    {isEditMode ? calculateEmployeeTotal(emp.id).toFixed(2) : (employeeTotals.get(emp.id) || 0).toFixed(2)}
+                                                </TableCell>
+                                            ))}
+                                        </TableRow>
+                                    </TableBody>
+                                </Table>
+                            </div>
                         </div>
                     ) : (
                         <div className="text-center py-10 text-muted-foreground">No employees found. Add an employee to get started.</div>
