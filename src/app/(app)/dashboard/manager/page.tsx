@@ -69,9 +69,10 @@ export default function ManagerDashboardPage() {
             }
         } catch (error) {
             console.error("Error running auto-enrollment:", error);
+            const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
             toast({
                 title: "Auto-Enrollment Failed",
-                description: "Could not generate time entries.",
+                description: errorMessage,
                 variant: "destructive",
             });
         } finally {
