@@ -4,7 +4,7 @@
 import * as React from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, CalendarIcon, Package, Truck } from "lucide-react";
+import { Loader2, CalendarIcon, Package, Truck, PlayCircle } from "lucide-react";
 import Link from 'next/link';
 import { useAuth } from '@/contexts/auth-context';
 import { collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
@@ -68,18 +68,25 @@ export default function ManagerDashboardPage() {
                                     <span>{format(new Date(), 'MMM dd, yyyy')}</span>
                                 </div>
                             </div>
-                            <CardDescription>The next payroll run is due. Click the pay date to start.</CardDescription>
+                            <CardDescription>The next payroll run is due. Click the button below to start.</CardDescription>
                         </CardHeader>
                         <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4 text-center">
                             <div>
                                 <p className="text-sm font-medium text-muted-foreground">Pay Period</p>
                                 <p className="text-lg font-semibold">{format(payPeriod.start, 'MMM dd')} - {format(payPeriod.end, 'MMM dd, yyyy')}</p>
                             </div>
-                             <Link href={`/dashboard/manager/payroll/run?from=${format(payPeriod.start, 'yyyy-MM-dd')}&to=${format(payPeriod.end, 'yyyy-MM-dd')}`} className="block rounded-lg p-4 -m-4 transition-all hover:bg-muted/50">
-                                <p className="text-sm font-medium text-primary">Pay Date</p>
+                            <div>
+                                <p className="text-sm font-medium text-muted-foreground">Pay Date</p>
                                 <p className="text-lg font-semibold text-primary">{format(payPeriod.payDate, 'MMM dd, yyyy')}</p>
-                            </Link>
+                            </div>
                         </CardContent>
+                        <CardFooter>
+                             <Button asChild className="w-full">
+                                <Link href={`/dashboard/manager/payroll/run?from=${format(payPeriod.start, 'yyyy-MM-dd')}&to=${format(payPeriod.end, 'yyyy-MM-dd')}`}>
+                                    <PlayCircle className="mr-2 h-4 w-4" /> Run This Pay Period
+                                </Link>
+                            </Button>
+                        </CardFooter>
                     </Card>
                     <Card>
                         <CardHeader>
