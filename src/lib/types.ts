@@ -1,6 +1,14 @@
 
 import type { PayrollResult, EmployeePayrollInput } from "@/components/payroll/payroll-calculation";
 
+export type WeeklySchedule = {
+  [day in 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday']?: {
+    start: string;
+    end: string;
+    enabled: boolean;
+  };
+};
+
 export type Employee = {
   id: string; // Document ID from Firestore
   firstName: string;
@@ -18,6 +26,8 @@ export type Employee = {
   sickDayBalance: number;
   w4FormUrl?: string; // URL to the W-4 PDF file
   comment?: string;
+  autoEnrollmentEnabled?: boolean;
+  weeklySchedule?: WeeklySchedule;
 };
 
 // Data structure for creating a new employee in Firestore (without id)
