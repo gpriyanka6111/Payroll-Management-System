@@ -139,6 +139,8 @@ export default function TimesheetPage() {
     const [editableGrid, setEditableGrid] = React.useState<EditableGridState>({});
     const [isPinDialogOpen, setIsPinDialogOpen] = React.useState(false);
     const [pinAction, setPinAction] = React.useState<'enable_edit' | 'save_changes' | null>(null);
+    const [companyName, setCompanyName] = React.useState('Your Company');
+
 
     React.useEffect(() => {
         const today = new Date();
@@ -170,6 +172,12 @@ export default function TimesheetPage() {
         }
         setIsLoading(true);
         try {
+            const userDocRef = doc(db, 'users', user.uid);
+            const userSnap = await getDoc(userDocRef);
+            if (userSnap.exists()) {
+                setCompanyName(userSnap.data().companyName || "My Small Business");
+            }
+
             const employeesCollectionRef = collection(db, 'users', user.uid, 'employees');
             const employeesQuery = query(employeesCollectionRef, orderBy('firstName', 'asc'));
             const employeeSnapshot = await getDocs(employeesQuery);
@@ -400,7 +408,60 @@ export default function TimesheetPage() {
     }, [employees, dailySummaries]);
 
     const handleExportToExcel = () => {
-        // Implementation remains the same
+        if (!dateRange || !employees.length) return;
+
+        const wb = XLSX.utils.book_new();
+        const ws_data: (string | number | null)[][] = [];
+        
+        const title = `${companyName} - Time Report: ${format(dateRange.from!, 'LLL dd, yyyy')} - ${format(dateRange.to!, 'LLL dd, yyyy')}`;
+        ws_data.push([title]);
+        ws_data.push(['Date', 'Metric', ...employees.map(e => e.firstName.toUpperCase())]);
+
+        const daysInPeriod = eachDayOfInterval({ start: dateRange.from!, end: dateRange.to! });
+        
+        daysInPeriod.forEach(day => {
+            const inRow: (string|number)[] = [format(day, 'eee, MMM dd'), 'In:'];
+            const outRow: (string|number)[] = ['', 'Out:'];
+            const totalRow: (string|number)[] = ['', 'Total:'];
+
+            employees.forEach(emp => {
+                const summary = dailySummaries.find(s => s.employeeId === emp.id && isSameDay(s.date, day));
+                const entry = summary?.entries[0];
+                let dailyTotal = 0;
+                
+                if (entry) {
+                    inRow.push(format(entry.timeIn.toDate(), 'p'));
+                    if (entry.timeOut) {
+                        outRow.push(format(entry.timeOut.toDate(), 'p'));
+                        const minutes = differenceInMinutes(entry.timeOut.toDate(), entry.timeIn.toDate());
+                        dailyTotal = minutes > 0 ? minutes / 60 : 0;
+                    } else {
+                        outRow.push('ACTIVE');
+                    }
+                } else {
+                    inRow.push('-');
+                    outRow.push('-');
+                }
+                totalRow.push(dailyTotal > 0 ? parseFloat(dailyTotal.toFixed(2)) : '-');
+            });
+            
+            ws_data.push(inRow, outRow, totalRow);
+        });
+
+        const grandTotalRow: (string | number)[] = ['Total Hours', ''];
+        employees.forEach(emp => {
+            const total = employeeTotals.get(emp.id) || 0;
+            grandTotalRow.push(parseFloat(total.toFixed(2)));
+        });
+        ws_data.push(grandTotalRow);
+        
+        const ws = XLSX.utils.aoa_to_sheet(ws_data);
+        ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 1 + employees.length } }];
+        ws['!cols'] = [{ wch: 15 }, { wch: 8 }, ...Array(employees.length).fill({ wch: 15 })];
+
+        XLSX.utils.book_append_sheet(wb, ws, "Timesheet");
+        const fileName = `Timesheet_${format(dateRange.from!, 'yyyy-MM-dd')}_to_${format(dateRange.to!, 'yyyy-MM-dd')}.xlsx`;
+        XLSX.writeFile(wb, fileName);
     };
 
     const days = dateRange && dateRange.from && dateRange.to ? eachDayOfInterval({ start: dateRange.from, end: dateRange.to }) : [];
@@ -416,7 +477,7 @@ export default function TimesheetPage() {
             <p className="text-muted-foreground">Review total logged hours for all employees.</p>
 
             <Card>
-                <CardHeader className="sticky top-0 z-40 bg-card/95 backdrop-blur-sm">
+                <div className="p-6 sticky top-0 z-40 bg-card/95 backdrop-blur-sm border-b">
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                         <div className="flex-1">
                             <CardTitle>Time Log Summary</CardTitle>
@@ -451,19 +512,19 @@ export default function TimesheetPage() {
                             )}
                         </div>
                     </div>
-                </CardHeader>
-                <CardContent>
+                </div>
+                <CardContent className="pt-0">
                     {isLoading ? (
-                        <div className="space-y-2"><Skeleton className="h-12 w-full" /><Skeleton className="h-12 w-full" /><Skeleton className="h-12 w-full" /></div>
+                        <div className="space-y-2 pt-6"><Skeleton className="h-12 w-full" /><Skeleton className="h-12 w-full" /><Skeleton className="h-12 w-full" /></div>
                     ) : employees.length > 0 ? (
-                        <div className="border rounded-lg overflow-auto max-h-[calc(100vh-20rem)]">
+                        <div className="border rounded-lg overflow-auto max-h-[calc(100vh-25rem)] mt-6">
                             <Table>
-                                <TableHeader>
+                                <TableHeader className="sticky top-0 z-30 bg-card">
                                     <TableRow>
-                                        <TableHead className="sticky top-0 left-0 bg-card z-30 w-[120px]">Date</TableHead>
-                                        <TableHead className="sticky top-0 left-[120px] bg-card z-30 w-[80px]">Metric</TableHead>
+                                        <TableHead className="sticky left-0 bg-card z-20 w-[120px]">Date</TableHead>
+                                        <TableHead className="sticky left-[120px] bg-card z-20 w-[80px]">Metric</TableHead>
                                         {employees.map(emp => (
-                                            <TableHead key={emp.id} className="sticky top-0 bg-card z-10 min-w-[200px] text-center">{emp.firstName}</TableHead>
+                                            <TableHead key={emp.id} className="min-w-[200px] text-center">{emp.firstName}</TableHead>
                                         ))}
                                     </TableRow>
                                 </TableHeader>
@@ -473,8 +534,8 @@ export default function TimesheetPage() {
                                         return (
                                             <React.Fragment key={day.toISOString()}>
                                                 <TableRow>
-                                                    <TableCell rowSpan={3} className="sticky left-0 bg-card z-20 font-medium align-top pt-3 border-b">{format(day, 'eee, MMM dd')}</TableCell>
-                                                    <TableCell className="sticky left-[120px] bg-card z-20 font-semibold text-muted-foreground p-2">In:</TableCell>
+                                                    <TableCell rowSpan={3} className="sticky left-0 bg-card z-10 font-medium align-top pt-3 border-b">{format(day, 'eee, MMM dd')}</TableCell>
+                                                    <TableCell className="sticky left-[120px] bg-card z-10 font-semibold text-muted-foreground p-2">In:</TableCell>
                                                     {employees.map(emp => (
                                                         <TableCell key={`${emp.id}-in`} className="text-center p-1 min-w-[200px]">
                                                             {isEditMode ? (
@@ -492,7 +553,7 @@ export default function TimesheetPage() {
                                                     ))}
                                                 </TableRow>
                                                 <TableRow>
-                                                    <TableCell className="sticky left-[120px] bg-card z-20 font-semibold text-muted-foreground p-2">Out:</TableCell>
+                                                    <TableCell className="sticky left-[120px] bg-card z-10 font-semibold text-muted-foreground p-2">Out:</TableCell>
                                                     {employees.map(emp => (
                                                          <TableCell key={`${emp.id}-out`} className="text-center p-1 min-w-[200px]">
                                                             {isEditMode ? (
@@ -510,7 +571,7 @@ export default function TimesheetPage() {
                                                     ))}
                                                 </TableRow>
                                                  <TableRow>
-                                                    <TableCell className="sticky left-[120px] bg-card z-20 font-bold p-2">Total:</TableCell>
+                                                    <TableCell className="sticky left-[120px] bg-card z-10 font-bold p-2">Total:</TableCell>
                                                     {employees.map(emp => (
                                                         <TableCell key={`${emp.id}-total`} className="text-center font-bold tabular-nums p-2 min-w-[200px]">
                                                             {isEditMode
@@ -525,10 +586,10 @@ export default function TimesheetPage() {
                                             </React.Fragment>
                                         )
                                     })}
-                                    <TableRow>
-                                        <TableCell colSpan={2} className="sticky bottom-0 left-0 bg-card z-20 font-bold p-2 text-right">Total Hours</TableCell>
+                                    <TableRow className="sticky bottom-0 bg-card z-10">
+                                        <TableCell colSpan={2} className="sticky left-0 bg-card z-10 font-bold p-2 text-right">Total Hours</TableCell>
                                         {employees.map(emp => (
-                                            <TableCell key={emp.id} className="sticky bottom-0 bg-card font-bold text-primary tabular-nums p-2 text-center min-w-[200px]">
+                                            <TableCell key={emp.id} className="font-bold text-primary tabular-nums p-2 text-center min-w-[200px]">
                                                 {isEditMode ? calculateEmployeeTotal(emp.id).toFixed(2) : (employeeTotals.get(emp.id) || 0).toFixed(2)}
                                             </TableCell>
                                         ))}
