@@ -33,6 +33,7 @@ import { db } from '@/lib/firebase';
 import { Skeleton } from '../ui/skeleton';
 import { Label } from '../ui/label';
 import { getPayDateForPeriod } from '@/lib/pay-period';
+import { applyRoundingRules } from '@/lib/time-rounding';
 
 const employeePayrollInputSchema = z.object({
   employeeId: z.string(),
@@ -188,7 +189,9 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
             snapshot.forEach(doc => {
                 const data = doc.data();
                 if (data.timeOut) {
-                    const diff = differenceInMinutes(data.timeOut.toDate(), data.timeIn.toDate());
+                    const roundedIn = applyRoundingRules(data.timeIn.toDate());
+                    const roundedOut = applyRoundingRules(data.timeOut.toDate());
+                    const diff = differenceInMinutes(roundedOut, roundedIn);
                     totalMinutes += (diff > 0 ? diff : 0);
                 }
             });

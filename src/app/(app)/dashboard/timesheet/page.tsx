@@ -458,12 +458,12 @@ export default function TimesheetPage() {
                     ) : employees.length > 0 ? (
                         <div className="border rounded-lg overflow-x-auto">
                             <Table>
-                                <TableHeader>
+                                <TableHeader className="sticky top-0 z-30 bg-card">
                                     <TableRow>
                                         <TableHead className="w-[120px] sticky left-0 bg-card z-20">Date</TableHead>
                                         <TableHead className="w-[80px] sticky left-[120px] bg-card z-20">Metric</TableHead>
                                         {employees.map(emp => (
-                                            <TableHead key={emp.id} className="min-w-[200px] text-center">{emp.firstName}</TableHead>
+                                            <TableHead key={emp.id} className="min-w-[200px] text-center sticky top-0 bg-card z-10">{emp.firstName}</TableHead>
                                         ))}
                                     </TableRow>
                                 </TableHeader>
