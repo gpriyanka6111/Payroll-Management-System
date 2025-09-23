@@ -10,7 +10,7 @@ import { useAuth } from '@/contexts/auth-context';
 import { collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Payroll } from '@/lib/types';
-import { format, parse } from 'date-fns';
+import { format, parse, addDays, startOfWeek } from 'date-fns';
 import { getCurrentPayPeriod } from '@/lib/pay-period';
 import { LastPayrollChart } from '@/components/charts/last-payroll-chart';
 import { RemindersCard } from '@/components/dashboard/reminders-card';
@@ -58,11 +58,22 @@ export default function ManagerDashboardPage() {
         if (!user) return;
         setIsEnrolling(true);
         try {
-            const result = await runAutoEnrollment(user.uid);
+            const today = new Date();
+            const nextWeekStart = startOfWeek(addDays(today, 7), { weekStartsOn: 0 }); // Sunday of next week
+            const nextWeekEnd = addDays(nextWeekStart, 6); // Saturday of next week
+
+            const result = await runAutoEnrollment({ 
+                userId: user.uid, 
+                startDate: nextWeekStart, 
+                endDate: nextWeekEnd 
+            });
+
             if (result.success) {
                 toast({
                     title: "Auto-Enrollment Complete",
-                    description: result.message,
+                    description: result.entriesCreated > 0 
+                        ? `${result.entriesCreated} new time entries were created for the upcoming week.`
+                        : "No new time entries were needed for the upcoming week.",
                 });
             } else {
                 throw new Error(result.message);

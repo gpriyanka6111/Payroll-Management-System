@@ -4,9 +4,9 @@
  *
  * - runAutoEnrollment - A function that handles the time entry creation process.
  */
-import { collection, getDocs, query, where, writeBatch, Timestamp, doc } from 'firebase/firestore';
+import { collection, getDocs, query, where, writeBatch, Timestamp, doc, startOfDay, endOfDay } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { format, parse, addDays, startOfWeek, isAfter } from 'date-fns';
+import { format, parse, eachDayOfInterval, isAfter } from 'date-fns';
 
 interface AutoEnrollmentOutput {
   success: boolean;
@@ -14,7 +14,13 @@ interface AutoEnrollmentOutput {
   entriesCreated: number;
 }
 
-export async function runAutoEnrollment(userId: string): Promise<AutoEnrollmentOutput> {
+interface RunAutoEnrollmentParams {
+  userId: string;
+  startDate: Date;
+  endDate: Date;
+}
+
+export async function runAutoEnrollment({ userId, startDate, endDate }: RunAutoEnrollmentParams): Promise<AutoEnrollmentOutput> {
   try {
     const batch = writeBatch(db);
     let entriesCreated = 0;
@@ -26,16 +32,14 @@ export async function runAutoEnrollment(userId: string): Promise<AutoEnrollmentO
     if (employeeSnapshot.empty) {
       return { success: true, message: 'No employees are enabled for auto-enrollment.', entriesCreated: 0 };
     }
-
-    const today = new Date();
-    const nextWeekStart = startOfWeek(addDays(today, 7), { weekStartsOn: 0 }); // Start from next Sunday
+    
+    const periodDays = eachDayOfInterval({ start: startDate, end: endDate });
 
     for (const empDoc of employeeSnapshot.docs) {
       const employee = empDoc.data();
       if (!employee.weeklySchedule) continue;
 
-      for (let i = 0; i < 7; i++) {
-        const dayToProcess = addDays(nextWeekStart, i);
+      for (const dayToProcess of periodDays) {
         const dayKey = format(dayToProcess, 'eeee').toLowerCase() as keyof typeof employee.weeklySchedule;
         
         const schedule = employee.weeklySchedule[dayKey];
@@ -48,7 +52,9 @@ export async function runAutoEnrollment(userId: string): Promise<AutoEnrollmentO
             if (!isNaN(timeIn.getTime()) && !isNaN(timeOut.getTime()) && isAfter(timeOut, timeIn)) {
               // Check if an entry for this day already exists to prevent duplicates
               const timeEntriesRef = collection(db, 'users', userId, 'employees', empDoc.id, 'timeEntries');
-              const existingEntryQuery = query(timeEntriesRef, where('timeIn', '>=', startOfDay(dayToProcess)), where('timeIn', '<=', endOfDay(dayToProcess)));
+              const dayStart = startOfDay(dayToProcess);
+              const dayEnd = endOfDay(dayToProcess);
+              const existingEntryQuery = query(timeEntriesRef, where('timeIn', '>=', dayStart), where('timeIn', '<=', dayEnd));
               const existingEntrySnapshot = await getDocs(existingEntryQuery);
 
               if (existingEntrySnapshot.empty) {
@@ -68,12 +74,14 @@ export async function runAutoEnrollment(userId: string): Promise<AutoEnrollmentO
         }
       }
     }
-
-    await batch.commit();
+    
+    if (entriesCreated > 0) {
+      await batch.commit();
+    }
 
     return {
       success: true,
-      message: `Successfully created ${entriesCreated} time entries for the upcoming week.`,
+      message: `Successfully created ${entriesCreated} time entries.`,
       entriesCreated,
     };
   } catch (error) {
