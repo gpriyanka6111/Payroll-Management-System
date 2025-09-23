@@ -4,26 +4,22 @@
 import * as React from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, CalendarIcon, Package, Truck, PlayCircle, CalendarClock } from "lucide-react";
+import { Loader2, CalendarIcon, Package, Truck, PlayCircle } from "lucide-react";
 import Link from 'next/link';
 import { useAuth } from '@/contexts/auth-context';
 import { collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Payroll } from '@/lib/types';
-import { format, parse, addDays, startOfWeek } from 'date-fns';
+import { format, parse } from 'date-fns';
 import { getCurrentPayPeriod } from '@/lib/pay-period';
 import { LastPayrollChart } from '@/components/charts/last-payroll-chart';
 import { RemindersCard } from '@/components/dashboard/reminders-card';
-import { runAutoEnrollment } from '@/ai/flows/auto-enrollment-flow';
-import { useToast } from '@/hooks/use-toast';
 
 
 export default function ManagerDashboardPage() {
     const { user } = useAuth();
-    const { toast } = useToast();
     const [lastPayroll, setLastPayroll] = React.useState<Payroll | null>(null);
     const [isLoading, setIsLoading] = React.useState(true);
-    const [isEnrolling, setIsEnrolling] = React.useState(false);
     const [payPeriod, setPayPeriod] = React.useState({ start: new Date(), end: new Date(), payDate: new Date() });
 
     React.useEffect(() => {
@@ -53,44 +49,6 @@ export default function ManagerDashboardPage() {
 
         fetchData();
     }, [user]);
-
-    const handleRunEnrollment = async () => {
-        if (!user) return;
-        setIsEnrolling(true);
-        try {
-            const today = new Date();
-            const nextWeekStart = startOfWeek(addDays(today, 7), { weekStartsOn: 0 }); // Sunday of next week
-            const nextWeekEnd = addDays(nextWeekStart, 6); // Saturday of next week
-
-            const result = await runAutoEnrollment({ 
-                userId: user.uid, 
-                startDate: nextWeekStart, 
-                endDate: nextWeekEnd 
-            });
-
-            if (result.success) {
-                toast({
-                    title: "Auto-Enrollment Complete",
-                    description: result.entriesCreated > 0 
-                        ? `${result.entriesCreated} new time entries were created for the upcoming week.`
-                        : "No new time entries were needed for the upcoming week.",
-                });
-            } else {
-                throw new Error(result.message);
-            }
-        } catch (error) {
-            console.error("Error running auto-enrollment:", error);
-            const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
-            toast({
-                title: "Auto-Enrollment Failed",
-                description: errorMessage,
-                variant: "destructive",
-            });
-        } finally {
-            setIsEnrolling(false);
-        }
-    };
-
 
     return (
         <div className="space-y-6">
@@ -180,23 +138,6 @@ export default function ManagerDashboardPage() {
 
                 {/* Right Column */}
                 <div className="lg:col-span-1 space-y-6">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Automation</CardTitle>
-                            <CardDescription>Run background tasks and automations.</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <Button className="w-full" onClick={handleRunEnrollment} disabled={isEnrolling}>
-                                {isEnrolling ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CalendarClock className="mr-2 h-4 w-4" />}
-                                {isEnrolling ? 'Generating Entries...' : 'Run Auto-Enrollment'}
-                            </Button>
-                        </CardContent>
-                        <CardFooter>
-                            <p className="text-xs text-muted-foreground">
-                                This will generate time entries for the next week for all employees with auto-enrollment enabled.
-                            </p>
-                        </CardFooter>
-                    </Card>
                    <RemindersCard />
                 </div>
             </div>
