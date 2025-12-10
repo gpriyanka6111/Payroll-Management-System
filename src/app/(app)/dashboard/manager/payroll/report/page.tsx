@@ -130,32 +130,37 @@ function PayrollReportContent() {
                  const summaryJSON = sessionStorage.getItem('payrollSummaryData');
 
                  if (resultsData && periodData && inputData) {
-                    const parsedPeriod = JSON.parse(periodData);
-                    fromDate = new Date(parsedPeriod.from);
-                    toDate = new Date(parsedPeriod.to);
+                    try {
+                        const parsedPeriod = JSON.parse(periodData);
+                        fromDate = new Date(parsedPeriod.from);
+                        toDate = new Date(parsedPeriod.to);
 
-                     if (!isValid(fromDate) || !isValid(toDate)) {
-                        router.replace('/dashboard/manager/payroll/run');
-                        return;
-                    }
+                        if (!isValid(fromDate) || !isValid(toDate)) {
+                            router.replace('/dashboard/manager/payroll/run');
+                            return;
+                        }
 
-                    currentPayrollData = {
-                        results: JSON.parse(resultsData),
-                        inputs: JSON.parse(inputData),
-                        fromDate: format(fromDate, 'yyyy-MM-dd')
+                        currentPayrollData = {
+                            results: JSON.parse(resultsData),
+                            inputs: JSON.parse(inputData),
+                            fromDate: format(fromDate, 'yyyy-MM-dd')
+                        }
+                        setResults(currentPayrollData.results);
+                        setInputs(currentPayrollData.inputs);
+                        setPeriod({ from: fromDate, to: toDate });
+                        if (summaryJSON) setSummaryData(JSON.parse(summaryJSON));
+                        if (companyData) setCompanyName(companyData);
+                    } catch (e) {
+                         router.replace('/dashboard/manager/payroll/run');
+                         return;
+                    } finally {
+                        // Clear session storage after loading
+                        sessionStorage.removeItem('payrollResultsData');
+                        sessionStorage.removeItem('payrollPeriodData');
+                        sessionStorage.removeItem('payrollInputData');
+                        sessionStorage.removeItem('companyName');
+                        sessionStorage.removeItem('payrollSummaryData');
                     }
-                    setResults(currentPayrollData.results);
-                    setInputs(currentPayrollData.inputs);
-                    setPeriod({ from: fromDate, to: toDate });
-                    if (summaryJSON) setSummaryData(JSON.parse(summaryJSON));
-                    if (companyData) setCompanyName(companyData);
-                    
-                    // Clear session storage after loading
-                    sessionStorage.removeItem('payrollResultsData');
-                    sessionStorage.removeItem('payrollPeriodData');
-                    sessionStorage.removeItem('payrollInputData');
-                    sessionStorage.removeItem('companyName');
-                    sessionStorage.removeItem('payrollSummaryData');
                  } else {
                      router.replace('/dashboard/manager/payroll/run');
                      return;
