@@ -69,7 +69,7 @@ export async function runAutoEnrollment({ userId, startDate, endDate }: RunAutoE
               }
             }
           } catch(e) {
-             console.error(`Could not parse schedule for ${employee.firstName} on ${dayKey}: '${schedule.start}' to '${schedule.end}'`, e);
+             console.error(`Could not parse schedule for ${employee.firstName} on ${String(dayKey)}: '${schedule.start}' to '${schedule.end}'`, e);
           }
         }
       }
