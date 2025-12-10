@@ -4,9 +4,9 @@
  *
  * - runAutoEnrollment - A function that handles the time entry creation process.
  */
-import { collection, getDocs, query, where, writeBatch, Timestamp, doc, startOfDay, endOfDay } from 'firebase/firestore';
+import { collection, getDocs, query, where, writeBatch, Timestamp, doc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { format, parse, eachDayOfInterval, isAfter } from 'date-fns';
+import { format, parse, eachDayOfInterval, isAfter, startOfDay, endOfDay } from 'date-fns';
 
 interface AutoEnrollmentOutput {
   success: boolean;
