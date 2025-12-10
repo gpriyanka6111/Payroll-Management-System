@@ -19,7 +19,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import * as XLSX from 'xlsx-js-style';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
 import { getYearlyPayPeriods, PayPeriod, getCurrentPayPeriod, getPayDateForPeriod } from '@/lib/pay-period';
 import { cn } from '@/lib/utils';
 import { applyRoundingRules } from '@/lib/time-rounding';
@@ -438,27 +438,27 @@ export default function TimesheetPage() {
 
         const wb = XLSX.utils.book_new();
         const ws_data: (string | number | null)[][] = [];
-        
+
         const payDate = getPayDateForPeriod(dateRange.from);
         const payDateStr = payDate ? `Pay Date: ${format(payDate, 'LLL dd, yyyy')}` : '';
         const title = `${companyName} - Time Report: ${format(dateRange.from, 'LLL dd, yyyy')} - ${format(dateRange.to, 'LLL dd, yyyy')} - ${payDateStr}`;
         ws_data.push([title]);
         ws_data.push([]); // Blank row for spacing
-        
+
         ws_data.push(['Date', 'Metric', ...employees.map(e => e.firstName.toUpperCase())]);
 
         const daysInPeriod = eachDayOfInterval({ start: dateRange.from, end: dateRange.to });
-        
+
         daysInPeriod.forEach(day => {
-            const inRow: (string|number)[] = [format(day, 'eee, MMM dd'), 'In:'];
-            const outRow: (string|number)[] = ['', 'Out:'];
-            const totalRow: (string|number)[] = ['', 'Total:'];
+            const inRow: (string|number|null)[] = [format(day, 'eee, MMM dd'), 'In:'];
+            const outRow: (string|number|null)[] = ['', 'Out:'];
+            const totalRow: (string|number|null)[] = ['', 'Total:'];
 
             employees.forEach(emp => {
                 const summary = dailySummaries.find(s => s.employeeId === emp.id && isSameDay(s.date, day));
                 const entry = summary?.entries[0];
                 let dailyTotal = 0;
-                
+
                 if (entry) {
                     inRow.push(format(entry.timeIn.toDate(), 'p'));
                     if (entry.timeOut) {
@@ -476,19 +476,21 @@ export default function TimesheetPage() {
                 }
                 totalRow.push(dailyTotal > 0 ? parseFloat(dailyTotal.toFixed(2)) : '-');
             });
-            
-            ws_data.push(inRow, outRow, totalRow);
+
+            ws_data.push(inRow);
+            ws_data.push(outRow);
+            ws_data.push(totalRow);
         });
 
-        const grandTotalRow: (string | number)[] = ['Total Hours', ''];
+        const grandTotalRow: (string | number | null)[] = ['Total Hours', ''];
         employees.forEach(emp => {
             const total = employeeTotals.get(emp.id) || 0;
             grandTotalRow.push(parseFloat(total.toFixed(2)));
         });
         ws_data.push(grandTotalRow);
-        
+
         const ws = XLSX.utils.aoa_to_sheet(ws_data);
-        
+
         ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 2 + employees.length - 1 } }];
         ws['!cols'] = [{ wch: 15 }, { wch: 8 }, ...Array(employees.length).fill({ wch: 15 })];
         ws['!rows'] = [{ hpt: 25 }];
@@ -646,15 +648,17 @@ export default function TimesheetPage() {
                                                 </React.Fragment>
                                             )
                                         })}
+                                    </TableBody>
+                                    <TableFooter>
                                         <TableRow className="bg-card">
-                                            <TableCell colSpan={2} className="sticky left-0 bg-card z-10 font-bold p-2 text-right">Total Hours</TableCell>
+                                            <TableCell colSpan={2} className="sticky left-0 bg-card z-10 font-bold p-2 text-right text-base">Total Hours</TableCell>
                                             {employees.map(emp => (
-                                                <TableCell key={emp.id} className="font-bold text-primary tabular-nums p-2 text-center min-w-[200px]">
+                                                <TableCell key={emp.id} className="font-bold text-primary tabular-nums p-2 text-center text-base">
                                                     {isEditMode ? calculateEmployeeTotal(emp.id).toFixed(2) : (employeeTotals.get(emp.id) || 0).toFixed(2)}
                                                 </TableCell>
                                             ))}
                                         </TableRow>
-                                    </TableBody>
+                                    </TableFooter>
                                 </Table>
                             </div>
                         </div>
