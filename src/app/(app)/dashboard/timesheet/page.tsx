@@ -443,7 +443,7 @@ export default function TimesheetPage() {
         const payDateStr = payDate ? `Pay Date: ${format(payDate, 'LLL dd, yyyy')}` : '';
         const title = `${companyName} - Time Report: ${format(dateRange.from, 'LLL dd, yyyy')} - ${format(dateRange.to, 'LLL dd, yyyy')} - ${payDateStr}`;
         ws_data.push([title]);
-        ws_data.push(null); // Blank row for spacing
+        ws_data.push([]); // Blank row for spacing
         
         ws_data.push(['Date', 'Metric', ...employees.map(e => e.firstName.toUpperCase())]);
 
@@ -667,8 +667,8 @@ export default function TimesheetPage() {
             <PinDialog
                 open={isPinDialogOpen}
                 onOpenChange={setIsPinDialogOpen}
-                onPinVerified={handlePinVerified}
                 description={pinAction === 'enable_edit' ? "Enter your PIN to enable editing." : "Enter your PIN to save all changes."}
+                onPinVerified={handlePinVerified}
             />
         </div>
     );
