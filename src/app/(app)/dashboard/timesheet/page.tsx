@@ -434,7 +434,7 @@ export default function TimesheetPage() {
     }, [employees, dailySummaries]);
 
     const handleExportToExcel = () => {
-        if (!dateRange?.from || !employees.length) return;
+        if (!dateRange?.from || !dateRange.to || !employees.length) return;
 
         const wb = XLSX.utils.book_new();
         const ws_data: (string | number | null)[][] = [];
@@ -672,4 +672,5 @@ export default function TimesheetPage() {
             />
         </div>
     );
-}
+
+    
