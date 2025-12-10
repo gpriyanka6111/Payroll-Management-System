@@ -3,8 +3,8 @@ import type { PayrollResult, EmployeePayrollInput } from "@/components/payroll/p
 
 export type WeeklySchedule = {
   [day in 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday']?: {
-    start: string;
-    end: string;
+    start?: string;
+    end?: string;
     enabled: boolean;
   };
 };
