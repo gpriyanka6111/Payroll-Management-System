@@ -38,7 +38,6 @@ export default function DashboardPage() {
   
   const [activeTimeEntry, setActiveTimeEntry] = React.useState<TimeEntry | null>(null);
   const [todaysGlobalEntries, setTodaysGlobalEntries] = React.useState<TimeEntry[]>([]);
-  const [isLogVisible, setIsLogVisible] = React.useState(true);
   
   // Effect for the live clock
   React.useEffect(() => {
@@ -408,54 +407,6 @@ export default function DashboardPage() {
              </Card>
           </div>
        </div>
-
-      <Card>
-        <CardHeader className="flex flex-row justify-between items-center">
-            <div>
-                <CardTitle className="flex items-center"><Users className="mr-2 h-5 w-5"/> Today's Log</CardTitle>
-                <CardDescription>A log of all clock-in and clock-out events for today.</CardDescription>
-            </div>
-            <Button variant="ghost" size="icon" onClick={() => setIsLogVisible(!isLogVisible)} aria-label="Toggle log visibility">
-                {isLogVisible ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-            </Button>
-        </CardHeader>
-        {isLogVisible && (
-            <CardContent>
-            {todaysGlobalEntries.length > 0 ? (
-                <ul className="space-y-3">
-                {todaysGlobalEntries.map(entry => (
-                    <li key={entry.id} className="flex justify-between items-center p-3 border rounded-md bg-muted/20">
-                        <div className="flex items-center gap-3">
-                            <CheckCircle className="h-5 w-5 text-primary" />
-                            <div>
-                                <p className="font-medium">{entry.employeeName}</p>
-                                <p className="text-sm text-muted-foreground">
-                                    In: <span className="font-semibold">{entry.timeIn ? format(entry.timeIn.toDate(), 'p') : '...'}</span>
-                                    {entry.timeOut && ` — Out: `}
-                                    {entry.timeOut && <span className="font-semibold">{format(entry.timeOut.toDate(), 'p')}</span>}
-                                </p>
-                            </div>
-                        </div>
-                        {entry.timeOut === null ? (
-                            <div className="text-sm font-semibold text-green-600">ACTIVE</div>
-                        ) : (
-                            <div className="text-sm font-semibold text-muted-foreground">
-                                {formatDuration(entry.timeIn?.toDate() ?? null, entry.timeOut?.toDate() ?? null)}
-                            </div>
-                        )}
-                    </li>
-                ))}
-                </ul>
-            ) : (
-                <p className="text-center text-muted-foreground py-4">No activity recorded yet today for any employee.</p>
-            )}
-            </CardContent>
-        )}
-      </Card>
     </div>
   );
 }
-
-    
-
-    
