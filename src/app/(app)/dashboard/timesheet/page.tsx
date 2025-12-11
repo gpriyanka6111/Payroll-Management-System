@@ -592,7 +592,7 @@ export default function TimesheetPage() {
             orientation: 'landscape',
         };
         ws['!pageMargins'] = {
-            left: 0.5, right: 0.5, top: 0.5, bottom: 0.5, header: 0.3, footer: 0.3
+            left: 0, right: 0, top: 0, bottom: 0, header: 0, footer: 0
         };
         
         wb.SheetNames.push(sheetName);
