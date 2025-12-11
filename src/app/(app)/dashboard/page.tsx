@@ -14,6 +14,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import type { Employee } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Separator } from '@/components/ui/separator';
 
 
 interface TimeEntry {
@@ -470,5 +471,7 @@ export default function DashboardPage() {
     </div>
   );
 }
+
+    
 
     
