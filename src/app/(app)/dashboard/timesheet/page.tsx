@@ -499,7 +499,11 @@ export default function TimesheetPage() {
         const thinBorder = { style: "thin" };
         const thickBorderStyle = { border: { top: thickBorder, bottom: thickBorder, left: thickBorder, right: thickBorder }};
         
-        ws['!rows'] = [{ hpt: 25 }];
+        ws['!rows'] = ws_data.map((row, index) => {
+            if (index === 0) return { hpt: 25 };
+            if (index === 1) return { hpt: 20 };
+            return {};
+        });
 
         const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
 
@@ -518,9 +522,11 @@ export default function TimesheetPage() {
         for (let C = 0; C <= range.e.c; ++C) {
              const headerCellRef = XLSX.utils.encode_cell({c: C, r: 1});
              if (!ws[headerCellRef]) ws[headerCellRef] = { t: 's', v: '' };
-             let style = ws[headerCellRef].s || {};
-             style.border = { ...(style.border || {}), right: thickBorder };
-             ws[headerCellRef].s = style;
+             ws[headerCellRef].s = { 
+                ...thickBorderStyle,
+                font: { bold: true },
+                alignment: { horizontal: 'center', vertical: 'center' }
+             };
         }
 
         for (let R = 2; R <= range.e.r; ++R) {
@@ -741,5 +747,3 @@ export default function TimesheetPage() {
         </div>
     );
 }
-
-    
