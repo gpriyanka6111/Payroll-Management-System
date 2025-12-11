@@ -563,7 +563,7 @@ function PayrollReportContent() {
 
     return (
         <div className="space-y-6">
-            <div className="report-actions flex justify-between items-center">
+            <div className="report-actions flex justify-between items-center print:hidden">
                 <Button variant="outline" onClick={() => router.back()}>
                     <ArrowLeft className="mr-2 h-4 w-4" /> Back
                 </Button>
@@ -686,7 +686,7 @@ function PayrollReportContent() {
             
             {/* Individual Payslips Section */}
             <div className="payslip-section mt-8 printable-section">
-                <header className="flex items-center justify-between mb-6">
+                <header className="flex items-center justify-between mb-6 print:hidden">
                     <div>
                         <h2 className="text-xl font-semibold flex items-center">
                             <Users className="mr-2 h-5 w-5"/> Individual Payslips
