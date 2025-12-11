@@ -485,14 +485,14 @@ export default function TimesheetPage() {
         const thickBorder = { style: "thick" };
         const thickBorderStyle = { border: { top: thickBorder, bottom: thickBorder, left: thickBorder, right: thickBorder }};
         
-        ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 2 + employees.length - 1 } }];
+        ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 1 + employees.length } }];
         ws['!rows'] = [{ hpt: 25 }];
 
         const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
 
-        for (let C = 0; C < ws_data[0].length; C++) {
-            const titleCellRef = XLSX.utils.encode_cell({ c: C, r: 0 });
-            if (!ws[titleCellRef]) ws[titleCellRef] = { t: 's', v: '' };
+        for (let C = range.s.c; C <= range.e.c; ++C) {
+            const titleCellRef = XLSX.utils.encode_cell({c: C, r: 0});
+            if (!ws[titleCellRef]) ws[titleCellRef] = {t: 's', v: ''};
             ws[titleCellRef].s = {
                 ...thickBorderStyle,
                 font: { bold: true, sz: 14 },
@@ -500,10 +500,16 @@ export default function TimesheetPage() {
             };
         }
 
-        for (let R = 0; R <= range.e.r; ++R) {
+        for (let R = 1; R <= range.e.r; ++R) {
+            // First column
             const firstColCellRef = XLSX.utils.encode_cell({ c: 0, r: R });
             if (!ws[firstColCellRef]) ws[firstColCellRef] = { t: 's', v: '' };
             ws[firstColCellRef].s = { ...(ws[firstColCellRef].s || {}), border: { ...(ws[firstColCellRef].s?.border || {}), left: thickBorder, right: thickBorder }};
+
+            // Second column
+            const secondColCellRef = XLSX.utils.encode_cell({ c: 1, r: R });
+            if (!ws[secondColCellRef]) ws[secondColCellRef] = { t: 's', v: '' };
+            ws[secondColCellRef].s = { ...(ws[secondColCellRef].s || {}), border: { ...(ws[secondColCellRef].s?.border || {}), right: thickBorder }};
             
             const rowLabel = ws[XLSX.utils.encode_cell({ c: 1, r: R })]?.v;
             if (rowLabel === 'Total:' || (ws[XLSX.utils.encode_cell({ c: 0, r: R })]?.v === 'Total Hours')) {
@@ -517,7 +523,7 @@ export default function TimesheetPage() {
                 }
             }
 
-            if (R > 0) { // All employee columns
+            if (R > 0) { // Employee columns
                 for (let C = 2; C <= range.e.c; ++C) {
                     const cellRef = XLSX.utils.encode_cell({ c: C, r: R });
                     if (!ws[cellRef]) ws[cellRef] = { t: 's', v: '' };
@@ -528,7 +534,6 @@ export default function TimesheetPage() {
             }
         }
         
-
         ws['!cols'] = [{ wch: 15 }, { wch: 8 }, ...Array(employees.length).fill({ wch: 15 })];
 
         XLSX.utils.book_append_sheet(wb, ws, "Timesheet");
