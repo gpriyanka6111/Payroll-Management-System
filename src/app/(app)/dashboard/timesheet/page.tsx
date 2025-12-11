@@ -428,30 +428,29 @@ export default function TimesheetPage() {
 
     const handleExportToExcel = () => {
         if (!dateRange?.from || !dateRange.to || !employees.length) return;
-
+    
         const wb = XLSX.utils.book_new();
         const ws_data: (string | number | null)[][] = [];
-
+    
         const payDate = getPayDateForPeriod(dateRange.from);
         const payDateStr = payDate ? `Pay Date: ${format(payDate, 'LLL dd, yyyy')}` : '';
         const title = `${companyName} - Time Report: ${format(dateRange.from, 'LLL dd, yyyy')} - ${format(dateRange.to, 'LLL dd, yyyy')} - ${payDateStr}`;
         ws_data.push([title]);
-
-        ws_data.push([null, ...employees.map(e => e.firstName.toUpperCase())]);
-
+    
+        ws_data.push([null, 'Metric', ...employees.map(e => e.firstName.toUpperCase())]);
+    
         const daysInPeriod = eachDayOfInterval({ start: dateRange.from, end: dateRange.to });
-        let currentRow = 2; // Start after header rows
-
+    
         daysInPeriod.forEach(day => {
             const inRow: (string|number|null)[] = [format(day, 'eee, MMM dd'), 'In:'];
             const outRow: (string|number|null)[] = [null, 'Out:'];
             const totalRow: (string|number|null)[] = [null, 'Total:'];
-
+    
             employees.forEach(emp => {
                 const summary = dailySummaries.find(s => s.employeeId === emp.id && isSameDay(s.date, day));
                 const entry = summary?.entries[0];
                 let dailyTotal = 0;
-
+    
                 if (entry) {
                     inRow.push(format(entry.timeIn.toDate(), 'p'));
                     if (entry.timeOut) {
@@ -469,20 +468,19 @@ export default function TimesheetPage() {
                 }
                 totalRow.push(dailyTotal > 0 ? parseFloat(dailyTotal.toFixed(2)) : '-');
             });
-
+    
             ws_data.push(inRow, outRow, totalRow);
-            currentRow += 3;
         });
-
+    
         const grandTotalRow: (string | number | null)[] = ['Total Hours', null];
         employees.forEach(emp => {
             const total = employeeTotals.get(emp.id) || 0;
             grandTotalRow.push(parseFloat(total.toFixed(2)));
         });
         ws_data.push(grandTotalRow);
-
+    
         const ws = XLSX.utils.aoa_to_sheet(ws_data);
-
+    
         // --- STYLING ---
         const merges: XLSX.Range[] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 1 + employees.length } }];
         
@@ -495,19 +493,13 @@ export default function TimesheetPage() {
         merges.push({ s: {r: ws_data.length - 1, c: 0}, e: {r: ws_data.length - 1, c: 1 } });
         ws['!merges'] = merges;
         
-        const thickBorder = { style: "thick" };
-        const thinBorder = { style: "thin" };
-        const thickBorderStyle = { border: { top: thickBorder, bottom: thickBorder, left: thickBorder, right: thickBorder }};
+        const thickBorderSide = { style: "thick" };
+        const thinBorderSide = { style: "thin" };
+        const thickBorderStyle = { border: { top: thickBorderSide, bottom: thickBorderSide, left: thickBorderSide, right: thickBorderSide }};
         
-        ws['!rows'] = ws_data.map((row, index) => {
-            if (index === 0) return { hpt: 25 };
-            if (index === 1) return { hpt: 20 };
-            return {};
-        });
-
         const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
-
-        // Style first row (Title)
+    
+        // Style first row (Title) - Entire row with thick border
         for (let C = range.s.c; C <= range.e.c; ++C) {
             const titleCellRef = XLSX.utils.encode_cell({c: C, r: 0});
             if (!ws[titleCellRef]) ws[titleCellRef] = {t: 's', v: ''};
@@ -517,8 +509,8 @@ export default function TimesheetPage() {
                 alignment: { horizontal: 'center', vertical: 'center' }
             };
         }
-
-        // Style second row (Employee names)
+    
+        // Style second row (Employee names) - Entire row with thick border
         for (let C = 0; C <= range.e.c; ++C) {
              const headerCellRef = XLSX.utils.encode_cell({c: C, r: 1});
              if (!ws[headerCellRef]) ws[headerCellRef] = { t: 's', v: '' };
@@ -528,25 +520,41 @@ export default function TimesheetPage() {
                 alignment: { horizontal: 'center', vertical: 'center' }
              };
         }
-
-        for (let R = 2; R <= range.e.r; ++R) {
-            // First column
+    
+        for (let R = 2; R < ws_data.length; ++R) {
+            // First column (Dates) - Thick border all around
             const firstColCellRef = XLSX.utils.encode_cell({ c: 0, r: R });
             if (!ws[firstColCellRef]) ws[firstColCellRef] = { t: 's', v: '' };
-            ws[firstColCellRef].s = { ...(ws[firstColCellRef].s || {}), border: { ...(ws[firstColCellRef].s?.border || {}), left: thickBorder, right: thickBorder }, alignment: { vertical: 'center', horizontal: 'center' }};
+            ws[firstColCellRef].s = { 
+                border: { 
+                    left: thickBorderSide, 
+                    right: thickBorderSide,
+                    top: ws_data[R-1]?.[1] === 'Total:' ? thickBorderSide : thinBorderSide,
+                    bottom: ws_data[R]?.[1] === 'Total:' ? thickBorderSide : thinBorderSide,
+                 },
+                alignment: { vertical: 'center', horizontal: 'center' }
+            };
 
-            // Second column
+             // Second column (Metrics) - Thick border all around
             const secondColCellRef = XLSX.utils.encode_cell({ c: 1, r: R });
             if (!ws[secondColCellRef]) ws[secondColCellRef] = { t: 's', v: '' };
-            ws[secondColCellRef].s = { ...(ws[secondColCellRef].s || {}), border: { ...(ws[secondColCellRef].s?.border || {}), right: thickBorder }};
+            ws[secondColCellRef].s = { 
+                border: {
+                    left: thickBorderSide,
+                    right: thickBorderSide,
+                    top: ws_data[R-1]?.[1] === 'Total:' ? thickBorderSide : thinBorderSide,
+                    bottom: ws_data[R]?.[1] === 'Total:' ? thickBorderSide : thinBorderSide,
+                }
+            };
             
             const rowLabel = ws[XLSX.utils.encode_cell({ c: 1, r: R })]?.v;
-            if (rowLabel === 'Total:') {
+            // Thin border for 'Total:' rows, except for the last grand total
+            if (rowLabel === 'Total:' && R < ws_data.length -1) {
                  for (let C = 0; C <= range.e.c; ++C) {
                     const cellRef = XLSX.utils.encode_cell({ c: C, r: R });
                     if (!ws[cellRef]) ws[cellRef] = { t: 's', v: '' };
                     let currentStyle = ws[cellRef].s || {};
-                    currentStyle.border = { ...(currentStyle.border || {}), top: thinBorder, bottom: thinBorder };
+                    currentStyle.border = { ...(currentStyle.border || {}), top: thinBorderSide, bottom: thinBorderSide };
                     currentStyle.font = { ...(currentStyle.font || {}), bold: true };
                     ws[cellRef].s = currentStyle;
                 }
@@ -554,24 +562,41 @@ export default function TimesheetPage() {
                 for (let C = 0; C <= range.e.c; ++C) {
                     const cellRef = XLSX.utils.encode_cell({ c: C, r: R });
                     if (!ws[cellRef]) ws[cellRef] = { t: 's', v: '' };
-                    let currentStyle = ws[cellRef].s || {};
-                    currentStyle.border = { ...(currentStyle.border || {}), top: thickBorder, bottom: thickBorder };
-                    currentStyle.font = { ...(currentStyle.font || {}), bold: true };
-                    ws[cellRef].s = currentStyle;
+                    ws[cellRef].s = { ...thickBorderStyle, font: { bold: true } };
                 }
             }
-
-            // Employee columns
+    
+            // Thick border around each employee column
             for (let C = 2; C <= range.e.c; ++C) {
                 const cellRef = XLSX.utils.encode_cell({ c: C, r: R });
                 if (!ws[cellRef]) ws[cellRef] = { t: 's', v: '' };
                 let currentStyle = ws[cellRef].s || {};
-                currentStyle.border = { ...(currentStyle.border || {}), right: thickBorder };
+                const border = {
+                   left: thickBorderSide,
+                   right: thickBorderSide,
+                   top: ws_data[R-1]?.[1] === 'Total:' ? thickBorderSide : thinBorderSide,
+                   bottom: ws_data[R]?.[1] === 'Total:' ? thickBorderSide : thinBorderSide,
+                }
+                currentStyle.border = border
                 ws[cellRef].s = currentStyle;
             }
         }
         
-        ws['!cols'] = [{ wch: 15 }, { wch: 8 }, ...Array(employees.length).fill({ wch: 15 })];
+        ws['!cols'] = [{ wch: 14 }, { wch: 8 }, ...Array(employees.length).fill({ wch: 12 })];
+        ws['!rows'] = [{ hpt: 25 }, { hpt: 20 }, ...Array(ws_data.length - 2).fill({})];
+
+        // Setup print properties
+        ws['!pageSetup'] = {
+            fitToPage: true,
+            orientation: 'landscape',
+        };
+        ws['!printHeader'] = {
+            rows: 1, // Repeat row 1 and 2
+            cols: 2  // Repeat col A and B
+        };
+        ws['!pageMargins'] = {
+            left: 0.5, right: 0.5, top: 0.5, bottom: 0.5, header: 0.3, footer: 0.3
+        };
 
         XLSX.utils.book_append_sheet(wb, ws, "Timesheet");
         const fileName = `Timesheet_${format(dateRange.from, 'yyyy-MM-dd')}_to_${format(dateRange.to, 'yyyy-MM-dd')}.xlsx`;
