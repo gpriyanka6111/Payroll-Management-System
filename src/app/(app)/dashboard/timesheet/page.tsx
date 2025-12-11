@@ -431,13 +431,14 @@ export default function TimesheetPage() {
     
         const wb = XLSX.utils.book_new();
         const ws_data: (string | number | null)[][] = [];
+        const sheetName = "Timesheet";
     
         const payDate = getPayDateForPeriod(dateRange.from);
         const payDateStr = payDate ? `Pay Date: ${format(payDate, 'LLL dd, yyyy')}` : '';
         const title = `${companyName} - Time Report: ${format(dateRange.from, 'LLL dd, yyyy')} - ${format(dateRange.to, 'LLL dd, yyyy')} - ${payDateStr}`;
         ws_data.push([title]);
     
-        ws_data.push([null, 'Metric', ...employees.map(e => e.firstName.toUpperCase())]);
+        ws_data.push(['Date', 'Metric', ...employees.map(e => e.firstName.toUpperCase())]);
     
         const daysInPeriod = eachDayOfInterval({ start: dateRange.from, end: dateRange.to });
     
@@ -582,7 +583,7 @@ export default function TimesheetPage() {
             }
         }
         
-        ws['!cols'] = [{ wch: 14 }, { wch: 8 }, ...Array(employees.length).fill({ wch: 12 })];
+        ws['!cols'] = [{ wch: 14 }, { wch: 5 }, ...Array(employees.length).fill({ wch: 12 })];
         ws['!rows'] = [{ hpt: 25 }, { hpt: 20 }, ...Array(ws_data.length - 2).fill({})];
 
         // Setup print properties
@@ -590,15 +591,26 @@ export default function TimesheetPage() {
             fitToPage: true,
             orientation: 'landscape',
         };
-        ws['!printHeader'] = {
-            rows: 1, // Repeat row 1 and 2
-            cols: 2  // Repeat col A and B
-        };
         ws['!pageMargins'] = {
             left: 0.5, right: 0.5, top: 0.5, bottom: 0.5, header: 0.3, footer: 0.3
         };
+        
+        wb.SheetNames.push(sheetName);
+        wb.Sheets[sheetName] = ws;
+        
+        // Define Print Titles (repeat rows/cols)
+        wb.Workbook = {
+            ...wb.Workbook,
+            Names: [
+                {
+                    Name: 'Print_Titles',
+                    Sheet: 0,
+                    Ref: `${sheetName}!$A:$B,${sheetName}!$1:$2` // Repeat Columns A & B, and Rows 1 & 2
+                }
+            ]
+        };
 
-        XLSX.utils.book_append_sheet(wb, ws, "Timesheet");
+
         const fileName = `Timesheet_${format(dateRange.from, 'yyyy-MM-dd')}_to_${format(dateRange.to, 'yyyy-MM-dd')}.xlsx`;
         XLSX.writeFile(wb, fileName);
     };
