@@ -4,7 +4,7 @@
 import * as React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Clock, LogIn, LogOut, CheckCircle, Users, Briefcase, Hourglass } from "lucide-react";
+import { Clock, LogIn, LogOut, CheckCircle, Users, Briefcase, Hourglass, Eye, EyeOff } from "lucide-react";
 import { format, differenceInHours, differenceInMinutes, startOfDay, endOfDay, isBefore, getDay, parse } from "date-fns";
 import { useAuth } from '@/contexts/auth-context';
 import { collection, addDoc, query, where, onSnapshot, serverTimestamp, doc, updateDoc, Timestamp, getDocs, limit, orderBy, getDoc } from 'firebase/firestore';
@@ -38,6 +38,7 @@ export default function DashboardPage() {
   
   const [activeTimeEntry, setActiveTimeEntry] = React.useState<TimeEntry | null>(null);
   const [todaysGlobalEntries, setTodaysGlobalEntries] = React.useState<TimeEntry[]>([]);
+  const [isLogVisible, setIsLogVisible] = React.useState(true);
   
   // Effect for the live clock
   React.useEffect(() => {
@@ -53,80 +54,70 @@ export default function DashboardPage() {
     };
     
     setIsLoading(true);
-    
-    // 1. Fetch employees and set up a listener
-    const employeesCollectionRef = collection(db, 'users', user.uid, 'employees');
-    const qEmployees = query(employeesCollectionRef, orderBy('firstName', 'asc'));
-    
-    const employeeUnsubscriber = onSnapshot(qEmployees, (snapshot) => {
-        const employeesData: Employee[] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
-        setEmployees(employeesData);
+    let employeeUnsubscriber: () => void;
+    let timeEntryUnsubscribers: (() => void)[] = [];
 
-        if (employeesData.length > 0 && !selectedEmployeeId) {
-            setSelectedEmployeeId(employeesData[0].id);
-        } else if (employeesData.length === 0) {
-            setSelectedEmployeeId(null);
+    const fetchAllData = async () => {
+        try {
+            // 1. Fetch employees and set up a listener
+            const employeesCollectionRef = collection(db, 'users', user.uid, 'employees');
+            const qEmployees = query(employeesCollectionRef, orderBy('firstName', 'asc'));
+            
+            employeeUnsubscriber = onSnapshot(qEmployees, (snapshot) => {
+                const employeesData: Employee[] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
+                setEmployees(employeesData);
+
+                if (employeesData.length > 0 && !selectedEmployeeId) {
+                    setSelectedEmployeeId(employeesData[0].id);
+                } else if (employeesData.length === 0) {
+                    setSelectedEmployeeId(null);
+                }
+                setIsLoading(false);
+            }, (error) => {
+                console.error("Error fetching employees:", error);
+                toast({ title: "Error", description: "Could not fetch employees.", variant: "destructive" });
+                setIsLoading(false);
+            });
+
+            // 2. Fetch all of today's time entries for all employees via listeners
+            const todayStart = startOfDay(new Date());
+            const todayEnd = endOfDay(new Date());
+            const employeeSnapshot = await getDocs(qEmployees);
+
+            // Clear previous listeners
+            timeEntryUnsubscribers.forEach(unsub => unsub());
+            timeEntryUnsubscribers = [];
+
+            const allEntriesListener = onSnapshot(query(collection(db, 'users', user.uid, 'allTimeEntries'), where('timeIn', '>=', todayStart), where('timeIn', '<=', todayEnd)), (snapshot) => {
+                // This is a placeholder for a more efficient root collection query if implemented.
+                // For now, we rely on per-employee listeners.
+            });
+
+            // Set up listeners for each employee's time entries for today
+            employeeSnapshot.docs.forEach(empDoc => {
+                const timeEntriesRef = collection(db, 'users', user.uid, 'employees', empDoc.id, 'timeEntries');
+                const qEntries = query(timeEntriesRef, where('timeIn', '>=', todayStart), where('timeIn', '<=', todayEnd));
+                const unsub = onSnapshot(qEntries, (entrySnapshot) => {
+                    const newEntries = entrySnapshot.docs.map(d => ({ id: d.id, ...d.data() } as TimeEntry));
+                    setTodaysGlobalEntries(prev => {
+                        const otherEntries = prev.filter(e => e.employeeId !== empDoc.id);
+                        return [...otherEntries, ...newEntries].sort((a,b) => b.timeIn.toMillis() - a.timeIn.toMillis())
+                    });
+                });
+                timeEntryUnsubscribers.push(unsub);
+            });
+            
+        } catch (error) {
+            console.error("Dashboard data fetch error:", error);
+            toast({ title: "Error", description: "Could not fetch all dashboard data.", variant: "destructive" });
+            setIsLoading(false);
         }
-        setIsLoading(false);
-    }, (error) => {
-        console.error("Error fetching employees:", error);
-        toast({ title: "Error", description: "Could not fetch employees.", variant: "destructive" });
-        setIsLoading(false);
-    });
-
-    // 2. Fetch all of today's time entries for all employees
-    const todayStart = startOfDay(new Date());
-    const todayEnd = endOfDay(new Date());
-    const timeEntriesRef = collection(db, 'users', user.uid, 'allTimeEntries'); // Assuming you have a root collection for this
+    };
     
-    // This is a simplified listener. For a large number of employees, 
-    // you would listen to each employee's subcollection.
-    // For now, let's assume we can query a root collection for today's entries.
-    // To implement this fully, we need to adjust how time entries are saved.
-    // Let's adjust the listener to query each employee subcollection for today's entries.
-    
-    const timeEntryUnsubscribers: (() => void)[] = [];
-    
-    const employeesQuery = query(collection(db, 'users', user.uid, 'employees'));
-    getDocs(employeesQuery).then(employeeSnapshot => {
-        const allEntries: TimeEntry[] = [];
-        
-        // This part is inefficient if you have many employees, but will work for a few.
-        // A better approach at scale is using a root `timeEntries` collection.
-        const promises = employeeSnapshot.docs.map(empDoc => {
-            const timeEntriesRef = collection(db, 'users', user.uid, 'employees', empDoc.id, 'timeEntries');
-            const qEntries = query(timeEntriesRef, where('timeIn', '>=', todayStart), where('timeIn', '<=', todayEnd));
-            return getDocs(qEntries);
-        });
-
-        Promise.all(promises).then(snapshots => {
-            snapshots.forEach(snapshot => {
-                snapshot.forEach(doc => {
-                    allEntries.push({ id: doc.id, ...doc.data() } as TimeEntry);
-                });
-            });
-            setTodaysGlobalEntries(allEntries.sort((a,b) => b.timeIn.toMillis() - a.timeIn.toMillis()));
-        });
-        
-        // Now set up listeners
-         employeeSnapshot.docs.forEach(empDoc => {
-            const timeEntriesRef = collection(db, 'users', user.uid, 'employees', empDoc.id, 'timeEntries');
-            const qEntries = query(timeEntriesRef, where('timeIn', '>=', todayStart), where('timeIn', '<=', todayEnd));
-            const unsub = onSnapshot(qEntries, (entrySnapshot) => {
-                const newEntries = entrySnapshot.docs.map(d => ({ id: d.id, ...d.data() } as TimeEntry));
-                setTodaysGlobalEntries(prev => {
-                    const otherEntries = prev.filter(e => e.employeeId !== empDoc.id);
-                    return [...otherEntries, ...newEntries].sort((a,b) => b.timeIn.toMillis() - a.timeIn.toMillis())
-                });
-            });
-            timeEntryUnsubscribers.push(unsub);
-        });
-
-    });
-
+    fetchAllData();
 
     return () => {
-        employeeUnsubscriber();
+        if (employeeUnsubscriber) employeeUnsubscriber();
         timeEntryUnsubscribers.forEach(unsub => unsub());
     };
   }, [user, toast]);
@@ -419,43 +410,52 @@ export default function DashboardPage() {
        </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center"><Users className="mr-2 h-5 w-5"/> Today's Log</CardTitle>
-          <CardDescription>A log of all clock-in and clock-out events for today.</CardDescription>
+        <CardHeader className="flex flex-row justify-between items-center">
+            <div>
+                <CardTitle className="flex items-center"><Users className="mr-2 h-5 w-5"/> Today's Log</CardTitle>
+                <CardDescription>A log of all clock-in and clock-out events for today.</CardDescription>
+            </div>
+            <Button variant="ghost" size="icon" onClick={() => setIsLogVisible(!isLogVisible)} aria-label="Toggle log visibility">
+                {isLogVisible ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+            </Button>
         </CardHeader>
-        <CardContent>
-          {todaysGlobalEntries.length > 0 ? (
-            <ul className="space-y-3">
-              {todaysGlobalEntries.map(entry => (
-                <li key={entry.id} className="flex justify-between items-center p-3 border rounded-md bg-muted/20">
-                    <div className="flex items-center gap-3">
-                        <CheckCircle className="h-5 w-5 text-primary" />
-                        <div>
-                            <p className="font-medium">{entry.employeeName}</p>
-                            <p className="text-sm text-muted-foreground">
-                                In: <span className="font-semibold">{entry.timeIn ? format(entry.timeIn.toDate(), 'p') : '...'}</span>
-                                {entry.timeOut && ` — Out: `}
-                                {entry.timeOut && <span className="font-semibold">{format(entry.timeOut.toDate(), 'p')}</span>}
-                            </p>
+        {isLogVisible && (
+            <CardContent>
+            {todaysGlobalEntries.length > 0 ? (
+                <ul className="space-y-3">
+                {todaysGlobalEntries.map(entry => (
+                    <li key={entry.id} className="flex justify-between items-center p-3 border rounded-md bg-muted/20">
+                        <div className="flex items-center gap-3">
+                            <CheckCircle className="h-5 w-5 text-primary" />
+                            <div>
+                                <p className="font-medium">{entry.employeeName}</p>
+                                <p className="text-sm text-muted-foreground">
+                                    In: <span className="font-semibold">{entry.timeIn ? format(entry.timeIn.toDate(), 'p') : '...'}</span>
+                                    {entry.timeOut && ` — Out: `}
+                                    {entry.timeOut && <span className="font-semibold">{format(entry.timeOut.toDate(), 'p')}</span>}
+                                </p>
+                            </div>
                         </div>
-                    </div>
-                    {entry.timeOut === null ? (
-                        <div className="text-sm font-semibold text-green-600">ACTIVE</div>
-                    ) : (
-                        <div className="text-sm font-semibold text-muted-foreground">
-                            {formatDuration(entry.timeIn?.toDate() ?? null, entry.timeOut?.toDate() ?? null)}
-                        </div>
-                    )}
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-center text-muted-foreground py-4">No activity recorded yet today for any employee.</p>
-          )}
-        </CardContent>
+                        {entry.timeOut === null ? (
+                            <div className="text-sm font-semibold text-green-600">ACTIVE</div>
+                        ) : (
+                            <div className="text-sm font-semibold text-muted-foreground">
+                                {formatDuration(entry.timeIn?.toDate() ?? null, entry.timeOut?.toDate() ?? null)}
+                            </div>
+                        )}
+                    </li>
+                ))}
+                </ul>
+            ) : (
+                <p className="text-center text-muted-foreground py-4">No activity recorded yet today for any employee.</p>
+            )}
+            </CardContent>
+        )}
       </Card>
     </div>
   );
 }
+
+    
 
     
