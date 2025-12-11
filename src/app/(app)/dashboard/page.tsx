@@ -5,7 +5,7 @@ import * as React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Clock, LogIn, LogOut, CheckCircle, Users, Briefcase, Hourglass } from "lucide-react";
-import { format, differenceInHours, differenceInMinutes, startOfDay, endOfDay, isBefore, startOfToday, getDay, parse } from "date-fns";
+import { format, differenceInHours, differenceInMinutes, startOfDay, endOfDay, isBefore, getDay, parse } from "date-fns";
 import { useAuth } from '@/contexts/auth-context';
 import { collection, addDoc, query, where, onSnapshot, serverTimestamp, doc, updateDoc, Timestamp, getDocs, limit, orderBy, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -32,7 +32,6 @@ export default function DashboardPage() {
   
   const [employees, setEmployees] = React.useState<Employee[]>([]);
   const [selectedEmployeeId, setSelectedEmployeeId] = React.useState<string | null>(null);
-  const [selectedEmployee, setSelectedEmployee] = React.useState<Employee | null>(null);
   
   const [isLoading, setIsLoading] = React.useState(true);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
@@ -46,7 +45,7 @@ export default function DashboardPage() {
     return () => clearInterval(timer);
   }, []);
   
-  // Master effect to fetch employees and all time-related data
+  // Master effect to fetch all data
   React.useEffect(() => {
     if (!user) {
         setIsLoading(false);
@@ -55,52 +54,21 @@ export default function DashboardPage() {
     
     setIsLoading(true);
     
-    // 1. Fetch employees
+    // 1. Fetch employees and set up a listener
     const employeesCollectionRef = collection(db, 'users', user.uid, 'employees');
     const qEmployees = query(employeesCollectionRef, orderBy('firstName', 'asc'));
     
     const unsubscribeEmployees = onSnapshot(qEmployees, (snapshot) => {
         const employeesData: Employee[] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
         setEmployees(employeesData);
-        
-        // Auto-select the first employee if none is selected
-        if (!selectedEmployeeId && employeesData.length > 0) {
-            setSelectedEmployeeId(employeesData[0].id);
-        }
-        
-        // 2. Fetch today's global time entries for all employees (for status indicators)
-        const todayStart = startOfDay(new Date());
-        const todayEnd = endOfDay(new Date());
-        let allEntries: TimeEntry[] = [];
-        
-        if (employeesData.length > 0) {
-            const unsubscribers = employeesData.map(employee => {
-                const timeEntriesRef = collection(db, 'users', user.uid, 'employees', employee.id, 'timeEntries');
-                const qEntries = query(
-                    timeEntriesRef,
-                    where('timeIn', '>=', todayStart),
-                    where('timeIn', '<=', todayEnd),
-                    orderBy('timeIn', 'desc')
-                );
-                return onSnapshot(qEntries, (entrySnapshot) => {
-                    const employeeEntries = entrySnapshot.docs.map(d => ({ id: d.id, ...d.data() } as TimeEntry));
-                    
-                    // Atomically update entries for the current employee
-                    allEntries = [
-                        ...allEntries.filter(e => e.employeeId !== employee.id),
-                        ...employeeEntries
-                    ];
-                    
-                    setTodaysGlobalEntries([...allEntries.sort((a,b) => b.timeIn.toMillis() - a.timeIn.toMillis())]);
-                });
-            });
-            // Cleanup listeners for global entries
-            // This return is inside the employee snapshot callback
-            return () => unsubscribers.forEach(unsub => unsub());
-        } else {
-             setTodaysGlobalEntries([]);
-        }
 
+        // Auto-select the first employee if none is selected or the current one is gone
+        if (employeesData.length > 0 && (!selectedEmployeeId || !employeesData.some(e => e.id === selectedEmployeeId))) {
+            setSelectedEmployeeId(employeesData[0].id);
+        } else if (employeesData.length === 0) {
+            setSelectedEmployeeId(null);
+        }
+        
         setIsLoading(false);
     }, (error) => {
         console.error("Error fetching employees:", error);
@@ -108,35 +76,71 @@ export default function DashboardPage() {
         setIsLoading(false);
     });
 
-    return () => unsubscribeEmployees();
-  }, [user, toast, selectedEmployeeId]);
+    // 2. Fetch all of today's time entries for all employees for the status indicators
+    const todayStart = startOfDay(new Date());
+    const todayEnd = endOfDay(new Date());
+    const allTimeEntriesRef = collection(db, 'users', user.uid, 'timeEntries'); // Assuming a root collection for simplicity
+     const qAllEntries = query(
+        collection(db, 'users', user.uid, 'allTimeEntries'),
+        where('timeIn', '>=', todayStart),
+        where('timeIn', '<=', todayEnd)
+    );
 
-  // Effect to manage the selected employee and their specific active entry
+    // This is a simplified listener. A more robust solution might listen to each employee's sub-collection.
+    // For now, this demonstrates fetching all relevant entries for the day.
+    const timeEntryQuery = query(
+        collection(db, 'users', user.uid, 'employees')
+    );
+    getDocs(timeEntryQuery).then(employeeDocs => {
+        const unsubscribers = employeeDocs.docs.map(employeeDoc => {
+             const timeEntriesRef = collection(db, 'users', user.uid, 'employees', employeeDoc.id, 'timeEntries');
+             const qEntries = query(
+                 timeEntriesRef,
+                 where('timeIn', '>=', todayStart),
+                 where('timeIn', '<=', todayEnd)
+             );
+             return onSnapshot(qEntries, (entrySnapshot) => {
+                 setTodaysGlobalEntries(prevEntries => {
+                     const otherEmployeeEntries = prevEntries.filter(e => e.employeeId !== employeeDoc.id);
+                     const newEntries = entrySnapshot.docs.map(d => ({ id: d.id, ...d.data() } as TimeEntry));
+                     return [...otherEmployeeEntries, ...newEntries].sort((a,b) => b.timeIn.toMillis() - a.timeIn.toMillis());
+                 });
+             });
+        });
+        return () => unsubscribers.forEach(unsub => unsub());
+    });
+
+
+    return () => {
+        unsubscribeEmployees();
+    };
+  }, [user, toast]);
+
+
+  // Effect to manage the selected employee's specific active entry
   React.useEffect(() => {
     if (!selectedEmployeeId || !user) {
-        setSelectedEmployee(null);
         setActiveTimeEntry(null);
         return;
     };
-    
-    const currentEmployee = employees.find(e => e.id === selectedEmployeeId);
-    setSelectedEmployee(currentEmployee || null);
 
     const timeEntriesRef = collection(db, 'users', user.uid, 'employees', selectedEmployeeId, 'timeEntries');
     const q = query(
         timeEntriesRef, 
         where('timeOut', '==', null),
+        orderBy('timeIn', 'desc'),
         limit(1)
     );
 
     const unsubscribeActive = onSnapshot(q, (snapshot) => {
         if (!snapshot.empty) {
             const doc = snapshot.docs[0];
+            const selectedEmployee = employees.find(e => e.id === selectedEmployeeId);
             setActiveTimeEntry({ 
                 id: doc.id, 
                 ...doc.data(),
                 employeeId: selectedEmployeeId,
-                employeeName: currentEmployee?.firstName || 'Unknown'
+                employeeName: selectedEmployee?.firstName || 'Unknown'
             } as TimeEntry);
         } else {
             setActiveTimeEntry(null);
@@ -185,11 +189,15 @@ export default function DashboardPage() {
 
   const handleTimeIn = async () => {
     if (!user || !selectedEmployeeId) return;
+    
+    const selectedEmployee = employees.find(e => e.id === selectedEmployeeId);
+    if (!selectedEmployee) return;
+
     setIsSubmitting(true);
     
     try {
       // Check if there is a stale clock-in from a previous day
-      if (activeTimeEntry && activeTimeEntry.timeIn && isBefore(activeTimeEntry.timeIn.toDate(), startOfToday())) {
+      if (activeTimeEntry && activeTimeEntry.timeIn && isBefore(activeTimeEntry.timeIn.toDate(), startOfDay(new Date()))) {
           const { timeOutValue, toastDescription } = await getAutoClockOutTime(activeTimeEntry.timeIn.toDate());
           const staleEntryDocRef = doc(db, 'users', user.uid, 'employees', activeTimeEntry.employeeId, 'timeEntries', activeTimeEntry.id);
           await updateDoc(staleEntryDocRef, { timeOut: timeOutValue });
@@ -203,8 +211,6 @@ export default function DashboardPage() {
           setIsSubmitting(false);
           return; 
       }
-
-      if (!selectedEmployee) return;
 
       const timeEntriesRef = collection(db, 'users', user.uid, 'employees', selectedEmployeeId, 'timeEntries');
       await addDoc(timeEntriesRef, {
@@ -230,6 +236,7 @@ export default function DashboardPage() {
   const handleTimeOut = async () => {
     if (!user || !selectedEmployeeId || !activeTimeEntry || !activeTimeEntry.timeIn) return;
     setIsSubmitting(true);
+    const selectedEmployee = employees.find(e => e.id === selectedEmployeeId);
 
     try {
         const entryDocRef = doc(db, 'users', user.uid, 'employees', selectedEmployeeId, 'timeEntries', activeTimeEntry.id);
@@ -239,16 +246,17 @@ export default function DashboardPage() {
         
         let finalTimeOutValue: Date | Timestamp;
         let toastDescription: string;
+        const employeeName = selectedEmployee?.firstName || 'Employee';
 
-        if (isBefore(activeTimeEntry.timeIn.toDate(), startOfToday())) {
+        if (isBefore(activeTimeEntry.timeIn.toDate(), startOfDay(new Date()))) {
             finalTimeOutValue = storeClosingTime;
-            toastDescription = `${activeTimeEntry.employeeName} was automatically clocked out for a previous shift at ${format(storeClosingTime, 'p')}.`;
+            toastDescription = `${employeeName} was automatically clocked out for a previous shift at ${format(storeClosingTime, 'p')}.`;
         } else if (now > storeClosingTime) {
             finalTimeOutValue = storeClosingTime;
-            toastDescription = `${activeTimeEntry.employeeName}'s shift ended at the store's closing time of ${format(storeClosingTime, 'p')}.`;
+            toastDescription = `${employeeName}'s shift ended at the store's closing time of ${format(storeClosingTime, 'p')}.`;
         } else {
             finalTimeOutValue = now;
-            toastDescription = `${activeTimeEntry.employeeName}'s shift has ended at ${format(now, 'p')}.`;
+            toastDescription = `${employeeName}'s shift has ended at ${format(now, 'p')}.`;
         }
 
         await updateDoc(entryDocRef, {
@@ -310,6 +318,8 @@ export default function DashboardPage() {
       return todaysGlobalEntries.some(entry => entry.employeeId === employeeId && entry.timeOut === null);
   }
 
+  const selectedEmployee = employees.find(e => e.id === selectedEmployeeId);
+
   return (
     <div className="space-y-6">
        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -339,7 +349,7 @@ export default function DashboardPage() {
                                 >
                                     <div className="relative mb-2">
                                         <Avatar className="h-16 w-16 text-xl">
-                                            <AvatarFallback>{emp.firstName.charAt(0)}</AvatarFallback>
+                                            <AvatarFallback>{emp.firstName?.charAt(0) || 'E'}</AvatarFallback>
                                         </Avatar>
                                         <div className={cn(
                                             "absolute bottom-0 right-0 h-4 w-4 rounded-full border-2 border-background",
@@ -381,7 +391,7 @@ export default function DashboardPage() {
                         ) : <div className="h-20" /> }
 
                         <div className="grid grid-cols-2 gap-4">
-                            <Button size="lg" onClick={handleTimeIn} disabled={!selectedEmployeeId || (!!activeTimeEntry && activeTimeEntry.timeIn && !isBefore(activeTimeEntry.timeIn.toDate(), startOfToday())) || isSubmitting}>
+                            <Button size="lg" onClick={handleTimeIn} disabled={!selectedEmployeeId || (!!activeTimeEntry && activeTimeEntry.timeIn && !isBefore(activeTimeEntry.timeIn.toDate(), startOfDay(new Date()))) || isSubmitting}>
                                 <LogIn className="mr-2 h-5 w-5" /> Time In
                             </Button>
                             <Button size="lg" variant="destructive" onClick={handleTimeOut} disabled={!selectedEmployeeId || !activeTimeEntry || isSubmitting}>
@@ -471,3 +481,5 @@ export default function DashboardPage() {
     </div>
   );
 }
+
+    
