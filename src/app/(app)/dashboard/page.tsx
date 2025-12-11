@@ -53,66 +53,67 @@ export default function DashboardPage() {
     };
     
     setIsLoading(true);
+    let employeeUnsubscriber: () => void;
+    const timeEntryUnsubscribers: (()=>void)[] = [];
     
-    // 1. Fetch employees and set up a listener
-    const employeesCollectionRef = collection(db, 'users', user.uid, 'employees');
-    const qEmployees = query(employeesCollectionRef, orderBy('firstName', 'asc'));
-    
-    const unsubscribeEmployees = onSnapshot(qEmployees, (snapshot) => {
-        const employeesData: Employee[] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
-        setEmployees(employeesData);
-
-        // Auto-select the first employee if none is selected or the current one is gone
-        if (employeesData.length > 0 && (!selectedEmployeeId || !employeesData.some(e => e.id === selectedEmployeeId))) {
-            setSelectedEmployeeId(employeesData[0].id);
-        } else if (employeesData.length === 0) {
-            setSelectedEmployeeId(null);
-        }
+    const setupListeners = async () => {
+        // 1. Fetch employees and set up a listener
+        const employeesCollectionRef = collection(db, 'users', user.uid, 'employees');
+        const qEmployees = query(employeesCollectionRef, orderBy('firstName', 'asc'));
         
-        setIsLoading(false);
-    }, (error) => {
-        console.error("Error fetching employees:", error);
-        toast({ title: "Error", description: "Could not fetch employees.", variant: "destructive" });
-        setIsLoading(false);
-    });
+        employeeUnsubscriber = onSnapshot(qEmployees, async (snapshot) => {
+            const employeesData: Employee[] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
+            setEmployees(employeesData);
 
-    // 2. Fetch all of today's time entries for all employees for the status indicators
-    const todayStart = startOfDay(new Date());
-    const todayEnd = endOfDay(new Date());
-    const allTimeEntriesRef = collection(db, 'users', user.uid, 'timeEntries'); // Assuming a root collection for simplicity
-     const qAllEntries = query(
-        collection(db, 'users', user.uid, 'allTimeEntries'),
-        where('timeIn', '>=', todayStart),
-        where('timeIn', '<=', todayEnd)
-    );
+            if (employeesData.length > 0) {
+                 if (!selectedEmployeeId || !employeesData.some(e => e.id === selectedEmployeeId)) {
+                    setSelectedEmployeeId(employeesData[0].id);
+                }
+                
+                // Clear previous time entry listeners
+                timeEntryUnsubscribers.forEach(unsub => unsub());
 
-    // This is a simplified listener. A more robust solution might listen to each employee's sub-collection.
-    // For now, this demonstrates fetching all relevant entries for the day.
-    const timeEntryQuery = query(
-        collection(db, 'users', user.uid, 'employees')
-    );
-    getDocs(timeEntryQuery).then(employeeDocs => {
-        const unsubscribers = employeeDocs.docs.map(employeeDoc => {
-             const timeEntriesRef = collection(db, 'users', user.uid, 'employees', employeeDoc.id, 'timeEntries');
-             const qEntries = query(
-                 timeEntriesRef,
-                 where('timeIn', '>=', todayStart),
-                 where('timeIn', '<=', todayEnd)
-             );
-             return onSnapshot(qEntries, (entrySnapshot) => {
-                 setTodaysGlobalEntries(prevEntries => {
-                     const otherEmployeeEntries = prevEntries.filter(e => e.employeeId !== employeeDoc.id);
-                     const newEntries = entrySnapshot.docs.map(d => ({ id: d.id, ...d.data() } as TimeEntry));
-                     return [...otherEmployeeEntries, ...newEntries].sort((a,b) => b.timeIn.toMillis() - a.timeIn.toMillis());
-                 });
-             });
+                const todayStart = startOfDay(new Date());
+                const todayEnd = endOfDay(new Date());
+
+                // Create listeners for each employee's time entries for today
+                const allEntries: TimeEntry[] = [];
+                for (const emp of employeesData) {
+                    const timeEntriesRef = collection(db, 'users', user.uid, 'employees', emp.id, 'timeEntries');
+                    const qEntries = query(
+                        timeEntriesRef,
+                        where('timeIn', '>=', todayStart),
+                        where('timeIn', '<=', todayEnd)
+                    );
+
+                    const unsub = onSnapshot(qEntries, (entrySnapshot) => {
+                         setTodaysGlobalEntries(prevEntries => {
+                            const otherEmployeeEntries = prevEntries.filter(e => e.employeeId !== emp.id);
+                            const newEntries = entrySnapshot.docs.map(d => ({ id: d.id, ...d.data() } as TimeEntry));
+                            return [...otherEmployeeEntries, ...newEntries].sort((a,b) => b.timeIn.toMillis() - a.timeIn.toMillis());
+                        });
+                    });
+                    timeEntryUnsubscribers.push(unsub);
+                }
+
+            } else {
+                setSelectedEmployeeId(null);
+                setTodaysGlobalEntries([]);
+            }
+            
+            setIsLoading(false);
+        }, (error) => {
+            console.error("Error fetching employees:", error);
+            toast({ title: "Error", description: "Could not fetch employees.", variant: "destructive" });
+            setIsLoading(false);
         });
-        return () => unsubscribers.forEach(unsub => unsub());
-    });
+    }
 
+    setupListeners();
 
     return () => {
-        unsubscribeEmployees();
+        if (employeeUnsubscriber) employeeUnsubscriber();
+        timeEntryUnsubscribers.forEach(unsub => unsub());
     };
   }, [user, toast]);
 
@@ -270,10 +271,10 @@ export default function DashboardPage() {
         });
 
     } catch (error) {
-        console.error("Error clocking out:", error);
-        toast({ title: "Error", description: "Failed to clock out.", variant: "destructive" });
+      console.error("Error clocking out:", error);
+      toast({ title: "Error", description: "Failed to clock out.", variant: "destructive" });
     } finally {
-        setIsSubmitting(false);
+      setIsSubmitting(false);
     }
   };
   
@@ -481,5 +482,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-
-    
