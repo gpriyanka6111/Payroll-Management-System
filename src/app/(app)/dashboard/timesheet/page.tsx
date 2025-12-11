@@ -435,7 +435,7 @@ export default function TimesheetPage() {
         const title = `${companyName} - Time Report: ${format(dateRange.from, 'LLL dd, yyyy')} - ${format(dateRange.to, 'LLL dd, yyyy')} - ${payDateStr}`;
         ws_data.push([title]);
 
-        ws_data.push(['Date', 'Metric', ...employees.map(e => e.firstName.toUpperCase())]);
+        ws_data.push([null, null, ...employees.map(e => e.firstName.toUpperCase())]);
 
         const daysInPeriod = eachDayOfInterval({ start: dateRange.from, end: dateRange.to });
 
@@ -483,6 +483,7 @@ export default function TimesheetPage() {
 
         // --- STYLING ---
         const thickBorder = { style: "thick" };
+        const thinBorder = { style: "thin" };
         const thickBorderStyle = { border: { top: thickBorder, bottom: thickBorder, left: thickBorder, right: thickBorder }};
         
         ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 1 + employees.length } }];
@@ -512,7 +513,16 @@ export default function TimesheetPage() {
             ws[secondColCellRef].s = { ...(ws[secondColCellRef].s || {}), border: { ...(ws[secondColCellRef].s?.border || {}), right: thickBorder }};
             
             const rowLabel = ws[XLSX.utils.encode_cell({ c: 1, r: R })]?.v;
-            if (rowLabel === 'Total:' || (ws[XLSX.utils.encode_cell({ c: 0, r: R })]?.v === 'Total Hours')) {
+            if (rowLabel === 'Total:') {
+                 for (let C = 0; C <= range.e.c; ++C) {
+                    const cellRef = XLSX.utils.encode_cell({ c: C, r: R });
+                    if (!ws[cellRef]) ws[cellRef] = { t: 's', v: '' };
+                    let currentStyle = ws[cellRef].s || {};
+                    currentStyle.border = { ...(currentStyle.border || {}), top: thinBorder, bottom: thinBorder };
+                    currentStyle.font = { ...(currentStyle.font || {}), bold: true };
+                    ws[cellRef].s = currentStyle;
+                }
+            } else if (ws[XLSX.utils.encode_cell({ c: 0, r: R })]?.v === 'Total Hours') {
                 for (let C = 0; C <= range.e.c; ++C) {
                     const cellRef = XLSX.utils.encode_cell({ c: C, r: R });
                     if (!ws[cellRef]) ws[cellRef] = { t: 's', v: '' };
@@ -522,6 +532,7 @@ export default function TimesheetPage() {
                     ws[cellRef].s = currentStyle;
                 }
             }
+
 
             if (R > 0) { // Employee columns
                 for (let C = 2; C <= range.e.c; ++C) {
@@ -713,3 +724,4 @@ export default function TimesheetPage() {
     
 
     
+
