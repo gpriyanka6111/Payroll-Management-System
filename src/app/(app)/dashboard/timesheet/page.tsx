@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -481,18 +482,61 @@ export default function TimesheetPage() {
 
         const ws = XLSX.utils.aoa_to_sheet(ws_data);
 
+        // --- STYLING ---
+        const thickBorder = { style: "thick" };
+        const thickBorderStyle = { border: { top: thickBorder, bottom: thickBorder, left: thickBorder, right: thickBorder }};
+        const boldFont = { font: { bold: true } };
+
+        // Style the title row
         ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 2 + employees.length - 1 } }];
-        ws['!cols'] = [{ wch: 15 }, { wch: 8 }, ...Array(employees.length).fill({ wch: 15 })];
+        const titleCellRef = XLSX.utils.encode_cell({ c: 0, r: 0 });
+        ws[titleCellRef].s = {
+            ...thickBorderStyle,
+            font: { bold: true, sz: 14 },
+            alignment: { horizontal: 'center', vertical: 'center' }
+        };
         ws['!rows'] = [{ hpt: 25 }];
 
-        // Style the title
-        const titleCellRef = XLSX.utils.encode_cell({ c: 0, r: 0 });
-        if (ws[titleCellRef]) {
-            ws[titleCellRef].s = {
-                font: { bold: true, sz: 14 },
-                alignment: { horizontal: 'center', vertical: 'center' }
-            };
+
+        // Add thick borders to employee columns and total rows
+        const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+        for (let R = 2; R <= range.e.r; ++R) { // Start from header row
+            for (let C = 2; C <= range.e.c; ++C) { // Start from first employee column
+                const cellRef = XLSX.utils.encode_cell({ c: C, r: R });
+                if (!ws[cellRef]) ws[cellRef] = { t: 's', v: '' };
+                const cell = ws[cellRef];
+                
+                let currentStyle = cell.s || {};
+                currentStyle.border = currentStyle.border || {};
+
+                // Right border for each employee column
+                currentStyle.border.right = thickBorder;
+                
+                // Add left border only for the first employee column
+                if (C === 2) {
+                     currentStyle.border.left = thickBorder;
+                }
+                cell.s = currentStyle;
+            }
         }
+        
+        // Add thick border to 'Total:' rows and the final 'Total Hours' row
+        for (let R = 2; R <= range.e.r; ++R) {
+             const rowLabel = ws[XLSX.utils.encode_cell({ c: 1, r: R })]?.v;
+             if (rowLabel === 'Total:' || (ws[XLSX.utils.encode_cell({ c: 0, r: R })]?.v === 'Total Hours')) {
+                 for (let C = 0; C <= range.e.c; ++C) {
+                      const cellRef = XLSX.utils.encode_cell({ c: C, r: R });
+                      if (!ws[cellRef]) ws[cellRef] = { t: 's', v: '' };
+                      const cell = ws[cellRef];
+                      let currentStyle = cell.s || {};
+                      currentStyle.border = { ...(currentStyle.border || {}), top: thickBorder, bottom: thickBorder };
+                      currentStyle.font = { ...(currentStyle.font || {}), bold: true };
+                      cell.s = currentStyle;
+                 }
+             }
+        }
+
+        ws['!cols'] = [{ wch: 15 }, { wch: 8 }, ...Array(employees.length).fill({ wch: 15 })];
 
         XLSX.utils.book_append_sheet(wb, ws, "Timesheet");
         const fileName = `Timesheet_${format(dateRange.from, 'yyyy-MM-dd')}_to_${format(dateRange.to, 'yyyy-MM-dd')}.xlsx`;
@@ -667,3 +711,5 @@ export default function TimesheetPage() {
         </div>
     );
 }
+
+    
