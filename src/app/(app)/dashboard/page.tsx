@@ -77,7 +77,6 @@ export default function DashboardPage() {
                 const todayEnd = endOfDay(new Date());
 
                 // Create listeners for each employee's time entries for today
-                const allEntries: TimeEntry[] = [];
                 for (const emp of employeesData) {
                     const timeEntriesRef = collection(db, 'users', user.uid, 'employees', emp.id, 'timeEntries');
                     const qEntries = query(
@@ -92,6 +91,9 @@ export default function DashboardPage() {
                             const newEntries = entrySnapshot.docs.map(d => ({ id: d.id, ...d.data() } as TimeEntry));
                             return [...otherEmployeeEntries, ...newEntries].sort((a,b) => b.timeIn.toMillis() - a.timeIn.toMillis());
                         });
+                    }, (error) => {
+                        console.error(`Error fetching time entries for ${emp.firstName}:`, error);
+                        toast({ title: "Error", description: "Could not fetch some time entries.", variant: "destructive" });
                     });
                     timeEntryUnsubscribers.push(unsub);
                 }
@@ -235,38 +237,20 @@ export default function DashboardPage() {
   };
 
   const handleTimeOut = async () => {
-    if (!user || !selectedEmployeeId || !activeTimeEntry || !activeTimeEntry.timeIn) return;
+    if (!user || !selectedEmployeeId || !activeTimeEntry) return;
     setIsSubmitting(true);
-    const selectedEmployee = employees.find(e => e.id === selectedEmployeeId);
 
     try {
         const entryDocRef = doc(db, 'users', user.uid, 'employees', selectedEmployeeId, 'timeEntries', activeTimeEntry.id);
-        const now = new Date();
         
-        const { timeOutValue: storeClosingTime } = await getAutoClockOutTime(activeTimeEntry.timeIn.toDate());
-        
-        let finalTimeOutValue: Date | Timestamp;
-        let toastDescription: string;
-        const employeeName = selectedEmployee?.firstName || 'Employee';
-
-        if (isBefore(activeTimeEntry.timeIn.toDate(), startOfDay(new Date()))) {
-            finalTimeOutValue = storeClosingTime;
-            toastDescription = `${employeeName} was automatically clocked out for a previous shift at ${format(storeClosingTime, 'p')}.`;
-        } else if (now > storeClosingTime) {
-            finalTimeOutValue = storeClosingTime;
-            toastDescription = `${employeeName}'s shift ended at the store's closing time of ${format(storeClosingTime, 'p')}.`;
-        } else {
-            finalTimeOutValue = now;
-            toastDescription = `${employeeName}'s shift has ended at ${format(now, 'p')}.`;
-        }
-
         await updateDoc(entryDocRef, {
-            timeOut: finalTimeOutValue,
+            timeOut: serverTimestamp(),
         });
 
+        const selectedEmployee = employees.find(e => e.id === selectedEmployeeId);
         toast({
             title: "Clocked Out!",
-            description: toastDescription,
+            description: `${selectedEmployee?.firstName || 'Employee'}'s shift has ended at ${format(new Date(), 'p')}.`,
             variant: "destructive",
         });
 
