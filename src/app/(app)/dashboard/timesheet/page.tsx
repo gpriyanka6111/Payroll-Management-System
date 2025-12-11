@@ -5,7 +5,7 @@ import * as React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Users, Pencil, AlertTriangle, Loader2, FileSpreadsheet, Save, XCircle } from "lucide-react";
-import { format, differenceInMinutes, startOfDay, isSameDay, eachDayOfInterval, parse, isValid, getYear } from "date-fns";
+import { format, differenceInMinutes, startOfDay, isSameDay, eachDayOfInterval, parse, isValid, getYear, isAfter, endOfToday } from "date-fns";
 import { useAuth } from '@/contexts/auth-context';
 import { collection, query, where, getDocs, Timestamp, orderBy, doc, getDoc, writeBatch } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -340,6 +340,8 @@ export default function TimesheetPage() {
 
             for (const emp of employees) {
                 for (const day of days) {
+                    if (isAfter(day, endOfToday())) continue; // Safeguard: skip future dates
+
                     const dateKey = format(day, 'yyyy-MM-dd');
                     const originalSummary = dailySummaries.find(s => s.employeeId === emp.id && isSameDay(s.date, day));
                     const originalEntry = originalSummary?.entries[0];
@@ -627,6 +629,7 @@ export default function TimesheetPage() {
                                     <TableBody>
                                         {days.map(day => {
                                             const dateKey = format(day, 'yyyy-MM-dd');
+                                            const isFutureDate = isAfter(day, endOfToday());
                                             return (
                                                 <React.Fragment key={day.toISOString()}>
                                                     <TableRow>
@@ -636,10 +639,10 @@ export default function TimesheetPage() {
                                                             <TableCell key={`${emp.id}-in`} className="text-center p-1 min-w-[200px]">
                                                                 {isEditMode ? (
                                                                     <div className="flex items-center gap-1">
-                                                                        <Input value={editableGrid[emp.id]?.[dateKey]?.in.time || ''} onChange={(e) => handleTimeInputChange(emp.id, dateKey, 'in', e.target.value)} className="h-8 text-center" placeholder="hh:mm" />
+                                                                        <Input value={editableGrid[emp.id]?.[dateKey]?.in.time || ''} onChange={(e) => handleTimeInputChange(emp.id, dateKey, 'in', e.target.value)} className="h-8 text-center" placeholder="hh:mm" disabled={isFutureDate} />
                                                                         <div className="flex flex-col">
-                                                                            <Button size="icon" variant="ghost" className={cn("h-4 w-6 text-xs", editableGrid[emp.id]?.[dateKey]?.in.period === 'AM' && 'bg-accent text-accent-foreground')} onClick={() => handlePeriodChangeForCell(emp.id, dateKey, 'in', 'AM')}>AM</Button>
-                                                                            <Button size="icon" variant="ghost" className={cn("h-4 w-6 text-xs", editableGrid[emp.id]?.[dateKey]?.in.period === 'PM' && 'bg-accent text-accent-foreground')} onClick={() => handlePeriodChangeForCell(emp.id, dateKey, 'in', 'PM')}>PM</Button>
+                                                                            <Button size="icon" variant="ghost" className={cn("h-4 w-6 text-xs", editableGrid[emp.id]?.[dateKey]?.in.period === 'AM' && 'bg-accent text-accent-foreground')} onClick={() => handlePeriodChangeForCell(emp.id, dateKey, 'in', 'AM')} disabled={isFutureDate}>AM</Button>
+                                                                            <Button size="icon" variant="ghost" className={cn("h-4 w-6 text-xs", editableGrid[emp.id]?.[dateKey]?.in.period === 'PM' && 'bg-accent text-accent-foreground')} onClick={() => handlePeriodChangeForCell(emp.id, dateKey, 'in', 'PM')} disabled={isFutureDate}>PM</Button>
                                                                         </div>
                                                                     </div>
                                                                 ) : (
@@ -654,10 +657,10 @@ export default function TimesheetPage() {
                                                             <TableCell key={`${emp.id}-out`} className="text-center p-1 min-w-[200px]">
                                                                 {isEditMode ? (
                                                                     <div className="flex items-center gap-1">
-                                                                        <Input value={editableGrid[emp.id]?.[dateKey]?.out.time || ''} onChange={(e) => handleTimeInputChange(emp.id, dateKey, 'out', e.target.value)} className="h-8 text-center" placeholder="hh:mm"/>
+                                                                        <Input value={editableGrid[emp.id]?.[dateKey]?.out.time || ''} onChange={(e) => handleTimeInputChange(emp.id, dateKey, 'out', e.target.value)} className="h-8 text-center" placeholder="hh:mm" disabled={isFutureDate}/>
                                                                         <div className="flex flex-col">
-                                                                            <Button size="icon" variant="ghost" className={cn("h-4 w-6 text-xs", editableGrid[emp.id]?.[dateKey]?.out.period === 'AM' && 'bg-accent text-accent-foreground')} onClick={() => handlePeriodChangeForCell(emp.id, dateKey, 'out', 'AM')}>AM</Button>
-                                                                            <Button size="icon" variant="ghost" className={cn("h-4 w-6 text-xs", editableGrid[emp.id]?.[dateKey]?.out.period === 'PM' && 'bg-accent text-accent-foreground')} onClick={() => handlePeriodChangeForCell(emp.id, dateKey, 'out', 'PM')}>PM</Button>
+                                                                            <Button size="icon" variant="ghost" className={cn("h-4 w-6 text-xs", editableGrid[emp.id]?.[dateKey]?.out.period === 'AM' && 'bg-accent text-accent-foreground')} onClick={() => handlePeriodChangeForCell(emp.id, dateKey, 'out', 'AM')} disabled={isFutureDate}>AM</Button>
+                                                                            <Button size="icon" variant="ghost" className={cn("h-4 w-6 text-xs", editableGrid[emp.id]?.[dateKey]?.out.period === 'PM' && 'bg-accent text-accent-foreground')} onClick={() => handlePeriodChangeForCell(emp.id, dateKey, 'out', 'PM')} disabled={isFutureDate}>PM</Button>
                                                                         </div>
                                                                     </div>
                                                                 ) : (
@@ -724,4 +727,5 @@ export default function TimesheetPage() {
     
 
     
+
 
