@@ -62,7 +62,7 @@ function Calendar({
           if (orientation === 'right') {
             return <ChevronRight className="h-4 w-4" {...props} />;
           }
-          return null;
+          return <></>; // Return an empty fragment instead of null
         }
       }}
       {...props}
