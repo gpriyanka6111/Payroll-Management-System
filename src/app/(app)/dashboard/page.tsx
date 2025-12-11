@@ -53,68 +53,80 @@ export default function DashboardPage() {
     };
     
     setIsLoading(true);
-    let employeeUnsubscriber: () => void;
-    const timeEntryUnsubscribers: (()=>void)[] = [];
     
-    const setupListeners = async () => {
-        // 1. Fetch employees and set up a listener
-        const employeesCollectionRef = collection(db, 'users', user.uid, 'employees');
-        const qEmployees = query(employeesCollectionRef, orderBy('firstName', 'asc'));
+    // 1. Fetch employees and set up a listener
+    const employeesCollectionRef = collection(db, 'users', user.uid, 'employees');
+    const qEmployees = query(employeesCollectionRef, orderBy('firstName', 'asc'));
+    
+    const employeeUnsubscriber = onSnapshot(qEmployees, (snapshot) => {
+        const employeesData: Employee[] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
+        setEmployees(employeesData);
+
+        if (employeesData.length > 0 && !selectedEmployeeId) {
+            setSelectedEmployeeId(employeesData[0].id);
+        } else if (employeesData.length === 0) {
+            setSelectedEmployeeId(null);
+        }
+        setIsLoading(false);
+    }, (error) => {
+        console.error("Error fetching employees:", error);
+        toast({ title: "Error", description: "Could not fetch employees.", variant: "destructive" });
+        setIsLoading(false);
+    });
+
+    // 2. Fetch all of today's time entries for all employees
+    const todayStart = startOfDay(new Date());
+    const todayEnd = endOfDay(new Date());
+    const timeEntriesRef = collection(db, 'users', user.uid, 'allTimeEntries'); // Assuming you have a root collection for this
+    
+    // This is a simplified listener. For a large number of employees, 
+    // you would listen to each employee's subcollection.
+    // For now, let's assume we can query a root collection for today's entries.
+    // To implement this fully, we need to adjust how time entries are saved.
+    // Let's adjust the listener to query each employee subcollection for today's entries.
+    
+    const timeEntryUnsubscribers: (() => void)[] = [];
+    
+    const employeesQuery = query(collection(db, 'users', user.uid, 'employees'));
+    getDocs(employeesQuery).then(employeeSnapshot => {
+        const allEntries: TimeEntry[] = [];
         
-        employeeUnsubscriber = onSnapshot(qEmployees, async (snapshot) => {
-            const employeesData: Employee[] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
-            setEmployees(employeesData);
-
-            if (employeesData.length > 0) {
-                 if (!selectedEmployeeId || !employeesData.some(e => e.id === selectedEmployeeId)) {
-                    setSelectedEmployeeId(employeesData[0].id);
-                }
-                
-                // Clear previous time entry listeners
-                timeEntryUnsubscribers.forEach(unsub => unsub());
-
-                const todayStart = startOfDay(new Date());
-                const todayEnd = endOfDay(new Date());
-
-                // Create listeners for each employee's time entries for today
-                for (const emp of employeesData) {
-                    const timeEntriesRef = collection(db, 'users', user.uid, 'employees', emp.id, 'timeEntries');
-                    const qEntries = query(
-                        timeEntriesRef,
-                        where('timeIn', '>=', todayStart),
-                        where('timeIn', '<=', todayEnd)
-                    );
-
-                    const unsub = onSnapshot(qEntries, (entrySnapshot) => {
-                         setTodaysGlobalEntries(prevEntries => {
-                            const otherEmployeeEntries = prevEntries.filter(e => e.employeeId !== emp.id);
-                            const newEntries = entrySnapshot.docs.map(d => ({ id: d.id, ...d.data() } as TimeEntry));
-                            return [...otherEmployeeEntries, ...newEntries].sort((a,b) => b.timeIn.toMillis() - a.timeIn.toMillis());
-                        });
-                    }, (error) => {
-                        console.error(`Error fetching time entries for ${emp.firstName}:`, error);
-                        toast({ title: "Error", description: "Could not fetch some time entries.", variant: "destructive" });
-                    });
-                    timeEntryUnsubscribers.push(unsub);
-                }
-
-            } else {
-                setSelectedEmployeeId(null);
-                setTodaysGlobalEntries([]);
-            }
-            
-            setIsLoading(false);
-        }, (error) => {
-            console.error("Error fetching employees:", error);
-            toast({ title: "Error", description: "Could not fetch employees.", variant: "destructive" });
-            setIsLoading(false);
+        // This part is inefficient if you have many employees, but will work for a few.
+        // A better approach at scale is using a root `timeEntries` collection.
+        const promises = employeeSnapshot.docs.map(empDoc => {
+            const timeEntriesRef = collection(db, 'users', user.uid, 'employees', empDoc.id, 'timeEntries');
+            const qEntries = query(timeEntriesRef, where('timeIn', '>=', todayStart), where('timeIn', '<=', todayEnd));
+            return getDocs(qEntries);
         });
-    }
 
-    setupListeners();
+        Promise.all(promises).then(snapshots => {
+            snapshots.forEach(snapshot => {
+                snapshot.forEach(doc => {
+                    allEntries.push({ id: doc.id, ...doc.data() } as TimeEntry);
+                });
+            });
+            setTodaysGlobalEntries(allEntries.sort((a,b) => b.timeIn.toMillis() - a.timeIn.toMillis()));
+        });
+        
+        // Now set up listeners
+         employeeSnapshot.docs.forEach(empDoc => {
+            const timeEntriesRef = collection(db, 'users', user.uid, 'employees', empDoc.id, 'timeEntries');
+            const qEntries = query(timeEntriesRef, where('timeIn', '>=', todayStart), where('timeIn', '<=', todayEnd));
+            const unsub = onSnapshot(qEntries, (entrySnapshot) => {
+                const newEntries = entrySnapshot.docs.map(d => ({ id: d.id, ...d.data() } as TimeEntry));
+                setTodaysGlobalEntries(prev => {
+                    const otherEntries = prev.filter(e => e.employeeId !== empDoc.id);
+                    return [...otherEntries, ...newEntries].sort((a,b) => b.timeIn.toMillis() - a.timeIn.toMillis())
+                });
+            });
+            timeEntryUnsubscribers.push(unsub);
+        });
+
+    });
+
 
     return () => {
-        if (employeeUnsubscriber) employeeUnsubscriber();
+        employeeUnsubscriber();
         timeEntryUnsubscribers.forEach(unsub => unsub());
     };
   }, [user, toast]);
@@ -122,43 +134,22 @@ export default function DashboardPage() {
 
   // Effect to manage the selected employee's specific active entry
   React.useEffect(() => {
-    if (!selectedEmployeeId || !user) {
+    if (!selectedEmployeeId) {
         setActiveTimeEntry(null);
         return;
     };
-
-    const timeEntriesRef = collection(db, 'users', user.uid, 'employees', selectedEmployeeId, 'timeEntries');
-    const q = query(
-        timeEntriesRef, 
-        where('timeOut', '==', null),
-        orderBy('timeIn', 'desc'),
-        limit(1)
+    
+    const activeEntry = todaysGlobalEntries.find(
+        entry => entry.employeeId === selectedEmployeeId && entry.timeOut === null
     );
 
-    const unsubscribeActive = onSnapshot(q, (snapshot) => {
-        if (!snapshot.empty) {
-            const doc = snapshot.docs[0];
-            const selectedEmployee = employees.find(e => e.id === selectedEmployeeId);
-            setActiveTimeEntry({ 
-                id: doc.id, 
-                ...doc.data(),
-                employeeId: selectedEmployeeId,
-                employeeName: selectedEmployee?.firstName || 'Unknown'
-            } as TimeEntry);
-        } else {
-            setActiveTimeEntry(null);
-        }
-    }, (error) => {
-        console.error("Error fetching active time entry:", error);
-        toast({ title: "Error", description: "Could not fetch employee status.", variant: "destructive" });
-    });
+    setActiveTimeEntry(activeEntry || null);
 
-    return () => unsubscribeActive();
-  }, [selectedEmployeeId, user, employees, toast]);
+  }, [selectedEmployeeId, todaysGlobalEntries]);
 
 
   const getAutoClockOutTime = async (clockInDate: Date): Promise<{ timeOutValue: Date, toastDescription: string }> => {
-    if (!user) throw new Error("User not authenticated.");
+    if (!user || !activeTimeEntry) throw new Error("User or active entry not available.");
 
     const userSettingsRef = doc(db, 'users', user.uid);
     const userSettingsSnap = await getDoc(userSettingsRef);
@@ -376,7 +367,7 @@ export default function DashboardPage() {
                         ) : <div className="h-20" /> }
 
                         <div className="grid grid-cols-2 gap-4">
-                            <Button size="lg" onClick={handleTimeIn} disabled={!selectedEmployeeId || (!!activeTimeEntry && activeTimeEntry.timeIn && !isBefore(activeTimeEntry.timeIn.toDate(), startOfDay(new Date()))) || isSubmitting}>
+                            <Button size="lg" onClick={handleTimeIn} disabled={!selectedEmployeeId || !!activeTimeEntry || isSubmitting}>
                                 <LogIn className="mr-2 h-5 w-5" /> Time In
                             </Button>
                             <Button size="lg" variant="destructive" onClick={handleTimeOut} disabled={!selectedEmployeeId || !activeTimeEntry || isSubmitting}>
@@ -466,3 +457,5 @@ export default function DashboardPage() {
     </div>
   );
 }
+
+    
