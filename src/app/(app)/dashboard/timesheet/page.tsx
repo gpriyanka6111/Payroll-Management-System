@@ -437,14 +437,15 @@ export default function TimesheetPage() {
         const title = `${companyName} - Time Report: ${format(dateRange.from, 'LLL dd, yyyy')} - ${format(dateRange.to, 'LLL dd, yyyy')} - ${payDateStr}`;
         ws_data.push([title]);
 
-        ws_data.push([null, null, ...employees.map(e => e.firstName.toUpperCase())]);
+        ws_data.push([null, ...employees.map(e => e.firstName.toUpperCase())]);
 
         const daysInPeriod = eachDayOfInterval({ start: dateRange.from, end: dateRange.to });
+        let currentRow = 2; // Start after header rows
 
         daysInPeriod.forEach(day => {
             const inRow: (string|number|null)[] = [format(day, 'eee, MMM dd'), 'In:'];
-            const outRow: (string|number|null)[] = ['', 'Out:'];
-            const totalRow: (string|number|null)[] = ['', 'Total:'];
+            const outRow: (string|number|null)[] = [null, 'Out:'];
+            const totalRow: (string|number|null)[] = [null, 'Total:'];
 
             employees.forEach(emp => {
                 const summary = dailySummaries.find(s => s.employeeId === emp.id && isSameDay(s.date, day));
@@ -469,12 +470,11 @@ export default function TimesheetPage() {
                 totalRow.push(dailyTotal > 0 ? parseFloat(dailyTotal.toFixed(2)) : '-');
             });
 
-            ws_data.push(inRow);
-            ws_data.push(outRow);
-            ws_data.push(totalRow);
+            ws_data.push(inRow, outRow, totalRow);
+            currentRow += 3;
         });
 
-        const grandTotalRow: (string | number | null)[] = ['Total Hours', ''];
+        const grandTotalRow: (string | number | null)[] = ['Total Hours', null];
         employees.forEach(emp => {
             const total = employeeTotals.get(emp.id) || 0;
             grandTotalRow.push(parseFloat(total.toFixed(2)));
@@ -484,15 +484,26 @@ export default function TimesheetPage() {
         const ws = XLSX.utils.aoa_to_sheet(ws_data);
 
         // --- STYLING ---
+        const merges: XLSX.Range[] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 1 + employees.length } }];
+        
+        let mergeStartRow = 2;
+        daysInPeriod.forEach(() => {
+            merges.push({ s: { r: mergeStartRow, c: 0 }, e: { r: mergeStartRow + 2, c: 0 } });
+            mergeStartRow += 3;
+        });
+        
+        merges.push({ s: {r: ws_data.length - 1, c: 0}, e: {r: ws_data.length - 1, c: 1 } });
+        ws['!merges'] = merges;
+        
         const thickBorder = { style: "thick" };
         const thinBorder = { style: "thin" };
         const thickBorderStyle = { border: { top: thickBorder, bottom: thickBorder, left: thickBorder, right: thickBorder }};
         
-        ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 1 + employees.length } }];
         ws['!rows'] = [{ hpt: 25 }];
 
         const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
 
+        // Style first row (Title)
         for (let C = range.s.c; C <= range.e.c; ++C) {
             const titleCellRef = XLSX.utils.encode_cell({c: C, r: 0});
             if (!ws[titleCellRef]) ws[titleCellRef] = {t: 's', v: ''};
@@ -503,11 +514,20 @@ export default function TimesheetPage() {
             };
         }
 
-        for (let R = 1; R <= range.e.r; ++R) {
+        // Style second row (Employee names)
+        for (let C = 0; C <= range.e.c; ++C) {
+             const headerCellRef = XLSX.utils.encode_cell({c: C, r: 1});
+             if (!ws[headerCellRef]) ws[headerCellRef] = { t: 's', v: '' };
+             let style = ws[headerCellRef].s || {};
+             style.border = { ...(style.border || {}), right: thickBorder };
+             ws[headerCellRef].s = style;
+        }
+
+        for (let R = 2; R <= range.e.r; ++R) {
             // First column
             const firstColCellRef = XLSX.utils.encode_cell({ c: 0, r: R });
             if (!ws[firstColCellRef]) ws[firstColCellRef] = { t: 's', v: '' };
-            ws[firstColCellRef].s = { ...(ws[firstColCellRef].s || {}), border: { ...(ws[firstColCellRef].s?.border || {}), left: thickBorder, right: thickBorder }};
+            ws[firstColCellRef].s = { ...(ws[firstColCellRef].s || {}), border: { ...(ws[firstColCellRef].s?.border || {}), left: thickBorder, right: thickBorder }, alignment: { vertical: 'center', horizontal: 'center' }};
 
             // Second column
             const secondColCellRef = XLSX.utils.encode_cell({ c: 1, r: R });
@@ -524,7 +544,7 @@ export default function TimesheetPage() {
                     currentStyle.font = { ...(currentStyle.font || {}), bold: true };
                     ws[cellRef].s = currentStyle;
                 }
-            } else if (ws[XLSX.utils.encode_cell({ c: 0, r: R })]?.v === 'Total Hours') {
+            } else if (ws_data[R]?.[0] === 'Total Hours') {
                 for (let C = 0; C <= range.e.c; ++C) {
                     const cellRef = XLSX.utils.encode_cell({ c: C, r: R });
                     if (!ws[cellRef]) ws[cellRef] = { t: 's', v: '' };
@@ -535,15 +555,13 @@ export default function TimesheetPage() {
                 }
             }
 
-
-            if (R > 0) { // Employee columns
-                for (let C = 2; C <= range.e.c; ++C) {
-                    const cellRef = XLSX.utils.encode_cell({ c: C, r: R });
-                    if (!ws[cellRef]) ws[cellRef] = { t: 's', v: '' };
-                    let currentStyle = ws[cellRef].s || {};
-                    currentStyle.border = { ...(currentStyle.border || {}), right: thickBorder };
-                    ws[cellRef].s = currentStyle;
-                }
+            // Employee columns
+            for (let C = 2; C <= range.e.c; ++C) {
+                const cellRef = XLSX.utils.encode_cell({ c: C, r: R });
+                if (!ws[cellRef]) ws[cellRef] = { t: 's', v: '' };
+                let currentStyle = ws[cellRef].s || {};
+                currentStyle.border = { ...(currentStyle.border || {}), right: thickBorder };
+                ws[cellRef].s = currentStyle;
             }
         }
         
@@ -725,7 +743,3 @@ export default function TimesheetPage() {
 }
 
     
-
-    
-
-
