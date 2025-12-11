@@ -23,7 +23,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFoo
 import { getYearlyPayPeriods, PayPeriod, getCurrentPayPeriod, getPayDateForPeriod } from '@/lib/pay-period';
 import { cn } from '@/lib/utils';
 import { applyRoundingRules } from '@/lib/time-rounding';
-import { runAutoEnrollment } from '@/ai/flows/auto-enrollment-flow';
 
 
 interface TimeEntry {
@@ -176,21 +175,13 @@ export default function TimesheetPage() {
         }
     };
 
-    const fetchData = React.useCallback(async (triggerEnrollment = false) => {
+    const fetchData = React.useCallback(async () => {
         if (!user || !dateRange?.from || !dateRange?.to) {
             setDailySummaries([]);
             setIsLoading(false);
             return;
         }
         setIsLoading(true);
-
-        if (triggerEnrollment) {
-            await runAutoEnrollment({
-                userId: user.uid,
-                startDate: dateRange.from,
-                endDate: dateRange.to
-            });
-        }
 
         try {
             const userDocRef = doc(db, 'users', user.uid);
@@ -246,7 +237,7 @@ export default function TimesheetPage() {
     }, [user, dateRange, toast]);
 
     React.useEffect(() => {
-        fetchData(true); // Trigger enrollment check on initial load and date change
+        fetchData();
     }, [fetchData]);
     
     const initializeEditGrid = () => {

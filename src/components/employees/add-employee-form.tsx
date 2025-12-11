@@ -27,32 +27,6 @@ import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { Switch } from '../ui/switch';
 import { Separator } from '../ui/separator';
 
-const timeRegex = /^(0?[1-9]|1[0-2]):[0-5][0-9]\s(AM|PM)$/i;
-const timeFormatMessage = "Use HH:MM AM/PM format (e.g., 09:00 AM).";
-
-const scheduleDaySchema = z.object({
-    start: z.string().optional(),
-    end: z.string().optional(),
-    enabled: z.boolean().default(false),
-}).refine(data => {
-    if (!data.enabled) return true;
-    return data.start && timeRegex.test(data.start) && data.end && timeRegex.test(data.end);
-}, {
-    message: timeFormatMessage,
-    path: ['start'], // Show error on the start time input
-});
-
-const weeklyScheduleSchema = z.object({
-    monday: scheduleDaySchema.optional(),
-    tuesday: scheduleDaySchema.optional(),
-    wednesday: scheduleDaySchema.optional(),
-    thursday: scheduleDaySchema.optional(),
-    friday: scheduleDaySchema.optional(),
-    saturday: scheduleDaySchema.optional(),
-    sunday: scheduleDaySchema.optional(),
-});
-
-
 const baseEmployeeSchema = z.object({
   firstName: z.string().min(2, { message: 'First name must be at least 2 characters.' }).regex(/^[a-zA-Z' -]+$/, { message: "Name can only contain letters, spaces, hyphens, and apostrophes." }),
   lastName: z.string().regex(/^[a-zA-Z' -]*$/, { message: "Name can only contain letters, spaces, hyphens, and apostrophes." }).optional(),
@@ -64,8 +38,6 @@ const baseEmployeeSchema = z.object({
   sickDayBalance: z.coerce.number().min(0, { message: 'Sick day balance cannot be negative.' }).default(0),
   w4Form: z.any().optional(),
   comment: z.string().optional(),
-  autoEnrollmentEnabled: z.boolean().default(false),
-  weeklySchedule: weeklyScheduleSchema.optional(),
 });
 
 const hourlyEmployeeSchema = baseEmployeeSchema.extend({
@@ -91,8 +63,6 @@ const employeeSchema = z.discriminatedUnion("payMethod", [
 
 type EmployeeFormValues = z.infer<typeof employeeSchema>;
 
-const scheduleDays: (keyof z.infer<typeof weeklyScheduleSchema>)[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
-
 
 export function AddEmployeeForm() {
   const { toast } = useToast();
@@ -116,22 +86,11 @@ export function AddEmployeeForm() {
       holidayBalance: 0,
       sickDayBalance: 0,
       comment: '',
-      autoEnrollmentEnabled: false,
-      weeklySchedule: {
-        monday: { start: '', end: '', enabled: false },
-        tuesday: { start: '', end: '', enabled: false },
-        wednesday: { start: '', end: '', enabled: false },
-        thursday: { start: '', end: '', enabled: false },
-        friday: { start: '', end: '', enabled: false },
-        saturday: { start: '', end: '', enabled: false },
-        sunday: { start: '', end: '', enabled: false },
-      },
     },
     mode: 'onChange',
   });
 
   const payMethod = form.watch('payMethod');
-  const autoEnrollmentEnabled = form.watch('autoEnrollmentEnabled');
 
   async function onSubmit(values: EmployeeFormValues) {
     if (!user) {
@@ -405,89 +364,6 @@ export function AddEmployeeForm() {
         </div>
         
         <Separator />
-
-        <div className="space-y-4">
-            <FormField
-                control={form.control}
-                name="autoEnrollmentEnabled"
-                render={({ field }) => (
-                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
-                        <div className="space-y-0.5">
-                            <FormLabel className="flex items-center"><CalendarClock className="mr-2 h-4 w-4"/>Auto-Enrollment for Time Entries</FormLabel>
-                            <FormDescription>
-                                Automatically create time entries for this employee based on a fixed weekly schedule.
-                            </FormDescription>
-                        </div>
-                        <FormControl>
-                            <Switch
-                                checked={field.value}
-                                onCheckedChange={field.onChange}
-                            />
-                        </FormControl>
-                    </FormItem>
-                )}
-            />
-
-            {autoEnrollmentEnabled && (
-                 <div className="space-y-4 p-4 border rounded-lg">
-                    <h4 className="font-medium">Weekly Schedule</h4>
-                    {scheduleDays.map(day => (
-                        <div key={day} className="grid grid-cols-12 items-center gap-4">
-                            <div className="col-span-3 sm:col-span-2">
-                                <FormField
-                                    control={form.control}
-                                    name={`weeklySchedule.${day}.enabled`}
-                                    render={({ field }) => (
-                                        <FormItem className="flex items-center space-x-2 space-y-0">
-                                            <FormControl>
-                                                <Switch
-                                                    checked={field.value}
-                                                    onCheckedChange={field.onChange}
-                                                    id={`enabled-${day}`}
-                                                />
-                                            </FormControl>
-                                            <FormLabel htmlFor={`enabled-${day}`} className="capitalize">{day}</FormLabel>
-                                        </FormItem>
-                                    )}
-                                />
-                            </div>
-                            <div className="col-span-4 sm:col-span-5">
-                                 <FormField
-                                    control={form.control}
-                                    name={`weeklySchedule.${day}.start`}
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel className="sr-only">Start Time</FormLabel>
-                                            <FormControl>
-                                                <Input placeholder="10:00 AM" {...field} disabled={!form.watch(`weeklySchedule.${day}.enabled`)} />
-                                            </FormControl>
-                                        </FormItem>
-                                    )}
-                                />
-                            </div>
-                            <div className="col-span-4 sm:col-span-5">
-                                 <FormField
-                                    control={form.control}
-                                    name={`weeklySchedule.${day}.end`}
-                                    render={({ field }) => (
-                                        <FormItem>
-                                             <FormLabel className="sr-only">End Time</FormLabel>
-                                            <FormControl>
-                                                <Input placeholder="06:00 PM" {...field} disabled={!form.watch(`weeklySchedule.${day}.enabled`)} />
-                                            </FormControl>
-                                        </FormItem>
-                                    )}
-                                />
-                            </div>
-                             <div className="col-span-12 -mt-2">
-                                <FormMessage>{form.formState.errors.weeklySchedule?.[day]?.start?.message}</FormMessage>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            )}
-        </div>
-
 
         <FormField
             control={form.control}
