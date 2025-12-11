@@ -491,100 +491,61 @@ export default function TimesheetPage() {
             mergeStartRow += 3;
         });
         
-        merges.push({ s: {r: ws_data.length - 1, c: 0}, e: {r: ws_data.length - 1, c: 1 } });
+        merges.push({s: {r: ws_data.length - 1, c: 0}, e: {r: ws_data.length - 1, c: 1 } });
         ws['!merges'] = merges;
         
         const thickBorderSide = { style: "thick" };
         const thinBorderSide = { style: "thin" };
-        const thickBorderStyle = { border: { top: thickBorderSide, bottom: thickBorderSide, left: thickBorderSide, right: thickBorderSide }};
         
         const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
     
-        // Style first row (Title) - Entire row with thick border
-        for (let C = range.s.c; C <= range.e.c; ++C) {
-            const titleCellRef = XLSX.utils.encode_cell({c: C, r: 0});
-            if (!ws[titleCellRef]) ws[titleCellRef] = {t: 's', v: ''};
-            ws[titleCellRef].s = {
-                ...thickBorderStyle,
-                font: { bold: true, sz: 14 },
-                alignment: { horizontal: 'center', vertical: 'center' }
-            };
-        }
+        // Style first row (Title)
+        const titleCellRef = XLSX.utils.encode_cell({c: 0, r: 0});
+        if (!ws[titleCellRef]) ws[titleCellRef] = {t: 's', v: ''};
+        ws[titleCellRef].s = {
+            font: { bold: true, sz: 11.5 },
+            alignment: { horizontal: 'center', vertical: 'center' }
+        };
     
-        // Style second row (Employee names) - Entire row with thick border
+        // Style second row (Employee names)
         for (let C = 0; C <= range.e.c; ++C) {
              const headerCellRef = XLSX.utils.encode_cell({c: C, r: 1});
              if (!ws[headerCellRef]) ws[headerCellRef] = { t: 's', v: '' };
              ws[headerCellRef].s = { 
-                ...thickBorderStyle,
+                border: { top: thickBorderSide, bottom: thickBorderSide, left: thickBorderSide, right: thickBorderSide },
                 font: { bold: true },
                 alignment: { horizontal: 'center', vertical: 'center' }
              };
         }
     
         for (let R = 2; R < ws_data.length; ++R) {
-            // First column (Dates) - Thick border all around
-            const firstColCellRef = XLSX.utils.encode_cell({ c: 0, r: R });
-            if (!ws[firstColCellRef]) ws[firstColCellRef] = { t: 's', v: '' };
-            ws[firstColCellRef].s = { 
-                border: { 
-                    left: thickBorderSide, 
-                    right: thickBorderSide,
-                    top: ws_data[R-1]?.[1] === 'Total:' ? thickBorderSide : thinBorderSide,
-                    bottom: ws_data[R]?.[1] === 'Total:' ? thickBorderSide : thinBorderSide,
-                 },
-                alignment: { vertical: 'center', horizontal: 'center' }
-            };
-
-             // Second column (Metrics) - Thick border all around
-            const secondColCellRef = XLSX.utils.encode_cell({ c: 1, r: R });
-            if (!ws[secondColCellRef]) ws[secondColCellRef] = { t: 's', v: '' };
-            ws[secondColCellRef].s = { 
-                border: {
-                    left: thickBorderSide,
-                    right: thickBorderSide,
-                    top: ws_data[R-1]?.[1] === 'Total:' ? thickBorderSide : thinBorderSide,
-                    bottom: ws_data[R]?.[1] === 'Total:' ? thickBorderSide : thinBorderSide,
-                }
-            };
-            
             const rowLabel = ws[XLSX.utils.encode_cell({ c: 1, r: R })]?.v;
-            // Thin border for 'Total:' rows, except for the last grand total
-            if (rowLabel === 'Total:' && R < ws_data.length -1) {
-                 for (let C = 0; C <= range.e.c; ++C) {
-                    const cellRef = XLSX.utils.encode_cell({ c: C, r: R });
-                    if (!ws[cellRef]) ws[cellRef] = { t: 's', v: '' };
-                    let currentStyle = ws[cellRef].s || {};
-                    currentStyle.border = { ...(currentStyle.border || {}), top: thinBorderSide, bottom: thinBorderSide };
-                    currentStyle.font = { ...(currentStyle.font || {}), bold: true };
-                    ws[cellRef].s = currentStyle;
-                }
-            } else if (ws_data[R]?.[0] === 'Total Hours') {
-                for (let C = 0; C <= range.e.c; ++C) {
-                    const cellRef = XLSX.utils.encode_cell({ c: C, r: R });
-                    if (!ws[cellRef]) ws[cellRef] = { t: 's', v: '' };
-                    ws[cellRef].s = { ...thickBorderStyle, font: { bold: true } };
-                }
-            }
-    
-            // Thick border around each employee column
-            for (let C = 2; C <= range.e.c; ++C) {
+            
+            for (let C = 0; C <= range.e.c; ++C) {
                 const cellRef = XLSX.utils.encode_cell({ c: C, r: R });
                 if (!ws[cellRef]) ws[cellRef] = { t: 's', v: '' };
-                let currentStyle = ws[cellRef].s || {};
-                const border = {
-                   left: thickBorderSide,
-                   right: thickBorderSide,
-                   top: ws_data[R-1]?.[1] === 'Total:' ? thickBorderSide : thinBorderSide,
-                   bottom: ws_data[R]?.[1] === 'Total:' ? thickBorderSide : thinBorderSide,
-                }
-                currentStyle.border = border
-                ws[cellRef].s = currentStyle;
+                
+                const isTotalRow = rowLabel === 'Total:';
+                const isGrandTotalRow = ws_data[R]?.[0] === 'Total Hours';
+
+                ws[cellRef].s = {
+                    border: {
+                        top: isTotalRow || isGrandTotalRow ? thickBorderSide : thinBorderSide,
+                        bottom: isTotalRow || isGrandTotalRow ? thickBorderSide : thinBorderSide,
+                        left: thickBorderSide,
+                        right: thickBorderSide,
+                    },
+                    font: { bold: isTotalRow || isGrandTotalRow }
+                };
             }
         }
         
         ws['!cols'] = [{ wch: 14 }, { wch: 5 }, ...Array(employees.length).fill({ wch: 12 })];
-        ws['!rows'] = [{ hpt: 25 }, { hpt: 20 }, ...Array(ws_data.length - 2).fill({})];
+        ws['!rows'] = [
+            { hpt: 25 }, 
+            { hpt: 20 }, 
+            ...Array(ws_data.length - 2).fill({})
+        ];
 
         // Setup print properties
         ws['!pageSetup'] = {
@@ -598,18 +559,16 @@ export default function TimesheetPage() {
         wb.SheetNames.push(sheetName);
         wb.Sheets[sheetName] = ws;
         
-        // Define Print Titles (repeat rows/cols)
         wb.Workbook = {
             ...wb.Workbook,
             Names: [
                 {
                     Name: 'Print_Titles',
                     Sheet: 0,
-                    Ref: `${sheetName}!$A:$B,${sheetName}!$1:$2` // Repeat Columns A & B, and Rows 1 & 2
+                    Ref: `${sheetName}!$A:$B,${sheetName}!$1:$2`
                 }
             ]
         };
-
 
         const fileName = `Timesheet_${format(dateRange.from, 'yyyy-MM-dd')}_to_${format(dateRange.to, 'yyyy-MM-dd')}.xlsx`;
         XLSX.writeFile(wb, fileName);
