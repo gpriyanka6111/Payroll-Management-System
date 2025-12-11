@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -108,7 +109,7 @@ export default function DashboardPage() {
     });
 
     return () => unsubscribeEmployees();
-  }, [user, toast]);
+  }, [user, toast, selectedEmployeeId]);
 
   // Effect to manage the selected employee and their specific active entry
   React.useEffect(() => {
