@@ -386,9 +386,10 @@ function PayrollReportContent() {
             ws_data.push(row);
         });
         
-        ws_data.push(['GP', 'EMPLOYER', 'EMPLOYEE', 'DED', 'NET', 'OTHERS']);
+        ws_data.push(['GP', null, 'EMPLOYER', 'EMPLOYEE', 'DED', 'NET', 'OTHERS']);
         ws_data.push([
             formatCurrency(totals.totalNetPay),
+            null,
             summaryData.employer || '',
             summaryData.employee || '',
             summaryData.deductions || '',
@@ -423,24 +424,23 @@ function PayrollReportContent() {
         ws[titleCellRef].s = {
             font: { bold: true, sz: 11.5 },
             alignment: { horizontal: 'left', vertical: 'center' },
-            ...thickBorderStyle
+            border: thickBorderStyle.border
         };
 
         const headerStyle: XLSX.CellStyle = {
-            border: { ...thickBorderStyle.border },
+            border: thickBorderStyle.border,
             font: { bold: true },
             alignment: { horizontal: 'center', vertical: 'center' }
         };
 
         const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
 
-        for (let R = 1; R <= range.e.r; ++R) { // Start from row 1, as row 0 is handled
+        for (let R = 1; R <= range.e.r; ++R) {
             for (let C = 0; C <= range.e.c; ++C) {
                 const cell_ref = XLSX.utils.encode_cell({ c: C, r: R });
                 if (!ws[cell_ref]) ws[cell_ref] = { t: 's', v: '' };
                 let cell = ws[cell_ref];
 
-                // Create a fresh style object for each cell to avoid circular references
                 let currentStyle: XLSX.CellStyle = {};
 
                 if (R === 1) {
@@ -451,7 +451,7 @@ function PayrollReportContent() {
                     const isGrandTotalRow = ws_data[R]?.[0] === 'Total Hours';
                     const isDateCell = C === 0 && ws_data[R]?.[0] && ws_data[R]?.[0]?.toString().match(/^[A-Za-z]{3}, [A-Za-z]{3} \d{2}$/);
                     
-                    let cellBorderStyle: XLSX.Border = { ...thinBorderStyle.border };
+                    let cellBorderStyle: XLSX.Border = JSON.parse(JSON.stringify(thinBorderStyle.border));
 
                     if (isGrandTotalRow) {
                         cellBorderStyle.top = { style: "thin" };
@@ -470,7 +470,7 @@ function PayrollReportContent() {
                        currentStyle.alignment = { vertical: 'center', horizontal: 'justify' };
                     }
                 }
-                 cell.s = currentStyle;
+                 cell.s = { ...(cell.s || {}), ...currentStyle};
             }
         }
         
@@ -686,5 +686,7 @@ export default function PayrollReportPage() {
         </React.Suspense>
     )
 }
+
+    
 
     
