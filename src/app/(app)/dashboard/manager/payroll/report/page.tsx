@@ -370,22 +370,6 @@ function PayrollReportContent() {
             ws_data.push(row);
         });
         
-        ws_data.push([null, null, ...inputs.map(i => i.name.toUpperCase())]);
-
-        const grossMetrics = [
-            { label: 'GROSS CHECK AMOUNT', key: 'grossCheckAmount' },
-            { label: 'GROSS OTHER AMOUNT', key: 'grossOtherAmount' },
-        ];
-
-        grossMetrics.forEach(metric => {
-            const row: (string | number | null)[] = [metric.label, null];
-            results.forEach(result => {
-                const rawValue = (result as any)[metric.key];
-                row.push(typeof rawValue === 'number' ? formatCurrency(rawValue) : '');
-            });
-            ws_data.push(row);
-        });
-        
         ws_data.push(['GP', null, 'EMPLOYER', 'EMPLOYEE', 'DED', 'NET', 'OTHERS']);
         ws_data.push([
             formatCurrency(totals.totalNetPay),
@@ -409,7 +393,7 @@ function PayrollReportContent() {
              }
         }
         ws_data.forEach((row, r) => {
-            if (['Total Hours', ...summaryMetrics.map(m => m.label), ...grossMetrics.map(m => m.label)].includes(row[0] as string)) {
+            if (['Total Hours', ...summaryMetrics.map(m => m.label)].includes(row[0] as string)) {
                 merges.push({ s: { r, c: 0 }, e: { r, c: 1 } });
             }
         });
@@ -418,14 +402,26 @@ function PayrollReportContent() {
         const thickBorderStyle = { border: { top: { style: "thick" }, bottom: { style: "thick" }, left: { style: "thick" }, right: { style: "thick" } }};
         const thinBorderStyle = { border: { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } }};
 
-        // Style first row (Title)
-        const titleCellRef = XLSX.utils.encode_cell({c: 0, r: 0});
-        if (!ws[titleCellRef]) ws[titleCellRef] = {t: 's', v: ''};
-        ws[titleCellRef].s = {
-            font: { bold: true, sz: 11.5 },
-            alignment: { horizontal: 'left', vertical: 'center' },
-            border: thickBorderStyle.border
-        };
+        // Style first row (Title) - iterate through all cells in the merged range
+        for (let C = 0; C <= 2 + inputs.length - 1; C++) {
+            const titleCellRef = XLSX.utils.encode_cell({c: C, r: 0});
+            if (!ws[titleCellRef]) ws[titleCellRef] = {t: 's', v: ''};
+             ws[titleCellRef].s = {
+                font: { bold: true, sz: 11.5 },
+                alignment: { horizontal: 'left', vertical: 'center' },
+                border: {
+                    top: thickBorderStyle.border.top,
+                    bottom: thickBorderStyle.border.bottom,
+                    left: C === 0 ? thickBorderStyle.border.left : undefined,
+                    right: C === (2 + inputs.length - 1) ? thickBorderStyle.border.right : undefined,
+                }
+            };
+            if (C > 0) {
+                 ws[titleCellRef].v = ''; // Clear content for non-A1 cells in merge
+            } else {
+                 ws[titleCellRef].v = title; // Set content for A1
+            }
+        }
 
         const headerStyle: XLSX.CellStyle = {
             border: thickBorderStyle.border,
@@ -441,7 +437,7 @@ function PayrollReportContent() {
                 if (!ws[cell_ref]) ws[cell_ref] = { t: 's', v: '' };
                 let cell = ws[cell_ref];
 
-                let currentStyle: XLSX.CellStyle = {};
+                let currentStyle: XLSX.CellStyle = JSON.parse(JSON.stringify(cell.s || {}));
 
                 if (R === 1) {
                     currentStyle = JSON.parse(JSON.stringify(headerStyle));
@@ -464,7 +460,7 @@ function PayrollReportContent() {
                     if (C === range.e.c) cellBorderStyle.right = { style: "thick" };
                     
                     currentStyle.border = cellBorderStyle;
-                    currentStyle.font = { bold: isTotalRow || isGrandTotalRow };
+                    currentStyle.font = { ...currentStyle.font, bold: isTotalRow || isGrandTotalRow };
 
                     if (isDateCell) {
                        currentStyle.alignment = { vertical: 'center', horizontal: 'justify' };
@@ -690,3 +686,4 @@ export default function PayrollReportPage() {
     
 
     
+
