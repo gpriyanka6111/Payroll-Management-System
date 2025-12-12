@@ -117,15 +117,7 @@ export default function ManagerDashboardPage() {
                             )}
                         </CardContent>
                          {lastPayroll && (
-                            <CardFooter className="flex-col items-start gap-4 border-t pt-4">
-                                <div className="flex w-full gap-4 text-sm">
-                                    <Button variant="ghost" className="p-0 h-auto text-primary hover:text-primary/90">
-                                        <Package className="mr-2"/> Report package
-                                    </Button>
-                                    <Button variant="ghost" className="p-0 h-auto text-muted-foreground cursor-not-allowed">
-                                        <Truck className="mr-2"/> Track delivery
-                                    </Button>
-                                </div>
+                            <CardFooter className="border-t pt-4">
                                 <Button variant="link" className="p-0 h-auto font-semibold" asChild>
                                     <Link href={`/dashboard/manager/payroll/report?id=${lastPayroll.id}`}>
                                         Payroll details
