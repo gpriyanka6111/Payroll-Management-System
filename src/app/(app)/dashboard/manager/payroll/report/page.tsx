@@ -298,7 +298,6 @@ function PayrollReportContent() {
 
         ws_data.push([title]);
         ws_data.push(['Date', 'Metric', ...inputs.map(i => i.name.toUpperCase())]);
-        let currentRow = 2; // Start after header
     
         const daysInPeriod = eachDayOfInterval({ start: period.from, end: period.to });
     
@@ -336,7 +335,6 @@ function PayrollReportContent() {
                 totalRow.push(totalValue);
             });
             ws_data.push(inRow, outRow, totalRow);
-            currentRow += 3;
         });
 
         const employeeTotals = inputs.map(input => {
@@ -416,124 +414,87 @@ function PayrollReportContent() {
         });
         ws['!merges'] = merges;
         
-        const thickBorderStyle = { 
-            border: { top: { style: "thick" }, bottom: { style: "thick" }, left: { style: "thick" }, right: { style: "thick" } }
+        const thickBorderStyle = { border: { top: { style: "thick" }, bottom: { style: "thick" }, left: { style: "thick" }, right: { style: "thick" } }};
+        const thinBorderStyle = { border: { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } }};
+
+        // Style first row (Title)
+        const titleCellRef = XLSX.utils.encode_cell({c: 0, r: 0});
+        if (!ws[titleCellRef]) ws[titleCellRef] = {t: 's', v: ''};
+        ws[titleCellRef].s = {
+            font: { bold: true, sz: 11.5 },
+            alignment: { horizontal: 'left', vertical: 'center' },
+            ...thickBorderStyle
         };
 
-        const blueFill = { fill: { fgColor: { rgb: "ADD8E6" } } }; // Light Blue
-        const yellowFill = { fill: { fgColor: { rgb: "FFFF00" } } }; // Yellow
-        const redFill = { fill: { fgColor: { rgb: "FFC7CE" } } }; // Light Red
-        
-        const boldFont = { font: { bold: true } };
+        const headerStyle: XLSX.CellStyle = {
+            border: { ...thickBorderStyle.border },
+            font: { bold: true },
+            alignment: { horizontal: 'center', vertical: 'center' }
+        };
 
         const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
 
-        for (let R = range.s.r; R <= range.e.r; ++R) {
-            for (let C = range.s.c; C <= range.e.c; ++C) {
-                const cell_address = { c: C, r: R };
-                const cell_ref = XLSX.utils.encode_cell(cell_address);
+        for (let R = 1; R <= range.e.r; ++R) { // Start from row 1, as row 0 is handled
+            for (let C = 0; C <= range.e.c; ++C) {
+                const cell_ref = XLSX.utils.encode_cell({ c: C, r: R });
                 if (!ws[cell_ref]) ws[cell_ref] = { t: 's', v: '' };
-                const cell = ws[cell_ref];
-                let currentStyle = cell.s || {};
+                let cell = ws[cell_ref];
 
-                if (R === 0) {
-                    currentStyle = {
-                        ...currentStyle,
-                        font: { bold: true, sz: 14 },
-                        alignment: { horizontal: 'center', vertical: 'center' },
-                        ...thickBorderStyle
-                    };
-                } else if (R === 1) {
-                     currentStyle = { ...currentStyle, ...thickBorderStyle, font: { ...(currentStyle.font || {}), bold: true } };
-                }
+                // Create a fresh style object for each cell to avoid circular references
+                let currentStyle: XLSX.CellStyle = {};
 
-                const secondCellValue = ws[XLSX.utils.encode_cell({c:1, r:R})]?.v;
-                if (typeof secondCellValue === 'string') {
-                    if (secondCellValue === 'Total:') {
-                        for (let c = 0; c <= range.e.c; c++) {
-                            const totalCellRef = XLSX.utils.encode_cell({c, r: R});
-                            if (!ws[totalCellRef]) ws[totalCellRef] = { t: 's', v: ''};
-                            ws[totalCellRef].s = { ...(ws[totalCellRef].s || {}), ...thickBorderStyle, font: { ...(ws[totalCellRef].s?.font || {}), bold: true } };
-                        }
-                    } else if (C === 1 && (secondCellValue === 'In:' || secondCellValue === 'Out:')) {
-                        currentStyle = { ...currentStyle, ...thickBorderStyle };
+                if (R === 1) {
+                    currentStyle = { ...headerStyle };
+                } else {
+                    const rowLabel = ws[XLSX.utils.encode_cell({ c: 1, r: R })]?.v;
+                    const isTotalRow = rowLabel === 'Total:';
+                    const isGrandTotalRow = ws_data[R]?.[0] === 'Total Hours';
+                    const isDateCell = C === 0 && ws_data[R]?.[0] && ws_data[R]?.[0]?.toString().match(/^[A-Za-z]{3}, [A-Za-z]{3} \d{2}$/);
+                    
+                    let cellBorderStyle: XLSX.Border = { ...thinBorderStyle.border };
+
+                    if (isGrandTotalRow) {
+                        cellBorderStyle.top = { style: "thin" };
+                        cellBorderStyle.bottom = { style: "thick" };
+                    } else if (isTotalRow) {
+                        cellBorderStyle.bottom = { style: "thick" };
+                    }
+
+                    if (C === 0) cellBorderStyle.left = { style: "thick" };
+                    if (C === range.e.c) cellBorderStyle.right = { style: "thick" };
+                    
+                    currentStyle.border = cellBorderStyle;
+                    currentStyle.font = { bold: isTotalRow || isGrandTotalRow };
+
+                    if (isDateCell) {
+                       currentStyle.alignment = { vertical: 'center', horizontal: 'justify' };
                     }
                 }
-
-                if (C > 1 && secondCellValue && (secondCellValue === 'In:' || secondCellValue === 'Out:')) {
-                     currentStyle.border = { ...(currentStyle.border || {}), right: { style: "thick" } };
-                }
-                
-                const rowLabel = ws_data[R]?.[0] as string;
-                if (rowLabel === 'Total Hours') {
-                    currentStyle = { ...currentStyle, ...blueFill };
-                } else if (rowLabel === 'GROSS CHECK AMOUNT') {
-                    currentStyle = { ...currentStyle, ...yellowFill };
-                } else if (rowLabel === 'GROSS OTHER AMOUNT') {
-                    currentStyle = { ...currentStyle, ...redFill };
-                }
-
-                if (summaryMetrics.some(m => m.label === rowLabel && m.isBold)) {
-                    const firstCellRef = XLSX.utils.encode_cell({ c: 0, r: R });
-                    if (ws[firstCellRef]) {
-                        ws[firstCellRef].s = { ...(ws[firstCellRef].s || {}), font: { ...(ws[firstCellRef].s?.font || {}), bold: true } };
-                    }
-                }
-                
-                const summaryRowLabels = new Set([
-                    'Total Hours', 'COMMENTS', 'CHECK HOURS', 'OTHER HOURS', 'RATE/CHECK', 
-                    'RATE/OTHERS', 'OTHER-ADJ$', 'GROSS CHECK AMOUNT', 'GROSS OTHER AMOUNT', 'GP'
-                ]);
-
-                if (summaryRowLabels.has(rowLabel)) {
-                     for(let i = 0; i <= range.e.c; i++){
-                        const targetCellRef = XLSX.utils.encode_cell({c: i, r: R});
-                        if (!ws[targetCellRef]) ws[targetCellRef] = { t: 's', v: '' };
-                        const existingStyle = ws[targetCellRef].s || {};
-                        ws[targetCellRef].s = { ...existingStyle, ...thickBorderStyle };
-                     }
-                }
-                
-                const lastDataRowLabel = ws_data[ws_data.length - 2]?.[0];
-                if(lastDataRowLabel === 'GP' && R === ws_data.length - 1){
-                     for(let i = 0; i <= range.e.c; i++){
-                        const targetCellRef = XLSX.utils.encode_cell({c: i, r: R});
-                        if (!ws[targetCellRef]) ws[targetCellRef] = { t: 's', v: '' };
-                        ws[targetCellRef].s = { ...(ws[targetCellRef].s || {}), ...thickBorderStyle };
-                     }
-                }
-
-                if (R === ws_data.length - 4 && C > 1) { // Employee name row in summary
-                     currentStyle = { ...currentStyle, font: { ...(currentStyle.font || {}), bold: true } };
-                }
-                
-                cell.s = currentStyle;
+                 cell.s = currentStyle;
             }
         }
         
-        const rowsToHeighten = new Set([
-            'Total Hours', 'COMMENTS', 'CHECK HOURS', 'OTHER HOURS', 'RATE/CHECK', 'RATE/OTHERS', 'OTHER-ADJ$',
-            'GROSS CHECK AMOUNT', 'GROSS OTHER AMOUNT', 'GP'
-        ]);
-        
-        const wsRows = ws_data.map((row, index) => {
-            if (index === 0) return { hpt: 30 };
-            const firstCell = row[0];
-            const isEmployeeNameRow = index === ws_data.length - 4 && row[2]; 
+        ws['!cols'] = [{ wch: 15 }, { wch: 8 }, ...Array(inputs.length).fill({ wch: 15 })];
+        ws['!rows'] = [{ hpt: 30 }, ...Array(ws_data.length - 1).fill({})];
+        ws['!pageSetup'] = {
+            orientation: 'landscape',
+            fitToPage: true,
+            fitToWidth: 1,
+            fitToHeight: 0,
+            margin: { left: 0, right: 0, top: 0, bottom: 0 }
+        };
 
-            if ((typeof firstCell === 'string' && rowsToHeighten.has(firstCell)) || isEmployeeNameRow) {
-                return { hpt: 25 };
-            }
-            if(index === ws_data.length - 1){
-                 return { hpt: 25 };
-            }
-            return {};
+        const sheetName = 'Payroll Report';
+        XLSX.utils.book_append_sheet(wb, ws, sheetName);
+        
+        if (!wb.Workbook) wb.Workbook = {};
+        if (!wb.Workbook.Names) wb.Workbook.Names = [];
+        wb.Workbook.Names.push({
+            Name: 'Print_Titles',
+            Sheet: 0,
+            Ref: `${sheetName}!$A:$B,${sheetName}!$1:$2`
         });
 
-        ws['!rows'] = wsRows;
-        ws['!cols'] = [{ wch: 15 }, { wch: 8 }, ...Array(inputs.length).fill({ wch: 15 })];
-
-        XLSX.utils.book_append_sheet(wb, ws, "Timesheet Report");
         const fileName = `Payroll_Timesheet_${format(period.from, 'yyyy-MM-dd')}_to_${format(period.to, 'yyyy-MM-dd')}.xlsx`;
         XLSX.writeFile(wb, fileName);
     };
@@ -725,3 +686,5 @@ export default function PayrollReportPage() {
         </React.Suspense>
     )
 }
+
+    
