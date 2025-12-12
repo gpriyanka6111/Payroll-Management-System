@@ -351,9 +351,20 @@ function PayrollReportContent() {
             { label: 'RATE/CHECK', key: 'payRateCheck', type: 'result', format: 'currency', isBold: true },
             { label: 'RATE/OTHERS', key: 'payRateOthers', type: 'result', format: 'currency', isBold: true },
             { label: 'OTHER-ADJ$', key: 'otherAdjustment', type: 'result', format: 'currency', isBold: true },
+            { label: 'TOTAL HOURS', key: 'totalHoursWorked', type: 'input', format: 'hours', isBold: true},
+            { label: 'GROSS CHECK', key: 'grossCheckAmount', type: 'result', format: 'currency', isBold: true },
+            { label: 'GROSS OTHER', key: 'grossOtherAmount', type: 'result', format: 'currency', isBold: true },
         ];
         
         summaryMetrics.forEach(metric => {
+            if (metric.label === 'TOTAL HOURS') {
+                 ws_data.push(['TOTAL HOURS', null, ...inputs.map(input => {
+                    const totalHours = (input.checkHours || 0) + (input.otherHours || 0);
+                    return formatHours(totalHours);
+                 })]);
+                 return;
+            }
+
             const row: (string | number | null)[] = [metric.label, null];
             inputs.forEach(input => {
                 const source = metric.type === 'input' ? input : results.find(r => r.employeeId === input.employeeId);
@@ -370,30 +381,15 @@ function PayrollReportContent() {
             });
             ws_data.push(row);
         });
-        
-        // Employee Names row
+
+        // Inject Employee Names Row
         ws_data.push([null, null, ...inputs.map(i => i.name.toUpperCase())]);
         
-        // Gross Check Amount row
-        const grossCheckRow: (string | number | null)[] = ['GROSS CHECK', null];
-        inputs.forEach(input => {
-            const result = results.find(r => r.employeeId === input.employeeId);
-            grossCheckRow.push(result ? formatCurrency(result.grossCheckAmount) : '');
-        });
-        ws_data.push(grossCheckRow);
-        
-        // Gross Other Amount row
-        const grossOtherRow: (string | number | null)[] = ['GROSS OTHER', null];
-        inputs.forEach(input => {
-            const result = results.find(r => r.employeeId === input.employeeId);
-            grossOtherRow.push(result ? formatCurrency(result.grossOtherAmount) : '');
-        });
-        ws_data.push(grossOtherRow);
-
         ws_data.push([]); // Empty row
-        ws_data.push(['GP', null, 'EMPLOYER', 'EMPLOYEE', 'DED', 'NET', 'OTHERS']);
+        ws_data.push(['GP', null, null, 'EMPLOYER', 'EMPLOYEE', 'DED', 'NET', 'OTHERS']);
         ws_data.push([
             formatCurrency(totals.totalNetPay),
+            null,
             null,
             summaryData.employer || '',
             summaryData.employee || '',
@@ -404,14 +400,15 @@ function PayrollReportContent() {
         
         const ws = XLSX.utils.aoa_to_sheet(ws_data);
         
-        const merges: XLSX.Range[] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 1 + inputs.length } }];
+        const merges: XLSX.Range[] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 2 + inputs.length } }];
         for (let i = 2; i < ws_data.length; i++) {
-             const firstCell = ws_data[i]?.[0];
-             if (typeof firstCell === 'string' && firstCell.match(/^[A-Za-z]{3}, [A-Za-z]{3} \d{2}$/)) {
+             const row = ws_data[i];
+             if (!row) continue;
+             if (typeof row[0] === 'string' && row[0].match(/^[A-Za-z]{3}, [A-Za-z]{3} \d{2}$/)) {
                  merges.push({ s: { r: i, c: 0 }, e: { r: i + 2, c: 0 } });
                  i += 2; // Skip next two rows since they are part of the merge
              } else {
-                 if (['Total Hours', ...summaryMetrics.map(m => m.label), 'GROSS CHECK', 'GROSS OTHER'].includes(row[0] as string)) {
+                 if (['Total Hours', ...summaryMetrics.map(m => m.label)].includes(row[0] as string)) {
                     merges.push({ s: { r: i, c: 0 }, e: { r: i, c: 1 } });
                  }
              }
@@ -422,7 +419,7 @@ function PayrollReportContent() {
         const thinBorderStyle = { border: { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } }};
 
         // Style first row (Title) - iterate through all cells in the merged range
-        for (let C = 0; C <= 1 + inputs.length; C++) {
+        for (let C = 0; C <= 2 + inputs.length; C++) {
             const titleCellRef = XLSX.utils.encode_cell({c: C, r: 0});
             if (!ws[titleCellRef]) ws[titleCellRef] = {t: 's', v: ''};
              ws[titleCellRef].s = {
@@ -432,11 +429,13 @@ function PayrollReportContent() {
                     top: thickBorderStyle.border.top,
                     bottom: thickBorderStyle.border.bottom,
                     left: C === 0 ? thickBorderStyle.border.left : undefined,
-                    right: C === (1 + inputs.length) ? thickBorderStyle.border.right : undefined,
+                    right: C === (2 + inputs.length) ? thickBorderStyle.border.right : undefined,
                 }
             };
         }
-        ws[XLSX.utils.encode_cell({c: 0, r: 0})].v = title;
+        if (ws[XLSX.utils.encode_cell({c: 0, r: 0})]) {
+            ws[XLSX.utils.encode_cell({c: 0, r: 0})].v = title;
+        }
 
 
         const headerStyle: XLSX.CellStyle = {
@@ -446,7 +445,7 @@ function PayrollReportContent() {
         };
         
         // Style header row (Row 2)
-        for (let C = 0; C <= 1 + inputs.length; C++) {
+        for (let C = 0; C <= 2 + inputs.length; C++) {
             const headerCellRef = XLSX.utils.encode_cell({c: C, r: 1});
             if (!ws[headerCellRef]) ws[headerCellRef] = {t: 's', v: ''};
             ws[headerCellRef].s = JSON.parse(JSON.stringify(headerStyle));
@@ -463,18 +462,19 @@ function PayrollReportContent() {
                 let cell = ws[cell_ref];
                 let currentStyle = JSON.parse(JSON.stringify(cell.s || {}));
 
-                const rowLabel = ws[XLSX.utils.encode_cell({ c: 1, r: R })]?.v;
+                const rowLabel = ws_data[R]?.[1];
                 const isTotalRow = rowLabel === 'Total:';
                 const isGrandTotalRow = ws_data[R]?.[0] === 'Total Hours';
                 const isDateCell = C === 0 && ws_data[R]?.[0] && ws_data[R]?.[0]?.toString().match(/^[A-Za-z]{3}, [A-Za-z]{3} \d{2}$/);
                 const isEmployeeNameHeaderRow = ws_data[R]?.[0] === null && ws_data[R]?.[1] === null && ws_data[R]?.[2];
+                const isTotalHoursSubRow = ws_data[R]?.[0] === 'TOTAL HOURS';
                 
                 let cellBorderStyle: XLSX.Border = JSON.parse(JSON.stringify(thinBorderStyle.border));
 
                 if (isGrandTotalRow || isEmployeeNameHeaderRow) {
                     cellBorderStyle.top = { style: "thick" };
                     cellBorderStyle.bottom = { style: "thick" };
-                } else if (isTotalRow) {
+                } else if (isTotalRow || isTotalHoursSubRow) {
                     cellBorderStyle.bottom = { style: "thick" };
                 }
 
@@ -482,7 +482,7 @@ function PayrollReportContent() {
                 if (C === range.e.c) cellBorderStyle.right = { style: "thick" };
                 
                 currentStyle.border = cellBorderStyle;
-                currentStyle.font = { ...currentStyle.font, bold: isTotalRow || isGrandTotalRow || isEmployeeNameHeaderRow };
+                currentStyle.font = { ...currentStyle.font, bold: isTotalRow || isGrandTotalRow || isEmployeeNameHeaderRow || isTotalHoursSubRow };
 
                 if (isDateCell) {
                    currentStyle.alignment = { ...currentStyle.alignment, vertical: 'center', horizontal: 'justify' };
@@ -504,6 +504,8 @@ function PayrollReportContent() {
 
         const sheetName = 'Payroll Report';
         
+        XLSX.utils.book_append_sheet(wb, ws, sheetName);
+
         if (!wb.Workbook) wb.Workbook = {};
         if (!wb.Workbook.Names) wb.Workbook.Names = [];
         wb.Workbook.Names.push({
@@ -512,7 +514,6 @@ function PayrollReportContent() {
             Ref: `'${sheetName}'!$A:$B,'${sheetName}'!$1:$2`
         });
         
-        XLSX.utils.book_append_sheet(wb, ws, sheetName);
         const fileName = `Payroll_Timesheet_${format(period.from, 'yyyy-MM-dd')}_to_${format(period.to, 'yyyy-MM-dd')}.xlsx`;
         XLSX.writeFile(wb, fileName);
     };
@@ -706,12 +707,3 @@ export default function PayrollReportPage() {
         </React.Suspense>
     )
 }
-
-    
-
-    
-
-
-
-
-    
