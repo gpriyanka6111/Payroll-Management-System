@@ -444,7 +444,7 @@ function PayrollReportContent() {
                 let currentStyle: XLSX.CellStyle = {};
 
                 if (R === 1) {
-                    currentStyle = { ...headerStyle };
+                    currentStyle = JSON.parse(JSON.stringify(headerStyle));
                 } else {
                     const rowLabel = ws[XLSX.utils.encode_cell({ c: 1, r: R })]?.v;
                     const isTotalRow = rowLabel === 'Total:';
@@ -474,7 +474,7 @@ function PayrollReportContent() {
             }
         }
         
-        ws['!cols'] = [{ wch: 15 }, { wch: 8 }, ...Array(inputs.length).fill({ wch: 15 })];
+        ws['!cols'] = [{ wch: 14 }, { wch: 5 }, ...Array(inputs.length).fill({ wch: 12 })];
         ws['!rows'] = [{ hpt: 30 }, ...Array(ws_data.length - 1).fill({})];
         ws['!pageSetup'] = {
             orientation: 'landscape',
@@ -492,7 +492,7 @@ function PayrollReportContent() {
         wb.Workbook.Names.push({
             Name: 'Print_Titles',
             Sheet: 0,
-            Ref: `${sheetName}!$A:$B,${sheetName}!$1:$2`
+            Ref: `'${sheetName}'!$A:$B,'${sheetName}'!$1:$2`
         });
 
         const fileName = `Payroll_Timesheet_${format(period.from, 'yyyy-MM-dd')}_to_${format(period.to, 'yyyy-MM-dd')}.xlsx`;
