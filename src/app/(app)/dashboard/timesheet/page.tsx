@@ -494,9 +494,20 @@ export default function TimesheetPage() {
         merges.push({s: {r: ws_data.length - 1, c: 0}, e: {r: ws_data.length - 1, c: 1 } });
         ws['!merges'] = merges;
         
-        const thickBorderSide = { style: "thick" };
-        const thinBorderSide = { style: "thin" };
-        
+        // Define styles
+        const thickBorderSide = { style: "thick", color: { rgb: "000000" } };
+        const thinBorderSide = { style: "thin", color: { rgb: "000000" } };
+        const titleStyle: XLSX.CellStyle = {
+            font: { bold: true, sz: 11.5 },
+            alignment: { horizontal: 'left', vertical: 'center' },
+            border: { top: thickBorderSide, bottom: thickBorderSide, left: thickBorderSide, right: thickBorderSide }
+        };
+        const headerStyle: XLSX.CellStyle = {
+            border: { top: thickBorderSide, bottom: thickBorderSide, left: thickBorderSide, right: thickBorderSide },
+            font: { bold: true },
+            alignment: { horizontal: 'center', vertical: 'center' }
+        };
+
         const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
 
         for (let R = range.s.r; R <= range.e.r; ++R) {
@@ -508,17 +519,9 @@ export default function TimesheetPage() {
                 let currentStyle: XLSX.CellStyle = {};
 
                 if (R === 0) {
-                     currentStyle = {
-                        font: { bold: true, sz: 11.5 },
-                        alignment: { horizontal: 'left', vertical: 'center' },
-                        border: { top: thickBorderSide, bottom: thickBorderSide, left: thickBorderSide, right: thickBorderSide }
-                    };
+                     currentStyle = titleStyle;
                 } else if (R === 1) {
-                     currentStyle = {
-                        border: { top: thickBorderSide, bottom: thickBorderSide, left: thickBorderSide, right: thickBorderSide },
-                        font: { bold: true },
-                        alignment: { horizontal: 'center', vertical: 'center' }
-                    };
+                     currentStyle = headerStyle;
                 } else {
                     const rowLabel = ws[XLSX.utils.encode_cell({ c: 1, r: R })]?.v;
                     const isTotalRow = rowLabel === 'Total:';
@@ -544,7 +547,7 @@ export default function TimesheetPage() {
                     }
                 }
                 
-                cell.s = currentStyle;
+                cell.s = { ...(cell.s || {}), ...currentStyle };
             }
         }
         
@@ -560,9 +563,8 @@ export default function TimesheetPage() {
             fitToPage: true,
             fitToWidth: 1,
             fitToHeight: 0,
+            margin: { left: 0, right: 0, top: 0, bottom: 0 }
         };
-
-        ws['!pageMargins'] = { left: 0, right: 0, top: 0, bottom: 0 };
         
         
         wb.SheetNames.push(sheetName);
@@ -587,14 +589,18 @@ export default function TimesheetPage() {
 
     return (
         <div className="space-y-6">
-            <div>
-                 <Button variant="outline" asChild className="w-fit mb-4">
-                    <Link href="/dashboard">
-                        <ArrowLeft className="mr-2 h-4 w-4" /> Back to Dashboard
-                    </Link>
-                </Button>
-                <h1 className="text-3xl font-bold">Timesheet</h1>
-                <p className="text-muted-foreground">Review total logged hours for all employees.</p>
+            <div className="flex justify-between items-center">
+                <div className="space-y-4">
+                    <Button variant="outline" asChild className="w-fit">
+                        <Link href="/dashboard">
+                            <ArrowLeft className="mr-2 h-4 w-4" /> Back to Dashboard
+                        </Link>
+                    </Button>
+                    <div>
+                        <h1 className="text-3xl font-bold">Timesheet</h1>
+                        <p className="text-muted-foreground">Review total logged hours for all employees.</p>
+                    </div>
+                </div>
             </div>
 
             <Card>
@@ -758,5 +764,6 @@ export default function TimesheetPage() {
     
 
     
+
 
 
