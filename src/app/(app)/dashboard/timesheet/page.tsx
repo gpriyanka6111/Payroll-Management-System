@@ -504,7 +504,7 @@ export default function TimesheetPage() {
         if (!ws[titleCellRef]) ws[titleCellRef] = {t: 's', v: ''};
         ws[titleCellRef].s = {
             font: { bold: true, sz: 11.5 },
-            alignment: { horizontal: 'center', vertical: 'center' }
+            alignment: { horizontal: 'left', vertical: 'center' }
         };
     
         // Style second row (Employee names)
@@ -527,16 +527,27 @@ export default function TimesheetPage() {
                 
                 const isTotalRow = rowLabel === 'Total:';
                 const isGrandTotalRow = ws_data[R]?.[0] === 'Total Hours';
+                const borderStyle = (isTotalRow) ? thickBorderSide : thinBorderSide;
 
-                ws[cellRef].s = {
+                let cellStyle: any = {
                     border: {
-                        top: isTotalRow || isGrandTotalRow ? thickBorderSide : thinBorderSide,
-                        bottom: isTotalRow || isGrandTotalRow ? thickBorderSide : thinBorderSide,
+                        top: borderStyle,
+                        bottom: borderStyle,
                         left: thickBorderSide,
                         right: thickBorderSide,
                     },
-                    font: { bold: isTotalRow || isGrandTotalRow }
+                     font: { bold: isTotalRow }
                 };
+
+                if (isGrandTotalRow) {
+                    cellStyle.border = {
+                        top: thinBorderSide, bottom: thinBorderSide,
+                        left: thickBorderSide, right: thickBorderSide,
+                    };
+                    cellStyle.font = { bold: true };
+                }
+
+                ws[cellRef].s = cellStyle;
             }
         }
         
