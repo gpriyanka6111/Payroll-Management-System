@@ -359,10 +359,11 @@ function PayrollReportContent() {
             }
 
             if (metric.label === 'TOTAL HOURS') {
-                 ws_data.push(['TOTAL HOURS', null, ...inputs.map(input => {
-                    const totalHours = (input.totalHoursWorked || 0);
+                 const totalHoursValues = inputs.map(input => {
+                    const totalHours = (input.checkHours || 0) + (input.otherHours || 0);
                     return formatHours(totalHours);
-                 })]);
+                 });
+                 ws_data.push(['TOTAL HOURS', null, ...totalHoursValues]);
                  return;
             }
 
@@ -388,8 +389,7 @@ function PayrollReportContent() {
         });
 
         
-        ws_data.push([]); // Empty row
-        ws_data.push(['GP', null, null, 'EMPLOYER', 'EMPLOYEE', 'DED', 'NET', 'OTHERS']);
+        ws_data.push(['GP', null, 'EMPLOYER', 'EMPLOYEE', 'DED', 'NET', 'OTHERS']);
         ws_data.push([
             formatCurrency(totals.totalNetPay),
             null,
@@ -402,7 +402,7 @@ function PayrollReportContent() {
         
         const ws = XLSX.utils.aoa_to_sheet(ws_data);
         
-        const merges: XLSX.Range[] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 2 + inputs.length } }];
+        const merges: XLSX.Range[] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 1 + inputs.length } }];
         for (let i = 2; i < ws_data.length; i++) {
              const row = ws_data[i];
              if (!row) continue;
@@ -415,12 +415,18 @@ function PayrollReportContent() {
                  }
              }
         }
+        
+        const gpRowIndex = ws_data.findIndex(row => row[0] === 'GP');
+        if (gpRowIndex !== -1) {
+            merges.push({ s: { r: gpRowIndex + 1, c: 0 }, e: { r: gpRowIndex + 1, c: 1 } });
+        }
+        
         ws['!merges'] = merges;
         
         const thickBorderStyle = { border: { top: { style: "thick" }, bottom: { style: "thick" }, left: { style: "thick" }, right: { style: "thick" } }};
         const thinBorderStyle = { border: { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } }};
 
-        for (let C = 0; C <= 2 + inputs.length; C++) {
+        for (let C = 0; C <= 1 + inputs.length; C++) {
             const titleCellRef = XLSX.utils.encode_cell({c: C, r: 0});
             if (!ws[titleCellRef]) ws[titleCellRef] = {t: 's', v: ''};
             
@@ -433,7 +439,7 @@ function PayrollReportContent() {
                     top: thickBorderStyle.border.top,
                     bottom: thickBorderStyle.border.bottom,
                     left: C === 0 ? thickBorderStyle.border.left : undefined,
-                    right: C === (2 + inputs.length) ? thickBorderStyle.border.right : undefined,
+                    right: C === (1 + inputs.length) ? thickBorderStyle.border.right : undefined,
                 }
             };
         }
@@ -448,7 +454,7 @@ function PayrollReportContent() {
         };
         
         // Style header row (Row 2)
-        for (let C = 0; C <= 2 + inputs.length; C++) {
+        for (let C = 0; C <= 1 + inputs.length; C++) {
             const headerCellRef = XLSX.utils.encode_cell({c: C, r: 1});
             if (!ws[headerCellRef]) ws[headerCellRef] = {t: 's', v: ''};
             ws[headerCellRef].s = JSON.parse(JSON.stringify(headerStyle));
@@ -489,7 +495,7 @@ function PayrollReportContent() {
 
 
                 if (C === 0) cellBorderStyle.left = { style: "thick" };
-                if (C === 2 + inputs.length) cellBorderStyle.right = { style: "thick" };
+                if (C === 1 + inputs.length) cellBorderStyle.right = { style: "thick" };
                 
                 currentStyle.border = cellBorderStyle;
                 currentStyle.font = { ...currentStyle.font, bold: isTotalRow || isEmployeeNameHeaderRow || isTotalHoursSubRow };
@@ -718,4 +724,5 @@ export default function PayrollReportPage() {
         </React.Suspense>
     )
 }
+
 
