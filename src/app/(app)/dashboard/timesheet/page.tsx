@@ -496,6 +496,7 @@ export default function TimesheetPage() {
         
         const thickBorderSide = { style: "thick" };
         const thinBorderSide = { style: "thin" };
+        const thickBorderStyle = { border: { top: thickBorderSide, bottom: thickBorderSide, left: thickBorderSide, right: thickBorderSide } };
         
         const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
     
@@ -504,7 +505,8 @@ export default function TimesheetPage() {
         if (!ws[titleCellRef]) ws[titleCellRef] = {t: 's', v: ''};
         ws[titleCellRef].s = {
             font: { bold: true, sz: 11.5 },
-            alignment: { horizontal: 'left', vertical: 'center' }
+            alignment: { horizontal: 'left', vertical: 'center' },
+            ...thickBorderStyle
         };
     
         // Style second row (Employee names)
@@ -512,7 +514,7 @@ export default function TimesheetPage() {
              const headerCellRef = XLSX.utils.encode_cell({c: C, r: 1});
              if (!ws[headerCellRef]) ws[headerCellRef] = { t: 's', v: '' };
              ws[headerCellRef].s = { 
-                border: { top: thickBorderSide, bottom: thickBorderSide, left: thickBorderSide, right: thickBorderSide },
+                ...thickBorderStyle,
                 font: { bold: true },
                 alignment: { horizontal: 'center', vertical: 'center' }
              };
@@ -527,23 +529,23 @@ export default function TimesheetPage() {
                 
                 const isTotalRow = rowLabel === 'Total:';
                 const isGrandTotalRow = ws_data[R]?.[0] === 'Total Hours';
-                const borderStyle = (isTotalRow) ? thickBorderSide : thinBorderSide;
 
                 let cellStyle: any = {
                     border: {
-                        top: borderStyle,
-                        bottom: borderStyle,
+                        top: thinBorderSide,
+                        bottom: thinBorderSide,
                         left: thickBorderSide,
                         right: thickBorderSide,
                     },
                      font: { bold: isTotalRow }
                 };
 
+                 if (isTotalRow) {
+                    cellStyle.border.bottom = thickBorderSide;
+                }
+                
                 if (isGrandTotalRow) {
-                    cellStyle.border = {
-                        top: thinBorderSide, bottom: thinBorderSide,
-                        left: thickBorderSide, right: thickBorderSide,
-                    };
+                    cellStyle.border = thickBorderStyle;
                     cellStyle.font = { bold: true };
                 }
 
@@ -558,14 +560,17 @@ export default function TimesheetPage() {
             ...Array(ws_data.length - 2).fill({})
         ];
 
-        // Setup print properties
         ws['!pageSetup'] = {
-            fitToPage: true,
             orientation: 'landscape',
-        };
+            fitToPage: true,
+            fitToWidth: 1,
+            fitToHeight: 0,
+          };
+
         ws['!pageMargins'] = {
             left: 0, right: 0, top: 0, bottom: 0, header: 0, footer: 0
         };
+        
         
         wb.SheetNames.push(sheetName);
         wb.Sheets[sheetName] = ws;
@@ -754,3 +759,5 @@ export default function TimesheetPage() {
         </div>
     );
 }
+
+    
