@@ -338,35 +338,25 @@ function PayrollReportContent() {
             ws_data.push(inRow, outRow, totalRow);
         });
         
-        // This is now ordered based on user request.
         const summaryMetrics: { label: string; key: keyof EmployeePayrollInput | keyof PayrollResult; type: 'input' | 'result'; format?: 'currency' | 'hours'; isBold?: boolean }[] = [
-            { label: 'TOTAL HOURS', key: 'totalHoursWorked', type: 'input', format: 'hours', isBold: true },
-            { label: 'COMMENTS', key: 'comment', type: 'input', isBold: false },
-            { label: 'CHECK HOURS', key: 'checkHours', type: 'input', format: 'hours', isBold: false },
-            { label: 'OTHER HOURS', key: 'otherHours', type: 'input', format: 'hours', isBold: false },
-            { label: 'RATE/CHECK', key: 'payRateCheck', type: 'result', format: 'currency', isBold: false },
-            { label: 'RATE/OTHERS', key: 'payRateOthers', type: 'result', format: 'currency', isBold: false },
+            { label: 'COMMENTS', key: 'comment', type: 'input' },
+            { label: 'CHECK HOURS', key: 'checkHours', type: 'input', format: 'hours' },
+            { label: 'OTHER HOURS', key: 'otherHours', type: 'input', format: 'hours' },
+            { label: 'RATE/CHECK', key: 'payRateCheck', type: 'result', format: 'currency' },
+            { label: 'RATE/OTHERS', key: 'payRateOthers', type: 'result', format: 'currency' },
             { label: 'OTHER-ADJ$', key: 'otherAdjustment', type: 'result', format: 'currency', isBold: true },
-            // Employee Names row will be injected here
             { label: 'GROSS CHECK', key: 'grossCheckAmount', type: 'result', format: 'currency', isBold: true },
             { label: 'GROSS OTHER', key: 'grossOtherAmount', type: 'result', format: 'currency', isBold: true },
         ];
         
+        // Add Total Hours row first
+        const totalHoursValues = inputs.map(input => {
+            const totalHours = (input.checkHours || 0) + (input.otherHours || 0);
+            return formatHours(totalHours);
+        });
+        ws_data.push(['TOTAL HOURS', null, ...totalHoursValues]);
+
         summaryMetrics.forEach(metric => {
-            if (metric.label === 'EMPLOYEE NAMES') { // This is a placeholder for injection
-                 ws_data.push([null, null, ...inputs.map(i => i.name.toUpperCase())]);
-                 return;
-            }
-
-            if (metric.label === 'TOTAL HOURS') {
-                 const totalHoursValues = inputs.map(input => {
-                    const totalHours = (input.checkHours || 0) + (input.otherHours || 0);
-                    return formatHours(totalHours);
-                 });
-                 ws_data.push(['TOTAL HOURS', null, ...totalHoursValues]);
-                 return;
-            }
-
             const row: (string | number | null)[] = [metric.label, null];
             inputs.forEach(input => {
                 const source = metric.type === 'input' ? input : results.find(r => r.employeeId === input.employeeId);
@@ -378,7 +368,6 @@ function PayrollReportContent() {
                 } else {
                     value = '';
                 }
-                
                 row.push(value);
             });
             ws_data.push(row);
@@ -387,7 +376,7 @@ function PayrollReportContent() {
                 ws_data.push([null, null, ...inputs.map(i => i.name.toUpperCase())]);
             }
         });
-
+        
         
         ws_data.push(['GP', null, 'EMPLOYER', 'EMPLOYEE', 'DED', 'NET', 'OTHERS']);
         ws_data.push([
@@ -410,15 +399,17 @@ function PayrollReportContent() {
                  merges.push({ s: { r: i, c: 0 }, e: { r: i + 2, c: 0 } });
                  i += 2; // Skip next two rows since they are part of the merge
              } else {
-                 if (['TOTAL HOURS', 'COMMENTS', 'CHECK HOURS', 'OTHER HOURS', 'RATE/CHECK', 'RATE/OTHERS', 'OTHER-ADJ$', 'GROSS CHECK', 'GROSS OTHER'].includes(row[0] as string)) {
+                const summaryRowLabels = ['TOTAL HOURS', 'COMMENTS', 'CHECK HOURS', 'OTHER HOURS', 'RATE/CHECK', 'RATE/OTHERS', 'OTHER-ADJ$', 'GROSS CHECK', 'GROSS OTHER'];
+                 if (summaryRowLabels.includes(row[0] as string)) {
                     merges.push({ s: { r: i, c: 0 }, e: { r: i, c: 1 } });
                  }
              }
         }
         
-        const gpRowIndex = ws_data.findIndex(row => row[0] === 'GP');
+        const gpRowIndex = ws_data.findIndex(row => row && row[0] === 'GP');
         if (gpRowIndex !== -1) {
-            merges.push({ s: { r: gpRowIndex + 1, c: 0 }, e: { r: gpRowIndex + 1, c: 1 } });
+            const rowAfterGp = gpRowIndex + 1;
+            merges.push({ s: { r: rowAfterGp, c: 0 }, e: { r: rowAfterGp, c: 1 } });
         }
         
         ws['!merges'] = merges;
@@ -438,8 +429,8 @@ function PayrollReportContent() {
                 border: {
                     top: thickBorderStyle.border.top,
                     bottom: thickBorderStyle.border.bottom,
-                    left: C === 0 ? thickBorderStyle.border.left : undefined,
-                    right: C === (1 + inputs.length) ? thickBorderStyle.border.right : undefined,
+                    left: C === 0 ? thickBorderStyle.border.left : thinBorderStyle.border.left,
+                    right: C === (1 + inputs.length) ? thickBorderStyle.border.right : thinBorderStyle.border.right,
                 }
             };
         }
@@ -453,15 +444,15 @@ function PayrollReportContent() {
             alignment: { horizontal: 'center', vertical: 'center' }
         };
         
-        // Style header row (Row 2)
         for (let C = 0; C <= 1 + inputs.length; C++) {
             const headerCellRef = XLSX.utils.encode_cell({c: C, r: 1});
             if (!ws[headerCellRef]) ws[headerCellRef] = {t: 's', v: ''};
             ws[headerCellRef].s = JSON.parse(JSON.stringify(headerStyle));
         }
 
-
         const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+        
+        const summaryStartRow = ws_data.findIndex(row => row && row[0] === 'TOTAL HOURS');
 
         for (let R = 2; R <= range.e.r; ++R) {
             for (let C = 0; C <= range.e.c; ++C) {
@@ -479,23 +470,25 @@ function PayrollReportContent() {
                 
                 let cellBorderStyle: XLSX.Border = JSON.parse(JSON.stringify(thinBorderStyle.border));
 
-                if (isEmployeeNameHeaderRow) {
-                    cellBorderStyle.top = { style: "thick" };
-                    cellBorderStyle.bottom = { style: "thick" };
-                } else if (isTotalRow || isTotalHoursSubRow) {
-                    cellBorderStyle.bottom = { style: "thick" };
+                if (R >= summaryStartRow && C === 0) {
+                     cellBorderStyle = JSON.parse(JSON.stringify(thickBorderStyle.border));
+                } else {
+                    if (isEmployeeNameHeaderRow) {
+                        cellBorderStyle.top = { style: "thick" };
+                        cellBorderStyle.bottom = { style: "thick" };
+                    } else if (isTotalRow || isTotalHoursSubRow) {
+                        cellBorderStyle.bottom = { style: "thick" };
+                    }
+                    
+                    if (ws_data[R]?.[0] === 'GP') {
+                        cellBorderStyle.top = { style: "thick" };
+                    }
+                    if (R === range.e.r) { // last row
+                        cellBorderStyle.bottom = { style: "thick" };
+                    }
+                    if (C === 0) cellBorderStyle.left = { style: "thick" };
+                    if (C === 1 + inputs.length) cellBorderStyle.right = { style: "thick" };
                 }
-                
-                if (ws_data[R]?.[0] === 'GP') {
-                    cellBorderStyle.top = { style: "thick" };
-                }
-                 if (R === range.e.r) { // last row
-                    cellBorderStyle.bottom = { style: "thick" };
-                }
-
-
-                if (C === 0) cellBorderStyle.left = { style: "thick" };
-                if (C === 1 + inputs.length) cellBorderStyle.right = { style: "thick" };
                 
                 currentStyle.border = cellBorderStyle;
                 currentStyle.font = { ...currentStyle.font, bold: isTotalRow || isEmployeeNameHeaderRow || isTotalHoursSubRow };
@@ -724,5 +717,6 @@ export default function PayrollReportPage() {
         </React.Suspense>
     )
 }
+
 
 
