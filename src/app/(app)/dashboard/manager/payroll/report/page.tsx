@@ -339,34 +339,38 @@ function PayrollReportContent() {
         });
         
         const summaryMetrics: { label: string; key: keyof EmployeePayrollInput | keyof PayrollResult; type: 'input' | 'result'; format?: 'currency' | 'hours'; isBold?: boolean }[] = [
+            { label: 'TOTAL HOURS', key: 'totalHoursWorked', type: 'input', format: 'hours', isBold: true },
             { label: 'COMMENTS', key: 'comment', type: 'input' },
             { label: 'CHECK HOURS', key: 'checkHours', type: 'input', format: 'hours' },
             { label: 'OTHER HOURS', key: 'otherHours', type: 'input', format: 'hours' },
             { label: 'RATE/CHECK', key: 'payRateCheck', type: 'result', format: 'currency' },
             { label: 'RATE/OTHERS', key: 'payRateOthers', type: 'result', format: 'currency' },
-            { label: 'OTHER-ADJ$', key: 'otherAdjustment', type: 'result', format: 'currency', isBold: true },
+            { label: 'OTHER-ADJ$', key: 'otherAdjustment', type: 'result', format: 'currency' },
         ];
         
-        const totalHoursValues = inputs.map(input => {
-            const totalHours = (input.checkHours || 0) + (input.otherHours || 0);
-            return formatHours(totalHours);
-        });
-        ws_data.push(['TOTAL HOURS', null, ...totalHoursValues]);
-
         summaryMetrics.forEach(metric => {
-            const row: (string | number | null)[] = [metric.label, null];
-            inputs.forEach(input => {
-                const source = metric.type === 'input' ? input : results.find(r => r.employeeId === input.employeeId);
-                let value: any = source ? (source as any)[metric.key] : undefined;
+            let row;
+            if (metric.label === 'TOTAL HOURS') {
+                const totalHoursValues = inputs.map(input => {
+                    const totalHours = (input.checkHours || 0) + (input.otherHours || 0);
+                    return formatHours(totalHours);
+                });
+                 row = [metric.label, null, ...totalHoursValues];
+            } else {
+                 row = [metric.label, null];
+                 inputs.forEach(input => {
+                    const source = metric.type === 'input' ? input : results.find(r => r.employeeId === input.employeeId);
+                    let value: any = source ? (source as any)[metric.key] : undefined;
 
-                 if (value !== undefined && value !== null && value !== '') {
-                    if (metric.format === 'currency') value = formatCurrency(value);
-                    else if (metric.format === 'hours') value = formatHours(value);
-                } else {
-                    value = '';
-                }
-                row.push(value);
-            });
+                     if (value !== undefined && value !== null && value !== '') {
+                        if (metric.format === 'currency') value = formatCurrency(value);
+                        else if (metric.format === 'hours') value = formatHours(value);
+                    } else {
+                        value = '';
+                    }
+                    row.push(value);
+                });
+            }
             ws_data.push(row);
         });
 
@@ -451,6 +455,7 @@ function PayrollReportContent() {
         const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
         
         const summaryStartRow = ws_data.findIndex(row => row && row[0] === 'TOTAL HOURS');
+        const summaryEndRow = ws_data.findIndex(row => row && row[0] === 'GROSS OTHER');
 
         for (let R = 2; R <= range.e.r; ++R) {
             for (let C = 0; C <= range.e.c; ++C) {
@@ -463,14 +468,19 @@ function PayrollReportContent() {
                 const isTotalRow = rowLabel === 'Total:';
                 const isDateCell = C === 0 && ws_data[R]?.[0] && ws_data[R]?.[0]?.toString().match(/^[A-Za-z]{3}, [A-Za-z]{3} \d{2}$/);
                 const isEmployeeNameHeaderRow = ws_data[R]?.[0] === null && ws_data[R]?.[1] === null && ws_data[R]?.[2];
-                const isSummaryMetricRow = R >= summaryStartRow && C <= 1;
+                const isSummaryRow = R >= summaryStartRow && R <= summaryEndRow + 1; // Include employee names row
 
                 let cellBorderStyle: XLSX.Border = JSON.parse(JSON.stringify(thinBorderStyle.border));
 
-                if (isSummaryMetricRow) {
-                    cellBorderStyle = JSON.parse(JSON.stringify(thickBorderStyle.border));
-                    if (C === 1) { // This is the key fix
-                        cellBorderStyle.right = { style: "thick" };
+                if (isSummaryRow) {
+                    if (C === 0) { // Merged cell A+B
+                         cellBorderStyle = JSON.parse(JSON.stringify(thickBorderStyle.border));
+                    } else if (C > 1) { // Data cells
+                         cellBorderStyle = {
+                            ...JSON.parse(JSON.stringify(thickBorderStyle.border)),
+                            left: thinBorderStyle.border.left,
+                            right: C === range.e.c ? thickBorderStyle.border.right : thinBorderStyle.border.right,
+                         };
                     }
                 } else {
                     if (isEmployeeNameHeaderRow) {
@@ -487,7 +497,7 @@ function PayrollReportContent() {
                         cellBorderStyle.bottom = { style: "thick" };
                     }
                     if (C === 0) cellBorderStyle.left = { style: "thick" };
-                    if (C === 1 + inputs.length) cellBorderStyle.right = { style: "thick" };
+                    if (C === range.e.c) cellBorderStyle.right = { style: "thick" };
                 }
                 
                 const currentStyle = {
@@ -720,6 +730,7 @@ export default function PayrollReportPage() {
         </React.Suspense>
     )
 }
+
 
 
 
