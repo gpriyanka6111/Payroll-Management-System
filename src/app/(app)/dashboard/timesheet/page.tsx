@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import * as React from 'react';
@@ -438,7 +439,7 @@ export default function TimesheetPage() {
         const title = `${companyName} - Time Report: ${format(dateRange.from, 'LLL dd, yyyy')} - ${format(dateRange.to, 'LLL dd, yyyy')} - ${payDateStr}`;
         ws_data.push([title]);
     
-        ws_data.push(['Date', 'Metric', ...employees.map(e => e.firstName.toUpperCase())]);
+        ws_data.push([null, 'Metric', ...employees.map(e => e.firstName.toUpperCase())]);
     
         const daysInPeriod = eachDayOfInterval({ start: dateRange.from, end: dateRange.to });
     
@@ -529,6 +530,7 @@ export default function TimesheetPage() {
                 
                 const isTotalRow = rowLabel === 'Total:';
                 const isGrandTotalRow = ws_data[R]?.[0] === 'Total Hours';
+                const isDateCell = C === 0;
 
                 let cellStyle: any = {
                     border: {
@@ -540,6 +542,10 @@ export default function TimesheetPage() {
                      font: { bold: isTotalRow }
                 };
 
+                 if (isDateCell) {
+                    cellStyle.alignment = { ...cellStyle.alignment, vertical: 'center', horizontal: 'justify' };
+                }
+
                  if (isTotalRow) {
                     cellStyle.border.bottom = thickBorderSide;
                 }
@@ -547,6 +553,8 @@ export default function TimesheetPage() {
                 if (isGrandTotalRow) {
                     cellStyle.border = thickBorderStyle;
                     cellStyle.font = { bold: true };
+                    cellStyle.border.top = thinBorderSide;
+                    cellStyle.border.bottom = thickBorderStyle;
                 }
 
                 ws[cellRef].s = cellStyle;
@@ -568,7 +576,7 @@ export default function TimesheetPage() {
           };
 
         ws['!pageMargins'] = {
-            left: 0, right: 0, top: 0, bottom: 0, header: 0, footer: 0
+            left: 0.5, right: 0.5, top: 0.5, bottom: 0.5, header: 0, footer: 0
         };
         
         
@@ -759,5 +767,7 @@ export default function TimesheetPage() {
         </div>
     );
 }
+
+    
 
     
