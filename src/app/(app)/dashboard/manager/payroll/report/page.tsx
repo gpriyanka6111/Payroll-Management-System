@@ -9,7 +9,7 @@ import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import type { PayrollResult, EmployeePayrollInput } from '@/components/payroll/payroll-calculation';
 import { Payslip } from '@/components/payroll/payslip';
-import { format, startOfYear, eachDayOfInterval, isSameDay, getDay, isValid, parseISO, parse } from 'date-fns';
+import { format, startOfYear, eachDayOfInterval, isSameDay, getDay, isValid, parseISO, parse, isAfter, endOfToday } from 'date-fns';
 import { ArrowLeft, Users, Pencil, FileSpreadsheet } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -265,6 +265,7 @@ function PayrollReportContent() {
             
             snapshot.forEach(doc => {
                 const entry = doc.data();
+                if (isAfter(entry.timeIn.toDate(), toDateEnd)) return;
                 const dateKey = format(entry.timeIn.toDate(), 'yyyy-MM-dd');
                 if (!dailyData[dateKey]) {
                     dailyData[dateKey] = { totalMinutes: 0, entries: [] };
@@ -350,6 +351,8 @@ function PayrollReportContent() {
             { label: 'RATE/CHECK', key: 'payRateCheck', type: 'result', format: 'currency', isBold: true },
             { label: 'RATE/OTHERS', key: 'payRateOthers', type: 'result', format: 'currency', isBold: true },
             { label: 'OTHER-ADJ$', key: 'otherAdjustment', type: 'result', format: 'currency', isBold: true },
+            { label: 'GROSS CHECK', key: 'grossCheckAmount', type: 'result', format: 'currency', isBold: true },
+            { label: 'GROSS OTHER', key: 'grossOtherAmount', type: 'result', format: 'currency', isBold: true },
         ];
         
         summaryMetrics.forEach(metric => {
@@ -686,4 +689,5 @@ export default function PayrollReportPage() {
     
 
     
+
 
