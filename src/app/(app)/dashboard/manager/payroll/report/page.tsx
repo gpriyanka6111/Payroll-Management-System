@@ -345,11 +345,8 @@ function PayrollReportContent() {
             { label: 'RATE/CHECK', key: 'payRateCheck', type: 'result', format: 'currency' },
             { label: 'RATE/OTHERS', key: 'payRateOthers', type: 'result', format: 'currency' },
             { label: 'OTHER-ADJ$', key: 'otherAdjustment', type: 'result', format: 'currency', isBold: true },
-            { label: 'GROSS CHECK', key: 'grossCheckAmount', type: 'result', format: 'currency', isBold: true },
-            { label: 'GROSS OTHER', key: 'grossOtherAmount', type: 'result', format: 'currency', isBold: true },
         ];
         
-        // Add Total Hours row first
         const totalHoursValues = inputs.map(input => {
             const totalHours = (input.checkHours || 0) + (input.otherHours || 0);
             return formatHours(totalHours);
@@ -371,12 +368,13 @@ function PayrollReportContent() {
                 row.push(value);
             });
             ws_data.push(row);
-
-            if (metric.label === 'OTHER-ADJ$') {
-                ws_data.push([null, null, ...inputs.map(i => i.name.toUpperCase())]);
-            }
         });
+
+        ws_data.push([null, null, ...inputs.map(i => i.name.toUpperCase())]);
         
+        const grossCheckRow = ['GROSS CHECK', null, ...results.map(r => formatCurrency(r.grossCheckAmount))];
+        const grossOtherRow = ['GROSS OTHER', null, ...results.map(r => formatCurrency(r.grossOtherAmount))];
+        ws_data.push(grossCheckRow, grossOtherRow);
         
         ws_data.push(['GP', null, 'EMPLOYER', 'EMPLOYEE', 'DED', 'NET', 'OTHERS']);
         ws_data.push([
@@ -397,7 +395,7 @@ function PayrollReportContent() {
              if (!row) continue;
              if (typeof row[0] === 'string' && row[0].match(/^[A-Za-z]{3}, [A-Za-z]{3} \d{2}$/)) {
                  merges.push({ s: { r: i, c: 0 }, e: { r: i + 2, c: 0 } });
-                 i += 2; // Skip next two rows since they are part of the merge
+                 i += 2;
              } else {
                 const summaryRowLabels = ['TOTAL HOURS', 'COMMENTS', 'CHECK HOURS', 'OTHER HOURS', 'RATE/CHECK', 'RATE/OTHERS', 'OTHER-ADJ$', 'GROSS CHECK', 'GROSS OTHER'];
                  if (summaryRowLabels.includes(row[0] as string)) {
@@ -460,23 +458,25 @@ function PayrollReportContent() {
                 if (!ws[cell_ref]) continue;
                 
                 let cell = ws[cell_ref];
-                let currentStyle = JSON.parse(JSON.stringify(cell.s || {}));
-
+                
                 const rowLabel = ws_data[R]?.[1];
                 const isTotalRow = rowLabel === 'Total:';
                 const isDateCell = C === 0 && ws_data[R]?.[0] && ws_data[R]?.[0]?.toString().match(/^[A-Za-z]{3}, [A-Za-z]{3} \d{2}$/);
                 const isEmployeeNameHeaderRow = ws_data[R]?.[0] === null && ws_data[R]?.[1] === null && ws_data[R]?.[2];
-                const isTotalHoursSubRow = ws_data[R]?.[0] === 'TOTAL HOURS';
-                
+                const isSummaryMetricRow = R >= summaryStartRow && C <= 1;
+
                 let cellBorderStyle: XLSX.Border = JSON.parse(JSON.stringify(thinBorderStyle.border));
 
-                if (R >= summaryStartRow && C === 0) {
-                     cellBorderStyle = JSON.parse(JSON.stringify(thickBorderStyle.border));
+                if (isSummaryMetricRow) {
+                    cellBorderStyle = JSON.parse(JSON.stringify(thickBorderStyle.border));
+                    if (C === 1) { // This is the key fix
+                        cellBorderStyle.right = { style: "thick" };
+                    }
                 } else {
                     if (isEmployeeNameHeaderRow) {
                         cellBorderStyle.top = { style: "thick" };
                         cellBorderStyle.bottom = { style: "thick" };
-                    } else if (isTotalRow || isTotalHoursSubRow) {
+                    } else if (isTotalRow) {
                         cellBorderStyle.bottom = { style: "thick" };
                     }
                     
@@ -490,8 +490,11 @@ function PayrollReportContent() {
                     if (C === 1 + inputs.length) cellBorderStyle.right = { style: "thick" };
                 }
                 
-                currentStyle.border = cellBorderStyle;
-                currentStyle.font = { ...currentStyle.font, bold: isTotalRow || isEmployeeNameHeaderRow || isTotalHoursSubRow };
+                const currentStyle = {
+                    border: cellBorderStyle,
+                    font: { ...cell.s?.font, bold: isTotalRow || isEmployeeNameHeaderRow },
+                    alignment: cell.s?.alignment || {}
+                };
 
                 if (isDateCell) {
                    currentStyle.alignment = { ...currentStyle.alignment, vertical: 'center', horizontal: 'justify' };
@@ -517,7 +520,7 @@ function PayrollReportContent() {
 
         if (!wb.Workbook) wb.Workbook = {};
         if (!wb.Workbook.Names) wb.Workbook.Names = [];
-        const printTitlesRef = `'${sheetName}'!$A:$B,'${sheetName}'!$1:$2`;
+        const printTitlesRef = `'${sheetName}'!$A:$B,${sheetName}!$1:$2`;
         wb.Workbook.Names.push({
             Name: 'Print_Titles',
             Sheet: 0,
@@ -717,6 +720,7 @@ export default function PayrollReportPage() {
         </React.Suspense>
     )
 }
+
 
 
 
