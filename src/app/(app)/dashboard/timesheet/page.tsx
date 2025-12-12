@@ -301,7 +301,7 @@ export default function TimesheetPage() {
         }
         
         setEditableGrid(prev => {
-            const newGrid = { ...prev };
+            const newGrid = JSON.parse(JSON.stringify(prev)); // Deep copy
             if (!newGrid[employeeId]) newGrid[employeeId] = {};
             if (!newGrid[employeeId][dateKey]) newGrid[employeeId][dateKey] = { in: { time: '', period: '' }, out: { time: '', period: '' } };
 
@@ -496,7 +496,6 @@ export default function TimesheetPage() {
         
         const thickBorderSide = { style: "thick" };
         const thinBorderSide = { style: "thin" };
-        const thickBorderStyle = { border: { top: thickBorderSide, bottom: thickBorderSide, left: thickBorderSide, right: thickBorderSide } };
         
         const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
 
@@ -506,19 +505,21 @@ export default function TimesheetPage() {
                 if (!ws[cellRef]) ws[cellRef] = { t: 's', v: '' };
                 const cell = ws[cellRef];
                 
-                let currentStyle: XLSX.CellStyle = {};
+                let currentStyle: XLSX.CellStyle = cell.s || {};
 
                 if (R === 0) {
                     currentStyle = {
                         ...currentStyle,
                         font: { bold: true, sz: 11.5 },
                         alignment: { horizontal: 'left', vertical: 'center' },
-                        border: { ...thickBorderStyle.border }
+                        border: {
+                          top: thickBorderSide, bottom: thickBorderSide, left: thickBorderSide, right: thickBorderSide
+                        }
                     };
                 } else if (R === 1) {
                      currentStyle = { 
                         ...currentStyle, 
-                        border: { ...thickBorderStyle.border }, 
+                        border: { top: thickBorderSide, bottom: thickBorderSide, left: thickBorderSide, right: thickBorderSide }, 
                         font: { bold: true },
                         alignment: { horizontal: 'center', vertical: 'center' }
                      };
@@ -531,23 +532,22 @@ export default function TimesheetPage() {
                     let cellBorderStyle: XLSX.Border = {
                         top: thinBorderSide, bottom: thinBorderSide, left: thickBorderSide, right: thickBorderSide
                     };
-
-                    if (isTotalRow) {
+                     if (isGrandTotalRow) {
+                        cellBorderStyle.top = thinBorderSide;
                         cellBorderStyle.bottom = thickBorderSide;
-                    }
-                    if (isGrandTotalRow) {
-                        cellBorderStyle = { top: thinBorderSide, bottom: thickBorderSide, left: thickBorderSide, right: thickBorderSide };
+                    } else if (isTotalRow) {
+                        cellBorderStyle.bottom = thickBorderSide;
                     }
                     
                     currentStyle.border = cellBorderStyle;
-                    currentStyle.font = { bold: isTotalRow || isGrandTotalRow };
+                    currentStyle.font = { ...currentStyle.font, bold: isTotalRow || isGrandTotalRow };
 
                     if (isDateCell) {
-                       currentStyle.alignment = { vertical: 'center', horizontal: 'justify' };
+                       currentStyle.alignment = { ...currentStyle.alignment, vertical: 'center', horizontal: 'justify' };
                     }
                 }
                 
-                cell.s = { ...cell.s, ...currentStyle };
+                cell.s = currentStyle;
             }
         }
         
@@ -565,9 +565,7 @@ export default function TimesheetPage() {
             fitToHeight: 0,
           };
 
-        ws['!pageMargins'] = {
-            left: 0.5, right: 0.5, top: 0.5, bottom: 0.5, header: 0.5, footer: 0.5
-        };
+        ws['!pageMargins'] = { left: 0.5, right: 0.5, top: 0.5, bottom: 0.5, header: 0.5, footer: 0.5 };
         
         
         wb.SheetNames.push(sheetName);
@@ -597,7 +595,7 @@ export default function TimesheetPage() {
                     <ArrowLeft className="mr-2 h-4 w-4" /> Back to Dashboard
                 </Link>
             </Button>
-            <h1 className="text-3xl font-bold">Consolidated Timesheet</h1>
+            <h1 className="text-3xl font-bold">Timesheet</h1>
             <p className="text-muted-foreground">Review total logged hours for all employees.</p>
 
             <Card>
@@ -761,3 +759,4 @@ export default function TimesheetPage() {
     
 
     
+
