@@ -483,7 +483,6 @@ export default function TimesheetPage() {
     
         const ws = XLSX.utils.aoa_to_sheet(ws_data);
     
-        // --- STYLING ---
         const merges: XLSX.Range[] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 1 + employees.length } }];
         
         let mergeStartRow = 2;
@@ -500,64 +499,55 @@ export default function TimesheetPage() {
         const thickBorderStyle = { border: { top: thickBorderSide, bottom: thickBorderSide, left: thickBorderSide, right: thickBorderSide } };
         
         const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
-    
-        // Style first row (Title)
-        const titleCellRef = XLSX.utils.encode_cell({c: 0, r: 0});
-        if (!ws[titleCellRef]) ws[titleCellRef] = {t: 's', v: ''};
-        ws[titleCellRef].s = {
-            font: { bold: true, sz: 11.5 },
-            alignment: { horizontal: 'left', vertical: 'center' },
-            ...thickBorderStyle
-        };
-    
-        // Style second row (Employee names)
-        for (let C = 0; C <= range.e.c; ++C) {
-             const headerCellRef = XLSX.utils.encode_cell({c: C, r: 1});
-             if (!ws[headerCellRef]) ws[headerCellRef] = { t: 's', v: '' };
-             ws[headerCellRef].s = { 
-                ...thickBorderStyle,
-                font: { bold: true },
-                alignment: { horizontal: 'center', vertical: 'center' }
-             };
-        }
-    
-        for (let R = 2; R < ws_data.length; ++R) {
-            const rowLabel = ws[XLSX.utils.encode_cell({ c: 1, r: R })]?.v;
-            
+
+        for (let R = 0; R <= range.e.r; ++R) {
             for (let C = 0; C <= range.e.c; ++C) {
                 const cellRef = XLSX.utils.encode_cell({ c: C, r: R });
                 if (!ws[cellRef]) ws[cellRef] = { t: 's', v: '' };
+                const cell = ws[cellRef];
                 
-                const isTotalRow = rowLabel === 'Total:';
-                const isGrandTotalRow = ws_data[R]?.[0] === 'Total Hours';
-                const isDateCell = C === 0;
+                let currentStyle: XLSX.CellStyle = {};
 
-                let cellStyle: any = {
-                    border: {
-                        top: thinBorderSide,
-                        bottom: thinBorderSide,
-                        left: thickBorderSide,
-                        right: thickBorderSide,
-                    },
-                     font: { bold: isTotalRow }
-                };
+                if (R === 0) {
+                    currentStyle = {
+                        ...currentStyle,
+                        font: { bold: true, sz: 11.5 },
+                        alignment: { horizontal: 'left', vertical: 'center' },
+                        border: { ...thickBorderStyle.border }
+                    };
+                } else if (R === 1) {
+                     currentStyle = { 
+                        ...currentStyle, 
+                        border: { ...thickBorderStyle.border }, 
+                        font: { bold: true },
+                        alignment: { horizontal: 'center', vertical: 'center' }
+                     };
+                } else {
+                    const rowLabel = ws[XLSX.utils.encode_cell({ c: 1, r: R })]?.v;
+                    const isTotalRow = rowLabel === 'Total:';
+                    const isGrandTotalRow = ws_data[R]?.[0] === 'Total Hours';
+                    const isDateCell = C === 0;
 
-                 if (isDateCell) {
-                    cellStyle.alignment = { ...cellStyle.alignment, vertical: 'center', horizontal: 'justify' };
-                }
+                    let cellBorderStyle: XLSX.Border = {
+                        top: thinBorderSide, bottom: thinBorderSide, left: thickBorderSide, right: thickBorderSide
+                    };
 
-                 if (isTotalRow) {
-                    cellStyle.border.bottom = thickBorderSide;
+                    if (isTotalRow) {
+                        cellBorderStyle.bottom = thickBorderSide;
+                    }
+                    if (isGrandTotalRow) {
+                        cellBorderStyle = { top: thinBorderSide, bottom: thickBorderSide, left: thickBorderSide, right: thickBorderSide };
+                    }
+                    
+                    currentStyle.border = cellBorderStyle;
+                    currentStyle.font = { bold: isTotalRow || isGrandTotalRow };
+
+                    if (isDateCell) {
+                       currentStyle.alignment = { vertical: 'center', horizontal: 'justify' };
+                    }
                 }
                 
-                if (isGrandTotalRow) {
-                    cellStyle.border = thickBorderStyle;
-                    cellStyle.font = { bold: true };
-                    cellStyle.border.top = thinBorderSide;
-                    cellStyle.border.bottom = thickBorderStyle;
-                }
-
-                ws[cellRef].s = cellStyle;
+                cell.s = { ...cell.s, ...currentStyle };
             }
         }
         
@@ -576,7 +566,7 @@ export default function TimesheetPage() {
           };
 
         ws['!pageMargins'] = {
-            left: 0.5, right: 0.5, top: 0.5, bottom: 0.5, header: 0, footer: 0
+            left: 0.5, right: 0.5, top: 0.5, bottom: 0.5, header: 0.5, footer: 0.5
         };
         
         
