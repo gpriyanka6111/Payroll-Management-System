@@ -455,7 +455,7 @@ export default function TimesheetPage() {
             }
         });
     
-        ws_data.push([null, 'Metric', ...fullEmployeeHeaders]);
+        ws_data.push([null, null, ...fullEmployeeHeaders]);
     
         const daysInPeriod = eachDayOfInterval({ start: dateRange.from, end: dateRange.to });
     
@@ -559,6 +559,9 @@ export default function TimesheetPage() {
                     currentStyle = titleStyle;
                 } else if (R === 1) {
                     currentStyle = { ...headerStyle };
+                     if (C > 1 && ws[cellRef].v) {
+                        currentStyle.alignment = { ...headerStyle.alignment, shrinkToFit: true };
+                    }
                 } else {
                     const rowLabel = ws[XLSX.utils.encode_cell({ c: 1, r: R })]?.v;
                     const isTotalRow = rowLabel === 'Total:';
@@ -801,6 +804,7 @@ export default function TimesheetPage() {
     
 
     
+
 
 
 
