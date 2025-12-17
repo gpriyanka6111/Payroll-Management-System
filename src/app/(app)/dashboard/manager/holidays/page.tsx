@@ -42,8 +42,20 @@ export default function HolidaysPage() {
   }, [year]);
 
   React.useEffect(() => {
-    if (!user) return;
+    if (!user) {
+        setIsLoading(false);
+        return;
+    }
     setIsLoading(true);
+
+    let federalLoaded = false;
+    let customLoaded = false;
+
+    const checkLoadingComplete = () => {
+        if (federalLoaded && customLoaded) {
+            setIsLoading(false);
+        }
+    };
 
     const userDocRef = doc(db, 'users', user.uid);
     const customHolidaysRef = collection(db, 'users', user.uid, 'customHolidays');
@@ -52,6 +64,8 @@ export default function HolidaysPage() {
         if (doc.exists()) {
             setObservedHolidays(new Set(doc.data().observedFederalHolidays || []));
         }
+        federalLoaded = true;
+        checkLoadingComplete();
     });
 
     const unsubCustom = onSnapshot(customHolidaysRef, (snapshot) => {
@@ -64,7 +78,8 @@ export default function HolidaysPage() {
             };
         });
         setCustomHolidays(customData);
-        setIsLoading(false);
+        customLoaded = true;
+        checkLoadingComplete();
     });
 
     return () => {
@@ -95,7 +110,10 @@ export default function HolidaysPage() {
   };
 
   const handleAddCustomHoliday = async () => {
-    if (!user || !newHolidayName.trim() || !newHolidayDate) return;
+    if (!user || !newHolidayName.trim() || !newHolidayDate || !isValid(newHolidayDate)) {
+        toast({ title: 'Invalid Input', description: 'Please provide a valid name and date.', variant: 'destructive' });
+        return;
+    };
     setIsSaving(true);
     try {
         const customHolidaysRef = collection(db, 'users', user.uid, 'customHolidays');
