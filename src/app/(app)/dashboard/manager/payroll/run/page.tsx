@@ -52,6 +52,12 @@ function RunPayrollPageContent() {
 
   const handlePeriodChange = (value: string) => {
     setSelectedPeriodValue(value);
+    if (!value) {
+      setFrom(undefined);
+      setTo(undefined);
+      setPayDate(undefined);
+      return;
+    }
     const [fromStr, toStr] = value.split('_');
     const fromDate = parse(fromStr, 'yyyy-MM-dd', new Date());
     const toDate = parse(toStr, 'yyyy-MM-dd', new Date());
@@ -169,7 +175,7 @@ function RunPayrollPageContent() {
             const fromDate = parse(data.fromDate, 'yyyy-MM-dd', new Date());
             const toDate = parse(data.toDate, 'yyyy-MM-dd', new Date());
             setFrom(fromDate);
-            setTo(toDate);
+setTo(toDate);
             if (data.payDate) {
                 setPayDate(parse(data.payDate, 'yyyy-MM-dd', new Date()));
             } else {
@@ -263,8 +269,11 @@ function RunPayrollPageContent() {
                            <SelectContent>
                                {payPeriods.map((period, index) => {
                                    const value = `${format(period.start, 'yyyy-MM-dd')}_${format(period.end, 'yyyy-MM-dd')}`;
+                                   const isUsed = disabledDateRanges.some(
+                                        range => range.from.getTime() === period.start.getTime()
+                                    );
                                    return (
-                                       <SelectItem key={index} value={value}>
+                                       <SelectItem key={index} value={value} disabled={isUsed && !isEditMode}>
                                            {format(period.start, 'MM/dd/yy')} - {format(period.end, 'MM/dd/yy')} (Pay Date: {format(period.payDate, 'MM/dd/yy')})
                                        </SelectItem>
                                    )
@@ -294,7 +303,7 @@ function RunPayrollPageContent() {
                             <Calendar
                                 mode="single"
                                 selected={from}
-                                onSelect={setFrom}
+                                onSelect={(d) => { setFrom(d); setSelectedPeriodValue(''); }}
                                 disabled={(date) => (to && date > to) || arePickersDisabled || isDateDisabled(date)}
                                 initialFocus
                             />
@@ -323,7 +332,7 @@ function RunPayrollPageContent() {
                             <Calendar
                                 mode="single"
                                 selected={to}
-                                onSelect={setTo}
+                                onSelect={(d) => { setTo(d); setSelectedPeriodValue(''); }}
                                 disabled={(date) => !from || date < from || arePickersDisabled || isDateDisabled(date)}
                                 initialFocus
                             />
@@ -404,4 +413,3 @@ export default function RunPayrollPage() {
     </React.Suspense>
   );
 }
-

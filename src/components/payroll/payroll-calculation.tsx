@@ -17,23 +17,24 @@ import {
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Calculator, AlertTriangle, CheckCircle, MessageSquare, Loader2, Save, RefreshCw } from 'lucide-react';
+import { Calculator, AlertTriangle, CheckCircle, MessageSquare, Loader2, Save, RefreshCw, Star } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { cn } from '@/lib/utils';
-import { format, differenceInMinutes } from 'date-fns';
+import { format, differenceInMinutes, isWithinInterval, parseISO } from 'date-fns';
 import { useRouter } from 'next/navigation';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { Textarea } from '../ui/textarea';
 import type { Employee, Payroll } from '@/lib/types';
 import { useAuth } from '@/contexts/auth-context';
-import { collection, getDocs, query, orderBy, addDoc, doc, updateDoc, writeBatch, getDoc, where } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, addDoc, doc, updateDoc, writeBatch, getDoc, where, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Skeleton } from '../ui/skeleton';
 import { Label } from '../ui/label';
 import { getPayDateForPeriod } from '@/lib/pay-period';
 import { applyRoundingRules } from '@/lib/time-rounding';
+import { getHolidaysForYear } from '@/lib/holidays';
 
 const employeePayrollInputSchema = z.object({
   employeeId: z.string(),
@@ -137,6 +138,8 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
   const [summaryDeductions, setSummaryDeductions] = React.useState('');
   const [summaryNetPay, setSummaryNetPay] = React.useState('');
 
+  const [holidaysInPeriod, setHolidaysInPeriod] = React.useState<string[]>([]);
+
 
   const isEditMode = !!payrollId;
 
@@ -216,6 +219,61 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
             setIsFetchingHours(false);
        }
    }, [user, from, to, setValue, toast]);
+
+   const fetchHolidayData = React.useCallback(async () => {
+    if (!user || !from || !to) return;
+    
+    const userDocRef = doc(db, 'users', user.uid);
+    const customHolidaysRef = collection(db, 'users', user.uid, 'customHolidays');
+
+    const userDocSnap = await getDoc(userDocRef);
+    const customHolidaysSnap = await getDocs(customHolidaysRef);
+
+    let allObservedHolidays: { name: string, date: Date }[] = [];
+
+    // Process observed federal holidays
+    if (userDocSnap.exists()) {
+        const observedFederalNames = new Set(userDocSnap.data().observedFederalHolidays || []);
+        const year1 = from.getFullYear();
+        const year2 = to.getFullYear();
+        let federalHolidays = getHolidaysForYear(year1);
+        if (year1 !== year2) {
+            federalHolidays = [...federalHolidays, ...getHolidaysForYear(year2)];
+        }
+        allObservedHolidays = federalHolidays.filter(h => observedFederalNames.has(h.name));
+    }
+    
+    // Process custom holidays
+    customHolidaysSnap.forEach(doc => {
+        const data = doc.data();
+        allObservedHolidays.push({ name: data.name, date: (data.date as Timestamp).toDate() });
+    });
+
+    // Filter for holidays within the current pay period
+    const periodHolidays = allObservedHolidays
+        .filter(h => isWithinInterval(h.date, { start: from, end: to }))
+        .map(h => `${h.name} (${format(h.date, 'MM/dd')})`);
+
+    setHolidaysInPeriod(periodHolidays);
+
+   }, [user, from, to]);
+
+   React.useEffect(() => {
+     fetchHolidayData();
+   }, [fetchHolidayData]);
+   
+   const handleAssignHolidayHours = () => {
+        const employees = getValues().employees;
+        employees.forEach((emp, index) => {
+            // Assign 8 hours for each holiday in the period
+            const hoursToAssign = holidaysInPeriod.length * 8;
+            setValue(`employees.${index}.hdHoursUsed`, hoursToAssign, { shouldValidate: true, shouldDirty: true });
+        });
+        toast({
+            title: "Holiday Hours Assigned",
+            description: `Assigned ${holidaysInPeriod.length * 8} hours to each employee.`,
+        });
+   };
 
    React.useEffect(() => {
     if (!user) return;
@@ -628,12 +686,30 @@ export function PayrollCalculation({ from, to, payrollId, initialPayrollData }: 
                 <CardTitle className="flex items-center"><Calculator className="mr-2 h-5 w-5 text-muted-foreground"/> 2. Calculate Payroll</CardTitle>
                 <CardDescription>Enter hours and review comments for each employee for the current pay period.</CardDescription>
             </div>
-            {!isEditMode && (
-                <Button variant="outline" onClick={() => fetchHoursFromTimeEntries(getValues().employees)} disabled={isFetchingHours}>
-                   {isFetchingHours ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-2 h-4 w-4" />}
-                    Fetch Hours
-                </Button>
-            )}
+            <div className="flex gap-2">
+                {holidaysInPeriod.length > 0 && (
+                     <Popover>
+                        <PopoverTrigger asChild>
+                            <Button variant="secondary"><Star className="mr-2 h-4 w-4"/>Assign Holiday Hours</Button>
+                        </PopoverTrigger>
+                        <PopoverContent>
+                            <div className="space-y-4">
+                                <p className="text-sm font-medium">This will assign 8 hours of holiday pay for each observed holiday in this period:</p>
+                                <ul className="list-disc pl-5 text-sm text-muted-foreground">
+                                    {holidaysInPeriod.map(h => <li key={h}>{h}</li>)}
+                                </ul>
+                                <Button className="w-full" onClick={handleAssignHolidayHours}>Confirm & Assign</Button>
+                            </div>
+                        </PopoverContent>
+                    </Popover>
+                )}
+                {!isEditMode && (
+                    <Button variant="outline" onClick={() => fetchHoursFromTimeEntries(getValues().employees)} disabled={isFetchingHours}>
+                       {isFetchingHours ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-2 h-4 w-4" />}
+                        Fetch Hours
+                    </Button>
+                )}
+            </div>
         </CardHeader>
          <CardContent>
            <Form {...form}>
