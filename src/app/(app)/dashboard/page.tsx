@@ -5,7 +5,7 @@ import * as React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Clock, LogIn, LogOut, CheckCircle, Users, Briefcase, Hourglass, Eye, EyeOff, AlertTriangle } from "lucide-react";
-import { format, differenceInHours, differenceInMinutes, startOfDay, endOfDay, isBefore, getDay, parse, isValid, setHours, setMinutes } from "date-fns";
+import { format, differenceInHours, differenceInMinutes, startOfDay, endOfDay, isBefore, getDay, parse, isValid, setHours, setMinutes, isAfter } from "date-fns";
 import { useAuth } from '@/contexts/auth-context';
 import { collection, addDoc, query, where, onSnapshot, serverTimestamp, doc, updateDoc, Timestamp, getDocs, limit, orderBy, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
