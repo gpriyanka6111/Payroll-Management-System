@@ -108,18 +108,12 @@ export default function HolidaysPage() {
         return;
     }
 
-    if (!newHolidayName.trim() || !newHolidayDate) {
+    if (!newHolidayName.trim() || !(newHolidayDate instanceof Date) || isNaN(newHolidayDate.getTime())) {
         toast({ title: 'Invalid Input', description: 'Please provide a valid name and date.', variant: 'destructive' });
-        return;
-    }
-    
-    if (!isValid(newHolidayDate)) {
-        toast({ title: 'Invalid Date', description: 'The selected date is not valid.', variant: 'destructive' });
         return;
     }
 
     setIsSaving(true);
-    console.log("Adding holiday for uid:", user?.uid);
     try {
         const customHolidaysRef = collection(db, 'users', user.uid, 'customHolidays');
         await addDoc(customHolidaysRef, {
