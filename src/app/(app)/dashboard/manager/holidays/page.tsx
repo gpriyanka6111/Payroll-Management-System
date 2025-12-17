@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import * as React from 'react';
@@ -12,7 +11,7 @@ import { getHolidaysForYear, Holiday } from '@/lib/holidays';
 import { format, isValid } from 'date-fns';
 import { useAuth } from '@/contexts/auth-context';
 import { db } from '@/lib/firebase';
-import { doc, updateDoc, arrayUnion, arrayRemove, collection, addDoc, onSnapshot, deleteDoc, Timestamp } from 'firebase/firestore';
+import { doc, updateDoc, arrayUnion, arrayRemove, collection, addDoc, onSnapshot, deleteDoc, Timestamp, getDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
@@ -52,6 +51,7 @@ export default function HolidaysPage() {
     }
     
     setIsLoading(true);
+
     const userDocRef = doc(db, 'users', user.uid);
     const customHolidaysRef = collection(db, 'users', user.uid, 'customHolidays');
 
@@ -59,12 +59,14 @@ export default function HolidaysPage() {
         if (doc.exists()) {
             setObservedHolidays(new Set(doc.data().observedFederalHolidays || []));
         }
+    }, (error) => {
+        console.error("Error fetching user settings for holidays:", error);
+        toast({ title: 'Error', description: 'Failed to fetch federal holiday settings.', variant: 'destructive' });
     });
 
     const unsubCustom = onSnapshot(customHolidaysRef, (snapshot) => {
         const customData: CustomHoliday[] = snapshot.docs.map(d => {
             const data = d.data();
-            // Firestore timestamps need to be converted to JS Dates
             const date = data.date && data.date.toDate ? data.date.toDate() : new Date();
             return {
                 id: d.id,
@@ -76,8 +78,8 @@ export default function HolidaysPage() {
         setIsLoading(false);
     }, (error) => {
         console.error("Error fetching custom holidays:", error);
-        toast({ title: 'Error', description: 'Failed to fetch custom holidays.', variant: 'destructive' });
-        setIsLoading(false); // Still set loading to false on error
+        toast({ title: 'Error', description: `Failed to fetch custom holidays: ${error.message}`, variant: 'destructive' });
+        setIsLoading(false); 
     });
 
     return () => {
@@ -113,16 +115,12 @@ export default function HolidaysPage() {
         return;
     }
     
-    // Stricter validation
     if (!newHolidayName.trim() || !(newHolidayDate instanceof Date) || isNaN(newHolidayDate.getTime())) {
         toast({ title: 'Invalid Input', description: 'Please provide a valid name and date.', variant: 'destructive' });
         return;
     }
 
     setIsSaving(true);
-    
-    console.log("AUTH UID:", user?.uid);
-    console.log("PATH:", `users/${user?.uid}/customHolidays`);
 
     try {
         const customHolidaysRef = collection(db, 'users', user.uid, 'customHolidays');
