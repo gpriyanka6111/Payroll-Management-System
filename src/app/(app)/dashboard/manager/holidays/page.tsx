@@ -17,6 +17,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import { AnimatePresence, motion } from 'framer-motion';
+import { FirebaseError } from 'firebase/app';
 
 type CustomHoliday = {
     id: string;
@@ -102,7 +103,10 @@ export default function HolidaysPage() {
   };
 
   const handleAddCustomHoliday = async () => {
-    if (!user) return;
+    if (!user) {
+        toast({ title: "Not Authenticated", description: "You must be logged in.", variant: "destructive" });
+        return;
+    }
 
     if (!newHolidayName.trim() || !newHolidayDate) {
         toast({ title: 'Invalid Input', description: 'Please provide a valid name and date.', variant: 'destructive' });
@@ -115,6 +119,7 @@ export default function HolidaysPage() {
     }
 
     setIsSaving(true);
+    console.log("Adding holiday for uid:", user?.uid);
     try {
         const customHolidaysRef = collection(db, 'users', user.uid, 'customHolidays');
         await addDoc(customHolidaysRef, {
@@ -126,7 +131,10 @@ export default function HolidaysPage() {
         toast({ title: 'Custom holiday added!' });
     } catch(e) {
         console.error("Error adding custom holiday:", e);
-        toast({ title: 'Error', description: 'Failed to add custom holiday.', variant: 'destructive' });
+        const msg = e instanceof FirebaseError
+            ? `${e.code}: ${e.message}`
+            : "Unknown error while adding custom holiday";
+        toast({ title: 'Error', description: msg, variant: 'destructive' });
     } finally {
         setIsSaving(false);
     }
