@@ -134,7 +134,7 @@ export default function HolidaysPage() {
         const customHolidaysRef = collection(db, 'users', user.uid, 'customHolidays');
         await addDoc(customHolidaysRef, {
             name: newHolidayName.trim(),
-            date: newHolidayDate,
+            date: Timestamp.fromDate(newHolidayDate),
         });
         setNewHolidayName('');
         setNewHolidayDate(undefined);
