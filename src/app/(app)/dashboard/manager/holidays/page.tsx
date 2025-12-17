@@ -127,13 +127,13 @@ export default function HolidaysPage() {
         const customHolidaysRef = collection(db, 'users', user.uid, 'customHolidays');
         await addDoc(customHolidaysRef, {
             name: newHolidayName.trim(),
-            date: newHolidayDate, // Pass the Date object directly
+            date: newHolidayDate,
         });
         setNewHolidayName('');
         setNewHolidayDate(undefined);
         toast({ title: 'Custom holiday added!' });
     } catch(e) {
-        console.error(e);
+        console.error("Error adding custom holiday:", e);
         toast({ title: 'Error', description: 'Failed to add custom holiday.', variant: 'destructive' });
     } finally {
         setIsSaving(false);
