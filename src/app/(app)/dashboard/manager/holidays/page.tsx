@@ -66,6 +66,10 @@ export default function HolidaysPage() {
         }
         federalLoaded = true;
         checkLoadingComplete();
+    }, (error) => {
+      console.error("Error fetching observed holidays:", error);
+      federalLoaded = true;
+      checkLoadingComplete();
     });
 
     const unsubCustom = onSnapshot(customHolidaysRef, (snapshot) => {
@@ -80,6 +84,10 @@ export default function HolidaysPage() {
         setCustomHolidays(customData);
         customLoaded = true;
         checkLoadingComplete();
+    }, (error) => {
+      console.error("Error fetching custom holidays:", error);
+      customLoaded = true;
+      checkLoadingComplete();
     });
 
     return () => {
@@ -119,7 +127,7 @@ export default function HolidaysPage() {
         const customHolidaysRef = collection(db, 'users', user.uid, 'customHolidays');
         await addDoc(customHolidaysRef, {
             name: newHolidayName.trim(),
-            date: Timestamp.fromDate(newHolidayDate)
+            date: newHolidayDate, // Pass the Date object directly
         });
         setNewHolidayName('');
         setNewHolidayDate(undefined);
