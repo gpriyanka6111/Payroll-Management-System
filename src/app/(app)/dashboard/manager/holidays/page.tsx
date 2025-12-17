@@ -46,20 +46,19 @@ export default function HolidaysPage() {
         setIsLoading(false);
         return;
     }
-    setIsLoading(true);
-
+    
     let federalLoaded = false;
     let customLoaded = false;
-
+    
     const checkLoadingComplete = () => {
         if (federalLoaded && customLoaded) {
             setIsLoading(false);
         }
     };
+    
+    setIsLoading(true);
 
     const userDocRef = doc(db, 'users', user.uid);
-    const customHolidaysRef = collection(db, 'users', user.uid, 'customHolidays');
-    
     const unsubUser = onSnapshot(userDocRef, (doc) => {
         if (doc.exists()) {
             setObservedHolidays(new Set(doc.data().observedFederalHolidays || []));
@@ -68,10 +67,12 @@ export default function HolidaysPage() {
         checkLoadingComplete();
     }, (error) => {
       console.error("Error fetching observed holidays:", error);
+      toast({ title: 'Error', description: 'Failed to fetch federal holiday settings.', variant: 'destructive' });
       federalLoaded = true;
       checkLoadingComplete();
     });
 
+    const customHolidaysRef = collection(db, 'users', user.uid, 'customHolidays');
     const unsubCustom = onSnapshot(customHolidaysRef, (snapshot) => {
         const customData: CustomHoliday[] = snapshot.docs.map(d => {
             const data = d.data();
@@ -86,6 +87,7 @@ export default function HolidaysPage() {
         checkLoadingComplete();
     }, (error) => {
       console.error("Error fetching custom holidays:", error);
+      toast({ title: 'Error', description: 'Failed to fetch custom holidays.', variant: 'destructive' });
       customLoaded = true;
       checkLoadingComplete();
     });
@@ -95,7 +97,7 @@ export default function HolidaysPage() {
         unsubCustom();
     };
 
-  }, [user]);
+  }, [user, toast]);
 
   const handlePreviousYear = () => setYear(prevYear => prevYear - 1);
   const handleNextYear = () => setYear(prevYear => prevYear + 1);
@@ -118,10 +120,14 @@ export default function HolidaysPage() {
   };
 
   const handleAddCustomHoliday = async () => {
-    if (!user || !newHolidayName.trim() || !newHolidayDate || !isValid(newHolidayDate)) {
+    if (!user || !newHolidayName.trim() || !newHolidayDate) {
         toast({ title: 'Invalid Input', description: 'Please provide a valid name and date.', variant: 'destructive' });
         return;
     };
+    if (!isValid(newHolidayDate)) {
+        toast({ title: 'Invalid Date', description: 'The selected date is not valid.', variant: 'destructive' });
+        return;
+    }
     setIsSaving(true);
     try {
         const customHolidaysRef = collection(db, 'users', user.uid, 'customHolidays');
@@ -264,3 +270,5 @@ export default function HolidaysPage() {
     </div>
   );
 }
+
+    
