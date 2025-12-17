@@ -4,8 +4,8 @@
 import * as React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Clock, LogIn, LogOut, CheckCircle, Users, Briefcase, Hourglass, Eye, EyeOff } from "lucide-react";
-import { format, differenceInHours, differenceInMinutes, startOfDay, endOfDay, isBefore, getDay, parse } from "date-fns";
+import { Clock, LogIn, LogOut, CheckCircle, Users, Briefcase, Hourglass, Eye, EyeOff, AlertTriangle } from "lucide-react";
+import { format, differenceInHours, differenceInMinutes, startOfDay, endOfDay, isBefore, getDay, parse, isValid, setHours, setMinutes } from "date-fns";
 import { useAuth } from '@/contexts/auth-context';
 import { collection, addDoc, query, where, onSnapshot, serverTimestamp, doc, updateDoc, Timestamp, getDocs, limit, orderBy, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -15,6 +15,12 @@ import type { Employee } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar as CalendarIcon, Loader2 } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 
 interface TimeEntry {
@@ -24,6 +30,143 @@ interface TimeEntry {
     employeeId: string;
     employeeName: string;
 }
+
+function MissedClockOutDialog({
+    isOpen,
+    onClose,
+    staleEntry,
+    onUpdate,
+}: {
+    isOpen: boolean;
+    onClose: () => void;
+    staleEntry: TimeEntry | null;
+    onUpdate: () => void;
+}) {
+    const [clockOutDate, setClockOutDate] = React.useState<Date | undefined>();
+    const [clockOutTime, setClockOutTime] = React.useState('');
+    const [isSubmitting, setIsSubmitting] = React.useState(false);
+    const [error, setError] = React.useState('');
+    const { user } = useAuth();
+    const { toast } = useToast();
+
+    React.useEffect(() => {
+        if (staleEntry) {
+            setClockOutDate(staleEntry.timeIn.toDate());
+        }
+    }, [staleEntry]);
+
+    const handleTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const value = e.target.value.replace(/[^0-9]/g, '');
+        let formatted = value;
+        if (value.length > 2) {
+            formatted = `${value.substring(0, 2)}:${value.substring(2, 4)}`;
+        }
+        setClockOutTime(formatted);
+    };
+
+    const handleSubmit = async () => {
+        if (!user || !staleEntry || !clockOutDate || !clockOutTime) {
+            setError('Please select a valid date and time.');
+            return;
+        }
+
+        const [hours, minutes] = clockOutTime.split(':').map(Number);
+        if (isNaN(hours) || isNaN(minutes) || hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+            setError('Invalid time format. Please use HH:MM (24-hour).');
+            return;
+        }
+        
+        const finalClockOutDate = setMinutes(setHours(clockOutDate, hours), minutes);
+
+        if (isBefore(finalClockOutDate, staleEntry.timeIn.toDate())) {
+            setError('Clock-out time cannot be before the clock-in time.');
+            return;
+        }
+
+        setIsSubmitting(true);
+        setError('');
+
+        try {
+            const entryDocRef = doc(db, 'users', user.uid, 'employees', staleEntry.employeeId, 'timeEntries', staleEntry.id);
+            await updateDoc(entryDocRef, {
+                timeOut: Timestamp.fromDate(finalClockOutDate),
+            });
+            toast({
+                title: 'Shift Updated',
+                description: `Corrected clock-out for ${staleEntry.employeeName}.`,
+            });
+            onUpdate();
+            onClose();
+        } catch (err) {
+            console.error(err);
+            setError('Failed to update shift. Please try again.');
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    if (!staleEntry) return null;
+
+    return (
+        <Dialog open={isOpen} onOpenChange={onClose}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Missed Clock-Out</DialogTitle>
+                    <DialogDescription>
+                        {staleEntry.employeeName} forgot to clock out on{' '}
+                        <span className="font-semibold">{format(staleEntry.timeIn.toDate(), 'eeee, MMM d')}</span>.
+                        The shift started at{' '}
+                        <span className="font-semibold">{format(staleEntry.timeIn.toDate(), 'p')}</span>.
+                        <br />
+                        Please enter the correct clock-out time below.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                     {error && (
+                        <Alert variant="destructive">
+                            <AlertTriangle className="h-4 w-4" />
+                            <AlertTitle>Error</AlertTitle>
+                            <AlertDescription>{error}</AlertDescription>
+                        </Alert>
+                    )}
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                             <label className="text-sm font-medium">Clock-Out Date</label>
+                             <Popover>
+                                <PopoverTrigger asChild>
+                                <Button variant={'outline'} className={cn("w-full justify-start text-left font-normal", !clockOutDate && "text-muted-foreground")}>
+                                    <CalendarIcon className="mr-2 h-4 w-4" />
+                                    {clockOutDate ? format(clockOutDate, 'LLL dd, y') : <span>Pick a date</span>}
+                                </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-0">
+                                <Calendar mode="single" selected={clockOutDate} onSelect={setClockOutDate} initialFocus />
+                                </PopoverContent>
+                            </Popover>
+                        </div>
+                         <div className="space-y-2">
+                            <label className="text-sm font-medium">Clock-Out Time (24h)</label>
+                            <Input
+                                placeholder="HH:MM"
+                                value={clockOutTime}
+                                onChange={handleTimeChange}
+                                maxLength={5}
+                            />
+                        </div>
+                    </div>
+                </div>
+                <DialogFooter>
+                    <Button variant="outline" onClick={onClose}>Cancel</Button>
+                    <Button onClick={handleSubmit} disabled={isSubmitting}>
+                         {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Save Clock-Out
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -38,6 +181,9 @@ export default function DashboardPage() {
   
   const [activeTimeEntry, setActiveTimeEntry] = React.useState<TimeEntry | null>(null);
   const [todaysGlobalEntries, setTodaysGlobalEntries] = React.useState<TimeEntry[]>([]);
+
+  const [isMissedClockOutDialogOpen, setIsMissedClockOutDialogOpen] = React.useState(false);
+  const [staleEntryToFix, setStaleEntryToFix] = React.useState<TimeEntry | null>(null);
   
   // Effect for the live clock
   React.useEffect(() => {
@@ -92,15 +238,19 @@ export default function DashboardPage() {
                 // For now, we rely on per-employee listeners.
             });
 
-            // Set up listeners for each employee's time entries for today
+            // Set up listeners for each employee's time entries for today and any active entries
             employeeSnapshot.docs.forEach(empDoc => {
                 const timeEntriesRef = collection(db, 'users', user.uid, 'employees', empDoc.id, 'timeEntries');
-                const qEntries = query(timeEntriesRef, where('timeIn', '>=', todayStart), where('timeIn', '<=', todayEnd));
+                const qEntries = query(timeEntriesRef, orderBy('timeIn', 'desc'));
                 const unsub = onSnapshot(qEntries, (entrySnapshot) => {
-                    const newEntries = entrySnapshot.docs.map(d => ({ id: d.id, ...d.data() } as TimeEntry));
+                    const allEntries = entrySnapshot.docs.map(d => ({ id: d.id, ...d.data() } as TimeEntry));
+                    const latestEntries = allEntries.filter(entry => 
+                        isAfter(entry.timeIn.toDate(), startOfDay(new Date())) || entry.timeOut === null
+                    );
+                    
                     setTodaysGlobalEntries(prev => {
                         const otherEntries = prev.filter(e => e.employeeId !== empDoc.id);
-                        return [...otherEntries, ...newEntries].sort((a,b) => b.timeIn.toMillis() - a.timeIn.toMillis())
+                        return [...otherEntries, ...latestEntries].sort((a,b) => b.timeIn.toMillis() - a.timeIn.toMillis())
                     });
                 });
                 timeEntryUnsubscribers.push(unsub);
@@ -137,65 +287,22 @@ export default function DashboardPage() {
 
   }, [selectedEmployeeId, todaysGlobalEntries]);
 
-
-  const getAutoClockOutTime = async (clockInDate: Date): Promise<{ timeOutValue: Date, toastDescription: string }> => {
-    if (!user || !activeTimeEntry) throw new Error("User or active entry not available.");
-
-    const userSettingsRef = doc(db, 'users', user.uid);
-    const userSettingsSnap = await getDoc(userSettingsRef);
-    
-    let closingTime = '05:00 PM'; // Default fallback
-    if (userSettingsSnap.exists()) {
-        const settings = userSettingsSnap.data();
-        const dayOfWeek = getDay(clockInDate); // Sunday = 0, Monday = 1...
-
-        if (settings.storeTimings) {
-            if (dayOfWeek >= 1 && dayOfWeek <= 5) { // Mon-Fri
-                closingTime = settings.storeTimings.closeWeekdays || '05:00 PM';
-            } else if (dayOfWeek === 6) { // Saturday
-                closingTime = settings.storeTimings.closeSaturday || '05:00 PM';
-            } else { // Sunday (dayOfWeek === 0)
-                if (settings.storeTimings.sundayClosed) {
-                     closingTime = settings.storeTimings.closeWeekdays || '05:00 PM'; // Fallback to weekday close if Sunday is marked closed
-                } else {
-                     closingTime = settings.storeTimings.closeSunday || '05:00 PM';
-                }
-            }
-        }
-    }
-
-    const clockOutDate = parse(closingTime, 'hh:mm a', clockInDate);
-    const employeeName = activeTimeEntry?.employeeName || 'Employee';
-    const toastDescription = `${employeeName} was automatically clocked out for a previous shift at ${format(clockOutDate, 'p')}. Please clock in again.`;
-
-    return { timeOutValue: clockOutDate, toastDescription };
-  }
-
   const handleTimeIn = async () => {
     if (!user || !selectedEmployeeId) return;
     
     const selectedEmployee = employees.find(e => e.id === selectedEmployeeId);
     if (!selectedEmployee) return;
 
+    // Check for a stale clock-in from a previous day
+    if (activeTimeEntry && activeTimeEntry.timeIn && isBefore(activeTimeEntry.timeIn.toDate(), startOfDay(new Date()))) {
+        setStaleEntryToFix(activeTimeEntry);
+        setIsMissedClockOutDialogOpen(true);
+        return; // Stop the clock-in process
+    }
+
     setIsSubmitting(true);
     
     try {
-      // Check if there is a stale clock-in from a previous day
-      if (activeTimeEntry && activeTimeEntry.timeIn && isBefore(activeTimeEntry.timeIn.toDate(), startOfDay(new Date()))) {
-          const { timeOutValue, toastDescription } = await getAutoClockOutTime(activeTimeEntry.timeIn.toDate());
-          const staleEntryDocRef = doc(db, 'users', user.uid, 'employees', activeTimeEntry.employeeId, 'timeEntries', activeTimeEntry.id);
-          await updateDoc(staleEntryDocRef, { timeOut: timeOutValue });
-          
-          toast({
-              title: "Previous Shift Closed",
-              description: toastDescription,
-              variant: "destructive"
-          });
-          // Stop execution here. The user needs to click "Time In" again.
-          setIsSubmitting(false);
-          return; 
-      }
-
       const timeEntriesRef = collection(db, 'users', user.uid, 'employees', selectedEmployeeId, 'timeEntries');
       await addDoc(timeEntriesRef, {
         timeIn: serverTimestamp(),
@@ -252,21 +359,10 @@ export default function DashboardPage() {
     return `${hours}h ${minutes}m`;
   };
 
-  const formatDuration = (start: Date | null, end: Date | null) => {
-    if (!start) return '...';
-    if (!end) return 'Active';
-    const totalMinutes = differenceInMinutes(end, start);
-    if (totalMinutes < 0) return '0h 0m';
-
-    const hours = Math.floor(totalMinutes / 60);
-    const minutes = totalMinutes % 60;
-
-    return `${hours}h ${minutes}m`;
-  };
-
   const todaysStats = React.useMemo(() => {
-    const clockedInCount = new Set(todaysGlobalEntries.filter(entry => entry.timeOut === null).map(e => e.employeeId)).size;
-    const totalHoursToday = todaysGlobalEntries.reduce((total, entry) => {
+    const todaysEntries = todaysGlobalEntries.filter(e => isAfter(e.timeIn.toDate(), startOfDay(new Date())));
+    const clockedInCount = new Set(todaysEntries.filter(entry => entry.timeOut === null).map(e => e.employeeId)).size;
+    const totalHoursToday = todaysEntries.reduce((total, entry) => {
         if (entry.timeIn && entry.timeOut) {
             const minutes = differenceInMinutes(entry.timeOut.toDate(), entry.timeIn.toDate());
             return total + (minutes > 0 ? minutes / 60 : 0);
@@ -407,6 +503,19 @@ export default function DashboardPage() {
              </Card>
           </div>
        </div>
+
+        <MissedClockOutDialog
+            isOpen={isMissedClockOutDialogOpen}
+            onClose={() => setIsMissedClockOutDialogOpen(false)}
+            staleEntry={staleEntryToFix}
+            onUpdate={() => {
+                setStaleEntryToFix(null);
+                // Optionally trigger a re-fetch or rely on snapshot listener
+            }}
+        />
+
     </div>
   );
 }
+
+    
