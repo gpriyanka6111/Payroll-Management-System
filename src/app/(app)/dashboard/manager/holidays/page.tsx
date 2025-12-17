@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Star, ChevronLeft, ChevronRight, Plus, Trash2, Loader2, Calendar as CalendarIcon } from 'lucide-react';
 import { getHolidaysForYear, Holiday } from '@/lib/holidays';
-import { format, isValid, parseISO } from 'date-fns';
+import { format, isValid } from 'date-fns';
 import { useAuth } from '@/contexts/auth-context';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, updateDoc, arrayUnion, arrayRemove, collection, addDoc, onSnapshot, deleteDoc, Timestamp } from 'firebase/firestore';
@@ -47,15 +47,6 @@ export default function HolidaysPage() {
         return;
     }
     
-    let federalLoaded = false;
-    let customLoaded = false;
-    
-    const checkLoadingComplete = () => {
-        if (federalLoaded && customLoaded) {
-            setIsLoading(false);
-        }
-    };
-    
     setIsLoading(true);
 
     const userDocRef = doc(db, 'users', user.uid);
@@ -63,13 +54,9 @@ export default function HolidaysPage() {
         if (doc.exists()) {
             setObservedHolidays(new Set(doc.data().observedFederalHolidays || []));
         }
-        federalLoaded = true;
-        checkLoadingComplete();
     }, (error) => {
       console.error("Error fetching observed holidays:", error);
       toast({ title: 'Error', description: 'Failed to fetch federal holiday settings.', variant: 'destructive' });
-      federalLoaded = true;
-      checkLoadingComplete();
     });
 
     const customHolidaysRef = collection(db, 'users', user.uid, 'customHolidays');
@@ -83,13 +70,11 @@ export default function HolidaysPage() {
             };
         });
         setCustomHolidays(customData);
-        customLoaded = true;
-        checkLoadingComplete();
+        setIsLoading(false); 
     }, (error) => {
       console.error("Error fetching custom holidays:", error);
       toast({ title: 'Error', description: 'Failed to fetch custom holidays.', variant: 'destructive' });
-      customLoaded = true;
-      checkLoadingComplete();
+      setIsLoading(false);
     });
 
     return () => {
@@ -120,10 +105,12 @@ export default function HolidaysPage() {
   };
 
   const handleAddCustomHoliday = async () => {
-    if (!user || !newHolidayName.trim() || !newHolidayDate) {
+    if (!user) return;
+
+    if (!newHolidayName.trim() || !newHolidayDate) {
         toast({ title: 'Invalid Input', description: 'Please provide a valid name and date.', variant: 'destructive' });
         return;
-    };
+    }
     
     // The state `newHolidayDate` is already a Date object from the calendar component
     if (!isValid(newHolidayDate)) {
@@ -134,10 +121,11 @@ export default function HolidaysPage() {
     setIsSaving(true);
     try {
         const customHolidaysRef = collection(db, 'users', user.uid, 'customHolidays');
+        // Firestore SDK can handle native JavaScript Date objects directly.
+        // It will convert them to Firestore Timestamps automatically.
         await addDoc(customHolidaysRef, {
             name: newHolidayName.trim(),
-            // Firestore SDK handles native Date objects correctly
-            date: newHolidayDate,
+            date: newHolidayDate, 
         });
         setNewHolidayName('');
         setNewHolidayDate(undefined);
@@ -228,10 +216,11 @@ export default function HolidaysPage() {
                         value={newHolidayName} 
                         onChange={e => setNewHolidayName(e.target.value)} 
                         className="flex-1"
+                        disabled={isSaving}
                     />
                     <Popover>
                         <PopoverTrigger asChild>
-                        <Button variant={'outline'} className={cn("w-[200px] justify-start text-left font-normal", !newHolidayDate && "text-muted-foreground")}>
+                        <Button variant={'outline'} className={cn("w-[200px] justify-start text-left font-normal", !newHolidayDate && "text-muted-foreground")} disabled={isSaving}>
                             <CalendarIcon className="mr-2 h-4 w-4" />
                             {newHolidayDate ? format(newHolidayDate, 'LLL dd, y') : <span>Pick a date</span>}
                         </Button>
@@ -274,5 +263,3 @@ export default function HolidaysPage() {
     </div>
   );
 }
-
-    
