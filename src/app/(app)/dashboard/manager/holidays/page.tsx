@@ -51,58 +51,38 @@ export default function HolidaysPage() {
       return;
     }
     
-    let isMounted = true;
-    let unsubUser: () => void;
-    let unsubCustom: () => void;
+    setIsLoading(true);
+    const userDocRef = doc(db, 'users', user.uid);
+    const customHolidaysRef = collection(db, 'users', user.uid, 'customHolidays');
 
-    const loadData = async () => {
-        setIsLoading(true);
-        try {
-            // Federal Holidays Listener
-            unsubUser = onSnapshot(doc(db, 'users', user.uid), (doc) => {
-                if (isMounted && doc.exists()) {
-                    setObservedHolidays(new Set(doc.data().observedFederalHolidays || []));
-                }
-            }, (error) => {
-                 console.error("Error fetching observed holidays:", error);
-            });
-
-            // Custom Holidays Listener
-            unsubCustom = onSnapshot(collection(db, 'users', user.uid, 'customHolidays'), (snapshot) => {
-                if(isMounted) {
-                    const customData: CustomHoliday[] = snapshot.docs.map(d => {
-                        const data = d.data();
-                        const date = (data.date as Timestamp)?.toDate ? (data.date as Timestamp).toDate() : new Date();
-                        return {
-                            id: d.id,
-                            name: data.name,
-                            date: date
-                        };
-                    });
-                    setCustomHolidays(customData);
-                }
-            }, (error) => {
-                console.error("Error fetching custom holidays:", error);
-                if (isMounted) {
-                    toast({ title: 'Error', description: 'Failed to fetch custom holidays.', variant: 'destructive' });
-                }
-            });
-
-        } catch (error) {
-             console.error("Error setting up listeners:", error);
-        } finally {
-            if (isMounted) {
-                setIsLoading(false);
-            }
+    const unsubUser = onSnapshot(userDocRef, (doc) => {
+        if (doc.exists()) {
+            setObservedHolidays(new Set(doc.data().observedFederalHolidays || []));
         }
-    };
+    });
 
-    loadData();
+    const unsubCustom = onSnapshot(customHolidaysRef, (snapshot) => {
+        const customData: CustomHoliday[] = snapshot.docs.map(d => {
+            const data = d.data();
+            // Firestore timestamps need to be converted to JS Dates
+            const date = data.date && data.date.toDate ? data.date.toDate() : new Date();
+            return {
+                id: d.id,
+                name: data.name,
+                date: date
+            };
+        });
+        setCustomHolidays(customData);
+        setIsLoading(false);
+    }, (error) => {
+        console.error("Error fetching custom holidays:", error);
+        toast({ title: 'Error', description: 'Failed to fetch custom holidays.', variant: 'destructive' });
+        setIsLoading(false); // Still set loading to false on error
+    });
 
     return () => {
-      isMounted = false;
-      if (unsubUser) unsubUser();
-      if (unsubCustom) unsubCustom();
+      unsubUser();
+      unsubCustom();
     };
   }, [user, toast]);
 
@@ -132,7 +112,8 @@ export default function HolidaysPage() {
         toast({ title: "Not Authenticated", description: "You must be logged in.", variant: "destructive" });
         return;
     }
-
+    
+    // Stricter validation
     if (!newHolidayName.trim() || !(newHolidayDate instanceof Date) || isNaN(newHolidayDate.getTime())) {
         toast({ title: 'Invalid Input', description: 'Please provide a valid name and date.', variant: 'destructive' });
         return;
@@ -140,7 +121,6 @@ export default function HolidaysPage() {
 
     setIsSaving(true);
     
-    // LOGGING FOR DEBUGGING
     console.log("AUTH UID:", user?.uid);
     console.log("PATH:", `users/${user?.uid}/customHolidays`);
 
