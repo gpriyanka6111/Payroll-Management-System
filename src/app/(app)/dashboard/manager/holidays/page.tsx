@@ -75,10 +75,11 @@ export default function HolidaysPage() {
     const unsubCustom = onSnapshot(customHolidaysRef, (snapshot) => {
       const customData: CustomHoliday[] = snapshot.docs.map(d => {
         const data = d.data();
+        const date = (data.date as Timestamp)?.toDate ? (data.date as Timestamp).toDate() : new Date();
         return {
           id: d.id,
           name: data.name,
-          date: (data.date as Timestamp).toDate()
+          date: date
         };
       });
       setCustomHolidays(customData);
@@ -126,7 +127,6 @@ export default function HolidaysPage() {
         return;
     }
     
-    // The state `newHolidayDate` is a Date object from the calendar component
     if (!isValid(newHolidayDate)) {
         toast({ title: 'Invalid Date', description: 'The selected date is not valid.', variant: 'destructive' });
         return;
@@ -135,8 +135,6 @@ export default function HolidaysPage() {
     setIsSaving(true);
     try {
         const customHolidaysRef = collection(db, 'users', user.uid, 'customHolidays');
-        // Firestore SDK can handle native JavaScript Date objects directly.
-        // It will convert them to Firestore Timestamps automatically.
         await addDoc(customHolidaysRef, {
             name: newHolidayName.trim(),
             date: newHolidayDate, 
@@ -276,4 +274,5 @@ export default function HolidaysPage() {
       </div>
     </div>
   );
-}
+
+    
