@@ -1,16 +1,34 @@
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
     match /users/{uid} {
-      // Allow user to read/write their own document, and create it.
-      allow read, update, delete: if request.auth != null && request.auth.uid == uid;
+      // Allow a user to read and update their own user document,
+      // and allow any authenticated user to create a user document (on signup).
+      allow read, update: if request.auth.uid == uid;
       allow create: if request.auth != null;
 
-      // Explicitly allow list/create on the customHolidays subcollection
+      // This rule is critical: It allows a user to query and list
+      // the documents within their own 'customHolidays' subcollection.
+      // It also allows them to create, update, and delete documents in it.
       match /customHolidays/{holidayId} {
-        allow list, create: if request.auth != null && request.auth.uid == uid;
-        // Allow read/write/delete on individual documents in the subcollection
-        allow read, update, delete: if request.auth != null && request.auth.uid == uid;
+        allow list, create, read, update, delete: if request.auth.uid == uid;
+      }
+
+      // Similarly, grant access to other subcollections.
+      match /employees/{employeeId} {
+        allow list, create, read, update, delete: if request.auth.uid == uid;
+        match /timeEntries/{entryId} {
+          allow list, create, read, update, delete: if request.auth.uid == uid;
+        }
+      }
+
+      match /payrolls/{payrollId} {
+        allow list, create, read, update, delete: if request.auth.uid == uid;
+      }
+      
+      match /reminders/{reminderId} {
+         allow list, create, read, update, delete: if request.auth.uid == uid;
       }
     }
   }
