@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import * as React from 'react';
@@ -6,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Star, ChevronLeft, ChevronRight, Plus, Trash2, Loader2, Calendar as CalendarIcon } from 'lucide-react';
+import { Star, ChevronLeft, ChevronRight, Plus, Trash2, Loader2, Calendar as CalendarIcon, AlertTriangle } from 'lucide-react';
 import { getHolidaysForYear, Holiday } from '@/lib/holidays';
 import { format, isValid } from 'date-fns';
 import { useAuth } from '@/contexts/auth-context';
@@ -18,6 +19,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import { AnimatePresence, motion } from 'framer-motion';
 import { FirebaseError } from 'firebase/app';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 type CustomHoliday = {
     id: string;
@@ -48,36 +50,59 @@ export default function HolidaysPage() {
       setIsLoading(false);
       return;
     }
+    
+    let isMounted = true;
+    let unsubUser: () => void;
+    let unsubCustom: () => void;
 
-    const unsubUser = onSnapshot(doc(db, 'users', user.uid), (doc) => {
-      if (doc.exists()) {
-        setObservedHolidays(new Set(doc.data().observedFederalHolidays || []));
-      }
-    }, (error) => {
-      console.error("Error fetching observed holidays:", error);
-    });
+    const loadData = async () => {
+        setIsLoading(true);
+        try {
+            // Federal Holidays Listener
+            unsubUser = onSnapshot(doc(db, 'users', user.uid), (doc) => {
+                if (isMounted && doc.exists()) {
+                    setObservedHolidays(new Set(doc.data().observedFederalHolidays || []));
+                }
+            }, (error) => {
+                 console.error("Error fetching observed holidays:", error);
+            });
 
-    const unsubCustom = onSnapshot(collection(db, 'users', user.uid, 'customHolidays'), (snapshot) => {
-      const customData: CustomHoliday[] = snapshot.docs.map(d => {
-        const data = d.data();
-        const date = (data.date as Timestamp)?.toDate ? (data.date as Timestamp).toDate() : new Date();
-        return {
-          id: d.id,
-          name: data.name,
-          date: date
-        };
-      });
-      setCustomHolidays(customData);
-      setIsLoading(false);
-    }, (error) => {
-      console.error("Error fetching custom holidays:", error);
-      toast({ title: 'Error', description: 'Failed to fetch custom holidays.', variant: 'destructive' });
-      setIsLoading(false);
-    });
+            // Custom Holidays Listener
+            unsubCustom = onSnapshot(collection(db, 'users', user.uid, 'customHolidays'), (snapshot) => {
+                if(isMounted) {
+                    const customData: CustomHoliday[] = snapshot.docs.map(d => {
+                        const data = d.data();
+                        const date = (data.date as Timestamp)?.toDate ? (data.date as Timestamp).toDate() : new Date();
+                        return {
+                            id: d.id,
+                            name: data.name,
+                            date: date
+                        };
+                    });
+                    setCustomHolidays(customData);
+                }
+            }, (error) => {
+                console.error("Error fetching custom holidays:", error);
+                if (isMounted) {
+                    toast({ title: 'Error', description: 'Failed to fetch custom holidays.', variant: 'destructive' });
+                }
+            });
+
+        } catch (error) {
+             console.error("Error setting up listeners:", error);
+        } finally {
+            if (isMounted) {
+                setIsLoading(false);
+            }
+        }
+    };
+
+    loadData();
 
     return () => {
-      unsubUser();
-      unsubCustom();
+      isMounted = false;
+      if (unsubUser) unsubUser();
+      if (unsubCustom) unsubCustom();
     };
   }, [user, toast]);
 
@@ -114,6 +139,11 @@ export default function HolidaysPage() {
     }
 
     setIsSaving(true);
+    
+    // LOGGING FOR DEBUGGING
+    console.log("AUTH UID:", user?.uid);
+    console.log("PATH:", `users/${user?.uid}/customHolidays`);
+
     try {
         const customHolidaysRef = collection(db, 'users', user.uid, 'customHolidays');
         await addDoc(customHolidaysRef, {
