@@ -429,72 +429,109 @@ export default function TimesheetPage() {
 
     const handleExportToExcel = () => {
         if (!dateRange?.from || !dateRange.to || !employees.length) return;
-
+    
         const wb = XLSX.utils.book_new();
-        const ws_data: (string | number | null)[][] = [];
         const sheetName = "Timesheet";
-
+        const EMPLOYEES_PER_PAGE = 5;
+    
+        const employeePages = [];
+        for (let i = 0; i < employees.length; i += EMPLOYEES_PER_PAGE) {
+            employeePages.push(employees.slice(i, i + EMPLOYEES_PER_PAGE));
+        }
+    
+        const ws_data: (string | number | null)[][] = [];
         const payDate = getPayDateForPeriod(dateRange.from);
         const payDateStr = payDate ? `Pay Date: ${format(payDate, 'LLL dd, yyyy')}` : '';
         const title = `${companyName} - Time Report: ${format(dateRange.from, 'LLL dd, yyyy')} - ${format(dateRange.to, 'LLL dd, yyyy')} - ${payDateStr}`;
         ws_data.push([title]);
-
-        const employeeHeaders = employees.map(e => e.firstName.toUpperCase());
-        ws_data.push([null, 'Metric', ...employeeHeaders]);
-
+    
+        let fullEmployeeHeaders: (string | null)[] = [];
+        employeePages.forEach((page, pageIndex) => {
+            const pageHeaders = page.map(e => e.firstName.toUpperCase());
+            const padding = Array(EMPLOYEES_PER_PAGE - pageHeaders.length).fill(null);
+            fullEmployeeHeaders.push(...pageHeaders, ...padding);
+            if (pageIndex < employeePages.length - 1) {
+                fullEmployeeHeaders.push(null); // Gutter column
+            }
+        });
+    
+        ws_data.push([null, 'Metric', ...fullEmployeeHeaders]);
+    
         const daysInPeriod = eachDayOfInterval({ start: dateRange.from, end: dateRange.to });
-
+    
         daysInPeriod.forEach(day => {
             const inRow: (string | number | null)[] = [format(day, 'eee, MMM dd'), 'In:'];
             const outRow: (string | number | null)[] = [null, 'Out:'];
             const totalRow: (string | number | null)[] = [null, 'Total:'];
-
-            employees.forEach(emp => {
-                const summary = dailySummaries.find(s => s.employeeId === emp.id && isSameDay(s.date, day));
-                const entry = summary?.entries[0];
-                let dailyTotal = 0;
-
-                if (entry) {
-                    inRow.push(format(entry.timeIn.toDate(), 'p'));
-                    if (entry.timeOut) {
-                        outRow.push(format(entry.timeOut.toDate(), 'p'));
-                        const roundedIn = applyRoundingRules(entry.timeIn.toDate());
-                        const roundedOut = applyRoundingRules(entry.timeOut.toDate());
-                        const minutes = differenceInMinutes(roundedOut, roundedIn);
-                        dailyTotal = minutes > 0 ? minutes / 60 : 0;
+    
+            employeePages.forEach((page, pageIndex) => {
+                page.forEach(emp => {
+                    const summary = dailySummaries.find(s => s.employeeId === emp.id && isSameDay(s.date, day));
+                    const entry = summary?.entries[0];
+                    let dailyTotal = 0;
+    
+                    if (entry) {
+                        inRow.push(format(entry.timeIn.toDate(), 'p'));
+                        if (entry.timeOut) {
+                            outRow.push(format(entry.timeOut.toDate(), 'p'));
+                            const roundedIn = applyRoundingRules(entry.timeIn.toDate());
+                            const roundedOut = applyRoundingRules(entry.timeOut.toDate());
+                            const minutes = differenceInMinutes(roundedOut, roundedIn);
+                            dailyTotal = minutes > 0 ? minutes / 60 : 0;
+                        } else {
+                            outRow.push('ACTIVE');
+                        }
                     } else {
-                        outRow.push('ACTIVE');
+                        inRow.push('-');
+                        outRow.push('-');
                     }
-                } else {
-                    inRow.push('-');
-                    outRow.push('-');
+                    totalRow.push(dailyTotal > 0 ? parseFloat(dailyTotal.toFixed(2)) : '-');
+                });
+    
+                // Add padding for the last page if necessary
+                if (page.length < EMPLOYEES_PER_PAGE) {
+                    const padding = Array(EMPLOYEES_PER_PAGE - page.length).fill('-');
+                    inRow.push(...padding);
+                    outRow.push(...padding);
+                    totalRow.push(...padding);
                 }
-                totalRow.push(dailyTotal > 0 ? parseFloat(dailyTotal.toFixed(2)) : '-');
+    
+                 if (pageIndex < employeePages.length - 1) {
+                    inRow.push(null);
+                    outRow.push(null);
+                    totalRow.push(null);
+                }
             });
-
+    
             ws_data.push(inRow, outRow, totalRow);
         });
-
+    
         const grandTotalRow: (string | number | null)[] = ['Total Hours', null];
-        employees.forEach(emp => {
-            const total = employeeTotals.get(emp.id) || 0;
-            grandTotalRow.push(parseFloat(total.toFixed(2)));
+        employeePages.forEach((page, pageIndex) => {
+            page.forEach(emp => {
+                const total = employeeTotals.get(emp.id) || 0;
+                grandTotalRow.push(parseFloat(total.toFixed(2)));
+            });
+             if (page.length < EMPLOYEES_PER_PAGE) {
+                grandTotalRow.push(...Array(EMPLOYEES_PER_PAGE - page.length).fill(null));
+            }
+             if (pageIndex < employeePages.length - 1) {
+                grandTotalRow.push(null); // Gutter
+            }
         });
         ws_data.push(grandTotalRow);
-
+    
         const ws = XLSX.utils.aoa_to_sheet(ws_data);
-
-        const merges: XLSX.Range[] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 1 + employees.length } }];
-        
+    
+        const merges: XLSX.Range[] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: fullEmployeeHeaders.length + 1 } }];
         let mergeStartRow = 2;
         daysInPeriod.forEach(() => {
             merges.push({ s: { r: mergeStartRow, c: 0 }, e: { r: mergeStartRow + 2, c: 0 } });
             mergeStartRow += 3;
         });
-        
-        merges.push({s: {r: ws_data.length - 1, c: 0}, e: {r: ws_data.length - 1, c: 1 } });
+        merges.push({ s: { r: ws_data.length - 1, c: 0 }, e: { r: ws_data.length - 1, c: 1 } });
         ws['!merges'] = merges;
-        
+    
         const thickBorderSide = { style: "thick", color: { rgb: "000000" } };
         const thinBorderSide = { style: "thin", color: { rgb: "000000" } };
         const titleStyle: XLSX.CellStyle = {
@@ -505,37 +542,29 @@ export default function TimesheetPage() {
         const headerStyle: XLSX.CellStyle = {
             border: { top: thickBorderSide, bottom: thickBorderSide, left: thickBorderSide, right: thickBorderSide },
             font: { bold: true },
-            alignment: { horizontal: 'center', vertical: 'center' }
+            alignment: { horizontal: 'center', vertical: 'center', wrapText: true, shrinkToFit: true }
         };
-
+    
         const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
-
+    
         for (let R = range.s.r; R <= range.e.r; ++R) {
             for (let C = range.s.c; C <= range.e.c; ++C) {
                 const cellRef = XLSX.utils.encode_cell({ c: C, r: R });
                 if (!ws[cellRef]) ws[cellRef] = { t: 's', v: '' };
                 const cell = ws[cellRef];
-                
-                let currentStyle: XLSX.CellStyle = {
-                     alignment: cell.s?.alignment || {}
-                };
-
+    
+                let currentStyle: XLSX.CellStyle = { alignment: cell.s?.alignment || {} };
+    
                 if (R === 0) {
-                     currentStyle = titleStyle;
+                    currentStyle = titleStyle;
                 } else if (R === 1) {
-                     currentStyle = { 
-                        ...headerStyle, 
-                        alignment: { 
-                            ...headerStyle.alignment, 
-                            shrinkToFit: C > 1 // Apply shrinkToFit only to employee name headers
-                        } 
-                     };
+                    currentStyle = { ...headerStyle };
                 } else {
                     const rowLabel = ws[XLSX.utils.encode_cell({ c: 1, r: R })]?.v;
                     const isTotalRow = rowLabel === 'Total:';
                     const isGrandTotalRow = ws_data[R]?.[0] === 'Total Hours';
                     const isDateCell = C === 0 && ws_data[R]?.[0] && typeof ws_data[R]?.[0] === 'string';
-
+    
                     let cellBorderStyle: XLSX.Border = {
                         top: thinBorderSide, bottom: thinBorderSide, left: thickBorderSide, right: thickBorderSide
                     };
@@ -546,47 +575,48 @@ export default function TimesheetPage() {
                     } else if (isTotalRow) {
                         cellBorderStyle.bottom = thickBorderSide;
                     }
-                    
+    
                     currentStyle.border = cellBorderStyle;
                     currentStyle.font = { ...cell.s?.font, bold: isTotalRow || isGrandTotalRow };
-
+    
                     if (isDateCell) {
                        currentStyle.alignment = { ...currentStyle.alignment, vertical: 'center', horizontal: 'center' };
                     }
                 }
-                
+    
                 cell.s = { ...(cell.s || {}), ...currentStyle };
             }
         }
-        
-        ws['!cols'] = [{ wch: 14 }, { wch: 5 }, ...Array(employees.length).fill({ wch: 10 })];
+    
+        const colsConfig = [{ wch: 14 }, { wch: 5 }];
+        fullEmployeeHeaders.forEach(header => {
+            colsConfig.push(header ? { wch: 10 } : { hidden: true });
+        });
+        ws['!cols'] = colsConfig;
+    
         ws['!rows'] = [
             { hpt: 25 }, 
             { hpt: 20 }, 
             ...Array(ws_data.length - 2).fill({})
         ];
-
+    
         ws['!pageSetup'] = {
             orientation: 'landscape',
-            fitToPage: true,
-            fitToWidth: 1,
-            fitToHeight: 0,
-            margin: { left: 0, right: 0, top: 0, bottom: 0 }
+            fitToPage: false,
+            margin: { left: 0.25, right: 0.25, top: 0.5, bottom: 0.5 }
         };
-        
+    
+        const printTitlesRef = `${sheetName}!$A:$B`;
         wb.SheetNames.push(sheetName);
         wb.Sheets[sheetName] = ws;
-        
-        wb.Workbook = {
-            ...wb.Workbook,
-            Names: [
-                {
-                    Name: 'Print_Titles',
-                    Sheet: 0,
-                    Ref: `${sheetName}!$A:$${XLSX.utils.encode_col(1 + employees.length)},${sheetName}!$1:$2`
-                }
-            ]
-        };
+    
+        if (!wb.Workbook) wb.Workbook = {};
+        if (!wb.Workbook.Names) wb.Workbook.Names = [];
+        wb.Workbook.Names.push({
+            Name: 'Print_Titles',
+            Sheet: 0,
+            Ref: printTitlesRef,
+        });
         
         const fileName = `Timesheet_${format(dateRange.from, 'yyyy-MM-dd')}_to_${format(dateRange.to, 'yyyy-MM-dd')}.xlsx`;
         XLSX.writeFile(wb, fileName);
@@ -771,6 +801,7 @@ export default function TimesheetPage() {
     
 
     
+
 
 
 
