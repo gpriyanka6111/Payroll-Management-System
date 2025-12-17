@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import * as React from 'react';
@@ -9,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Star, ChevronLeft, ChevronRight, Plus, Trash2, Loader2, Calendar as CalendarIcon } from 'lucide-react';
 import { getHolidaysForYear, Holiday } from '@/lib/holidays';
-import { format, isValid } from 'date-fns';
+import { format, isValid, parseISO } from 'date-fns';
 import { useAuth } from '@/contexts/auth-context';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, updateDoc, arrayUnion, arrayRemove, collection, addDoc, onSnapshot, deleteDoc, Timestamp } from 'firebase/firestore';
@@ -125,16 +124,20 @@ export default function HolidaysPage() {
         toast({ title: 'Invalid Input', description: 'Please provide a valid name and date.', variant: 'destructive' });
         return;
     };
+    
+    // The state `newHolidayDate` is already a Date object from the calendar component
     if (!isValid(newHolidayDate)) {
         toast({ title: 'Invalid Date', description: 'The selected date is not valid.', variant: 'destructive' });
         return;
     }
+
     setIsSaving(true);
     try {
         const customHolidaysRef = collection(db, 'users', user.uid, 'customHolidays');
         await addDoc(customHolidaysRef, {
             name: newHolidayName.trim(),
-            date: Timestamp.fromDate(newHolidayDate),
+            // Firestore SDK handles native Date objects correctly
+            date: newHolidayDate,
         });
         setNewHolidayName('');
         setNewHolidayDate(undefined);
@@ -272,5 +275,4 @@ export default function HolidaysPage() {
   );
 }
 
-    
     
