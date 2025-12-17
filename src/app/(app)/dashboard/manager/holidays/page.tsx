@@ -48,31 +48,15 @@ export default function HolidaysPage() {
       return;
     }
 
-    let federalHolidaysLoaded = false;
-    let customHolidaysLoaded = false;
-
-    const checkLoadingComplete = () => {
-      if (federalHolidaysLoaded && customHolidaysLoaded) {
-        setIsLoading(false);
-      }
-    };
-
-    const userDocRef = doc(db, 'users', user.uid);
-    const unsubUser = onSnapshot(userDocRef, (doc) => {
+    const unsubUser = onSnapshot(doc(db, 'users', user.uid), (doc) => {
       if (doc.exists()) {
         setObservedHolidays(new Set(doc.data().observedFederalHolidays || []));
       }
-      federalHolidaysLoaded = true;
-      checkLoadingComplete();
     }, (error) => {
       console.error("Error fetching observed holidays:", error);
-      toast({ title: 'Error', description: 'Failed to fetch federal holiday settings.', variant: 'destructive' });
-      federalHolidaysLoaded = true;
-      checkLoadingComplete();
     });
 
-    const customHolidaysRef = collection(db, 'users', user.uid, 'customHolidays');
-    const unsubCustom = onSnapshot(customHolidaysRef, (snapshot) => {
+    const unsubCustom = onSnapshot(collection(db, 'users', user.uid, 'customHolidays'), (snapshot) => {
       const customData: CustomHoliday[] = snapshot.docs.map(d => {
         const data = d.data();
         const date = (data.date as Timestamp)?.toDate ? (data.date as Timestamp).toDate() : new Date();
@@ -83,13 +67,11 @@ export default function HolidaysPage() {
         };
       });
       setCustomHolidays(customData);
-      customHolidaysLoaded = true;
-      checkLoadingComplete();
+      setIsLoading(false);
     }, (error) => {
       console.error("Error fetching custom holidays:", error);
       toast({ title: 'Error', description: 'Failed to fetch custom holidays.', variant: 'destructive' });
-      customHolidaysLoaded = true;
-      checkLoadingComplete();
+      setIsLoading(false);
     });
 
     return () => {
@@ -137,7 +119,7 @@ export default function HolidaysPage() {
         const customHolidaysRef = collection(db, 'users', user.uid, 'customHolidays');
         await addDoc(customHolidaysRef, {
             name: newHolidayName.trim(),
-            date: newHolidayDate, 
+            date: Timestamp.fromDate(newHolidayDate), 
         });
         setNewHolidayName('');
         setNewHolidayDate(undefined);
@@ -274,5 +256,4 @@ export default function HolidaysPage() {
       </div>
     </div>
   );
-
-    
+}
