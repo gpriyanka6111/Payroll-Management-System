@@ -8,10 +8,10 @@ import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Star, ChevronLeft, ChevronRight, Plus, Trash2, Loader2, Calendar as CalendarIcon } from 'lucide-react';
 import { getHolidaysForYear, Holiday } from '@/lib/holidays';
-import { format, isValid, parseISO } from 'date-fns';
+import { format, isValid } from 'date-fns';
 import { useAuth } from '@/contexts/auth-context';
 import { db } from '@/lib/firebase';
-import { doc, getDoc, updateDoc, arrayUnion, arrayRemove, collection, addDoc, onSnapshot, deleteDoc, Timestamp } from 'firebase/firestore';
+import { doc, updateDoc, arrayUnion, arrayRemove, collection, addDoc, onSnapshot, deleteDoc, Timestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
@@ -31,6 +31,7 @@ export default function HolidaysPage() {
   const [federalHolidays, setFederalHolidays] = React.useState<Holiday[]>([]);
   const [observedHolidays, setObservedHolidays] = React.useState<Set<string>>(new Set());
   const [customHolidays, setCustomHolidays] = React.useState<CustomHoliday[]>([]);
+  
   const [isLoading, setIsLoading] = React.useState(true);
   const [isSaving, setIsSaving] = React.useState(false);
   
@@ -43,46 +44,59 @@ export default function HolidaysPage() {
 
   React.useEffect(() => {
     if (!user) {
-        setIsLoading(false);
-        return;
+      setIsLoading(false);
+      return;
     }
-    
-    setIsLoading(true);
+
+    let federalHolidaysLoaded = false;
+    let customHolidaysLoaded = false;
+
+    const checkLoadingComplete = () => {
+      if (federalHolidaysLoaded && customHolidaysLoaded) {
+        setIsLoading(false);
+      }
+    };
 
     const userDocRef = doc(db, 'users', user.uid);
     const unsubUser = onSnapshot(userDocRef, (doc) => {
-        if (doc.exists()) {
-            setObservedHolidays(new Set(doc.data().observedFederalHolidays || []));
-        }
+      if (doc.exists()) {
+        setObservedHolidays(new Set(doc.data().observedFederalHolidays || []));
+      }
+      federalHolidaysLoaded = true;
+      checkLoadingComplete();
     }, (error) => {
       console.error("Error fetching observed holidays:", error);
       toast({ title: 'Error', description: 'Failed to fetch federal holiday settings.', variant: 'destructive' });
+      federalHolidaysLoaded = true;
+      checkLoadingComplete();
     });
 
     const customHolidaysRef = collection(db, 'users', user.uid, 'customHolidays');
     const unsubCustom = onSnapshot(customHolidaysRef, (snapshot) => {
-        const customData: CustomHoliday[] = snapshot.docs.map(d => {
-            const data = d.data();
-            return {
-                id: d.id,
-                name: data.name,
-                date: (data.date as Timestamp).toDate()
-            };
-        });
-        setCustomHolidays(customData);
-        setIsLoading(false); 
+      const customData: CustomHoliday[] = snapshot.docs.map(d => {
+        const data = d.data();
+        return {
+          id: d.id,
+          name: data.name,
+          date: (data.date as Timestamp).toDate()
+        };
+      });
+      setCustomHolidays(customData);
+      customHolidaysLoaded = true;
+      checkLoadingComplete();
     }, (error) => {
       console.error("Error fetching custom holidays:", error);
       toast({ title: 'Error', description: 'Failed to fetch custom holidays.', variant: 'destructive' });
-      setIsLoading(false);
+      customHolidaysLoaded = true;
+      checkLoadingComplete();
     });
 
     return () => {
-        unsubUser();
-        unsubCustom();
+      unsubUser();
+      unsubCustom();
     };
-
   }, [user, toast]);
+
 
   const handlePreviousYear = () => setYear(prevYear => prevYear - 1);
   const handleNextYear = () => setYear(prevYear => prevYear + 1);
@@ -112,7 +126,7 @@ export default function HolidaysPage() {
         return;
     }
     
-    // The state `newHolidayDate` is already a Date object from the calendar component
+    // The state `newHolidayDate` is a Date object from the calendar component
     if (!isValid(newHolidayDate)) {
         toast({ title: 'Invalid Date', description: 'The selected date is not valid.', variant: 'destructive' });
         return;
