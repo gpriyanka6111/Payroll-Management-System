@@ -439,7 +439,8 @@ export default function TimesheetPage() {
         const title = `${companyName} - Time Report: ${format(dateRange.from, 'LLL dd, yyyy')} - ${format(dateRange.to, 'LLL dd, yyyy')} - ${payDateStr}`;
         ws_data.push([title]);
 
-        ws_data.push([null, 'Metric', ...employees.map(e => e.firstName.toUpperCase())]);
+        const employeeHeaders = employees.map(e => e.firstName.toUpperCase());
+        ws_data.push([null, 'Metric', ...employeeHeaders]);
 
         const daysInPeriod = eachDayOfInterval({ start: dateRange.from, end: dateRange.to });
 
@@ -494,7 +495,6 @@ export default function TimesheetPage() {
         merges.push({s: {r: ws_data.length - 1, c: 0}, e: {r: ws_data.length - 1, c: 1 } });
         ws['!merges'] = merges;
         
-        // Define styles
         const thickBorderSide = { style: "thick", color: { rgb: "000000" } };
         const thinBorderSide = { style: "thin", color: { rgb: "000000" } };
         const titleStyle: XLSX.CellStyle = {
@@ -516,17 +516,25 @@ export default function TimesheetPage() {
                 if (!ws[cellRef]) ws[cellRef] = { t: 's', v: '' };
                 const cell = ws[cellRef];
                 
-                let currentStyle: XLSX.CellStyle = {};
+                let currentStyle: XLSX.CellStyle = {
+                     alignment: cell.s?.alignment || {}
+                };
 
                 if (R === 0) {
                      currentStyle = titleStyle;
                 } else if (R === 1) {
-                     currentStyle = headerStyle;
+                     currentStyle = { 
+                        ...headerStyle, 
+                        alignment: { 
+                            ...headerStyle.alignment, 
+                            shrinkToFit: C > 1 // Apply shrinkToFit only to employee name headers
+                        } 
+                     };
                 } else {
                     const rowLabel = ws[XLSX.utils.encode_cell({ c: 1, r: R })]?.v;
                     const isTotalRow = rowLabel === 'Total:';
                     const isGrandTotalRow = ws_data[R]?.[0] === 'Total Hours';
-                    const isDateCell = C === 0;
+                    const isDateCell = C === 0 && ws_data[R]?.[0] && typeof ws_data[R]?.[0] === 'string';
 
                     let cellBorderStyle: XLSX.Border = {
                         top: thinBorderSide, bottom: thinBorderSide, left: thickBorderSide, right: thickBorderSide
@@ -534,16 +542,16 @@ export default function TimesheetPage() {
                     
                     if (isGrandTotalRow) {
                         cellBorderStyle.top = thinBorderSide;
-                        cellBorderStyle.bottom = thickBorderSide;
+                        cellBorderStyle.bottom = thinBorderSide;
                     } else if (isTotalRow) {
                         cellBorderStyle.bottom = thickBorderSide;
                     }
                     
                     currentStyle.border = cellBorderStyle;
-                    currentStyle.font = { bold: isTotalRow || isGrandTotalRow };
+                    currentStyle.font = { ...cell.s?.font, bold: isTotalRow || isGrandTotalRow };
 
                     if (isDateCell) {
-                       currentStyle.alignment = { vertical: 'center', horizontal: 'justify' };
+                       currentStyle.alignment = { ...currentStyle.alignment, vertical: 'center', horizontal: 'center' };
                     }
                 }
                 
@@ -551,7 +559,7 @@ export default function TimesheetPage() {
             }
         }
         
-        ws['!cols'] = [{ wch: 14 }, { wch: 5 }, ...Array(employees.length).fill({ wch: 12 })];
+        ws['!cols'] = [{ wch: 14 }, { wch: 5 }, ...Array(employees.length).fill({ wch: 10 })];
         ws['!rows'] = [
             { hpt: 25 }, 
             { hpt: 20 }, 
@@ -565,7 +573,6 @@ export default function TimesheetPage() {
             fitToHeight: 0,
             margin: { left: 0, right: 0, top: 0, bottom: 0 }
         };
-        
         
         wb.SheetNames.push(sheetName);
         wb.Sheets[sheetName] = ws;
@@ -764,6 +771,7 @@ export default function TimesheetPage() {
     
 
     
+
 
 
 
